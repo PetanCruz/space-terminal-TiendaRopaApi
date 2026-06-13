@@ -15,4 +15,6 @@ RUN dotnet publish -c Release -o /app/publish
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+# Copiar wwwroot explícitamente
+COPY --from=publish /src/wwwroot ./wwwroot
 ENTRYPOINT ["dotnet", "TiendaRopaAPI.dll"]
