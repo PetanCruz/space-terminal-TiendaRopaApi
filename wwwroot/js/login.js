@@ -1,4 +1,4 @@
-const URL_API = "http://localhost:5000/api/auth/login"; // <-- Asegurate de que este sea el puerto de tu API
+const URL_API = "/api/auth/login"; // <-- Asegurate de que este sea el puerto de tu API
 
 document.getElementById("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault(); // Evita que la página se recargue
