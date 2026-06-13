@@ -1,0 +1,16 @@
+# Credenciales y configuración sensible
+appsettings.json
+appsettings.Production.json
+Certificados/
+
+# Archivos de compilación
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Node
+node_modules/

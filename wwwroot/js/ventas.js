@@ -1,0 +1,2769 @@
+// ========================================================
+// CONFIGURACIÓN GLOBAL Y ESTADO DE LA APP
+// ========================================================
+const API_URL = "http://localhost:5000/api"; // Ajustá el puerto si usás otro
+let productos = [];       // Guarda las prendas traídas de la API
+let carrito = [];         // Guarda los artículos seleccionados para la venta
+window.ventasGlobales = []; // 📅 Almacén en memoria para filtros instantáneos de historial
+
+// ========================================================
+// 1. CARGAR PRODUCTOS EN EL CATÁLOGO
+// ========================================================
+async function cargarProductos() {
+    const contenedor = document.getElementById("productosCatalogo");
+    if (!contenedor) return;
+
+    try {
+        const token = localStorage.getItem("token"); // Recuperamos el token
+        const respuesta = await fetch(`${API_URL}/productos`, {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${token}`, // ENVIAMOS EL TOKEN
+                "Content-Type": "application/json"
+            }
+        });
+
+        if (!respuesta.ok) throw new Error("Error de autenticación o servidor");
+        
+        productos = await respuesta.json();
+        renderizarCatalogo(productos);
+        console.log("✅ Catálogo cargado con éxito.");
+
+    } catch (error) {
+        console.error("Error al cargar productos:", error);
+        contenedor.innerHTML = `<p class="text-rose-400 p-4">Error al cargar productos. Intentá recargar.</p>`;
+    }
+}
+
+// ========================================================
+// 2. DIBUJAR EL CATÁLOGO EN PANTALLA
+// ========================================================
+function renderizarCatalogo(productosAFiltrar) {
+    const contenedor = document.getElementById("productosCatalogo");
+    if (!contenedor) return;
+
+    contenedor.innerHTML = "";
+
+    if (!productosAFiltrar || productosAFiltrar.length === 0) {
+        contenedor.innerHTML = `
+            <div class="p-8 text-center text-slate-500 col-span-full border border-dashed border-slate-800 rounded-2xl">
+                📦 No se encontraron prendas que coincidan con la búsqueda.
+            </div>`;
+        return;
+    }
+
+    productosAFiltrar.forEach((producto) => {
+        const nombreBase = producto.nombre ?? producto.Nombre ?? "Prenda";
+        const precio = producto.precio ?? producto.Precio ?? 0;
+        const categoriaTexto = producto.categoria ?? producto.Categoria ?? "JEANS";
+        const variantes = producto.variantes ?? producto.Variantes ?? [];
+
+        if (variantes.length === 0) {
+            dibujarTarjetaHtml(contenedor, producto.id ?? producto.Id, nombreBase, precio, 0, "N/A", "N/A", categoriaTexto);
+            return;
+        }
+
+        variantes.forEach((variante) => {
+            const varianteId = variante.id ?? variante.Id;
+            const talle = variante.talle ?? variante.Talle ?? "N/A";
+            const color = variante.color ?? variante.Color ?? "N/A";
+            const stockOriginal = variante.stock ?? variante.Stock ?? 0;
+
+            const itemEnCarrito = carrito.find(item => item.id === varianteId);
+            const cantidadEnCarrito = itemEnCarrito ? itemEnCarrito.cantidad : 0;
+            const stockDinamico = stockOriginal - cantidadEnCarrito;
+
+            dibujarTarjetaHtml(contenedor, varianteId, nombreBase, precio, stockDinamico, talle, color, categoriaTexto);
+        });
+    });
+}
+
+// ========================================================
+// 🎨 RENDERS: TARJETA CON ALERTA DE STOCK CRÍTICO
+// ========================================================
+function dibujarTarjetaHtml(contenedor, id, nombre, precio, stock, talle, color, categoria) {
+    const tieneStock = stock > 0;
+    const esCritico = tieneStock && stock <= 3; // 🔥 SE ACTIVA SI QUEDAN 3 O MENOS
+
+    // Configuramos dinámicamente los estilos según el nivel de stock
+    let claseStock = "text-slate-400";
+    let textoStock = `Stock: ${stock} u.`;
+    let badgeCritico = "";
+
+    if (!tieneStock) {
+        claseStock = "text-rose-400 font-medium";
+        textoStock = "🚫 Sin Stock";
+    } else if (esCritico) {
+        claseStock = "text-amber-400 font-bold animate-pulse";
+        textoStock = `⚠️ ¡Últimas ${stock} unidades!`;
+        // Badge flotante arriba a la derecha
+        badgeCritico = `
+            <span class="bg-amber-950/80 text-amber-400 text-[9px] font-extrabold px-2 py-0.5 rounded-md border border-amber-500/30 animate-pulse">
+                STOCK CRÍTICO
+            </span>`;
+    }
+
+    const tarjeta = document.createElement("div");
+    // Si es crítico, le ponemos un borde ámbar sutil y una leve sombra para destacar
+    tarjeta.className = `bg-slate-900 p-4 rounded-2xl border ${esCritico ? 'border-amber-500/40 shadow-lg shadow-amber-950/20' : 'border-slate-800'} flex flex-col justify-between transition-all duration-300`;
+
+    tarjeta.innerHTML = `
+        <div>
+            <div class="flex justify-between items-center">
+                <span class="bg-indigo-950 text-indigo-400 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border border-indigo-500/20">
+                    ${categoria}
+                </span>
+                ${badgeCritico}
+            </div>
+            
+            <h3 class="text-white font-bold mt-2 text-base">${nombre}</h3>
+            
+            <div class="flex gap-2 mt-1">
+                <span class="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded">Talle: ${talle}</span>
+                <span class="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded">Color: ${color}</span>
+            </div>
+            
+            <p class="text-xs ${claseStock} mt-3 flex items-center gap-1">
+                ${textoStock}
+            </p>
+        </div>
+        
+        <div class="flex justify-between items-center mt-4">
+            <span class="text-emerald-400 font-extrabold text-lg">$${precio}</span>
+            <button 
+                onclick="agregarAlCarritoPorId(${id})" 
+                ${tieneStock ? '' : 'disabled'} 
+                class="${tieneStock ? 'bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer' : 'bg-slate-800 text-slate-500 cursor-not-allowed'} font-bold text-xs px-4 py-2 rounded-xl transition-all">
+                ${tieneStock ? 'Agregar' : 'Sin Stock'}
+            </button>
+        </div>
+    `;
+    contenedor.appendChild(tarjeta);
+}
+
+// ========================================================
+// 🔍 LÓGICA DEL BUSCADOR EN TIEMPO REAL (CATÁLOGO)
+// ========================================================
+function filtrarProductos() {
+    const buscador = document.getElementById("inputBuscador");
+    if (!buscador) return;
+    const textoBusqueda = buscador.value.toLowerCase();
+
+    const productosFiltrados = productos.filter(item => {
+        const nombre = (item.nombre || item.Nombre || "").toLowerCase();
+        const talle = String(item.talle || item.Talle || "").toLowerCase();
+        const color = (item.color || item.Color || "").toLowerCase();
+
+        return nombre.includes(textoBusqueda) || 
+               talle.includes(textoBusqueda) || 
+               color.includes(textoBusqueda);
+    });
+
+    renderizarCatalogo(productosFiltrados);
+}
+
+// ========================================================
+// GESTIÓN DEL CARRITO DE COMPRAS
+// ========================================================
+function agregarAlCarritoPorId(id) {
+    const indexReal = productos.findIndex(p => {
+        const variantes = p.variantes ?? p.Variantes ?? [];
+        return variantes.some(v => (v.id ?? v.Id) === id);
+    });
+
+    if (indexReal !== -1) {
+        agregarAlCarrito(indexReal, id); 
+    } else {
+        console.error("No se encontró ningún producto que tenga la variante con ID:", id);
+    }
+}
+
+// Agregar al carrito
+function agregarAlCarrito(index, varianteId) {
+    const productoSeleccionado = productos[index];
+    const variantes = productoSeleccionado.variantes ?? productoSeleccionado.Variantes ?? [];
+    
+    const varianteSeleccionada = variantes.find(v => (v.id ?? v.Id) === varianteId);
+    if (!varianteSeleccionada) return;
+
+    const itemEnCarrito = carrito.find(item => item.id === varianteId);
+    const stockDisponible = varianteSeleccionada.stock ?? varianteSeleccionada.Stock ?? 0;
+
+    if (itemEnCarrito) {
+        if (itemEnCarrito.cantidad < stockDisponible) {
+            itemEnCarrito.cantidad++;
+        } else {
+            alert("No podés agregar más unidades que las disponibles en stock de este talle/color.");
+            return;
+        }
+    } else {
+        carrito.push({
+            id: varianteId, 
+            nombre: productoSeleccionado.nombre,
+            precio: productoSeleccionado.precio,
+            talle: varianteSeleccionada.talle ?? varianteSeleccionada.Talle ?? "N/A",
+            color: varianteSeleccionada.color ?? varianteSeleccionada.Color ?? "N/A",
+            amount: 1, 
+            cantidad: 1
+        });
+    }
+
+    actualizarInterfazCarrito();
+    filtrarProductos();
+}
+
+// Eliminar del Carrito
+function eliminarDelCarrito(index) {
+    carrito.splice(index, 1);
+    actualizarInterfazCarrito();
+    filtrarProductos();
+}
+
+// ========================================================
+// 4. ACTUALIZAR EL TICKET VISUAL (DERECHA)
+// ========================================================
+function actualizarInterfazCarrito() {
+    const contenedor = document.getElementById("carritoItems");
+    const totalText = document.getElementById("totalVenta");
+    if (!contenedor || !totalText) return;
+
+    contenedor.innerHTML = "";
+    
+    if (carrito.length === 0) {
+        contenedor.innerHTML = `
+            <div id="carritoVacio" class="text-slate-500 text-center py-8 text-sm">
+                El ticket está vacío. Seleccioná una prenda.
+            </div>
+        `;
+        totalText.textContent = "$0";
+        
+        const inputDesc = document.getElementById("inputDescuentoRecargo");
+        if (inputDesc) inputDesc.value = "";
+        return;
+    }
+
+    let totalBase = 0;
+
+    carrito.forEach((item, index) => {
+        totalBase += item.precio * item.cantidad;
+        const row = document.createElement("div");
+        row.className = "bg-slate-900 p-3 rounded-xl border border-slate-700/60 flex justify-between items-center text-sm mb-2";
+        row.innerHTML = `
+            <div>
+                <p class="font-bold text-white">${item.nombre}</p>
+                <p class="text-xs text-slate-400">Talle ${item.talle} - ${item.color} x $${item.precio}</p>
+            </div>
+            <div class="flex items-center space-x-3">
+                <span class="bg-slate-800 text-indigo-400 font-extrabold px-2.5 py-1 rounded border border-slate-700">x${item.cantidad}</span>
+                <button onclick="eliminarDelCarrito(${index})" class="text-rose-400 hover:text-rose-500 font-bold text-xs p-1">❌</button>
+            </div>
+        `;
+        contenedor.appendChild(row);
+    });
+
+    const inputDesc = document.getElementById("inputDescuentoRecargo");
+    let modificacionTexto = inputDesc ? inputDesc.value.trim() : "";
+    let totalFinal = totalBase;
+
+    if (modificacionTexto) {
+        if (modificacionTexto.includes("%")) {
+            const esDescuento = modificacionTexto.startsWith("-");
+            const limpio = modificacionTexto.replace(/[^0-9.]/g, ""); 
+            const porcentaje = parseFloat(limpio);
+            
+            if (!isNaN(porcentaje)) {
+                const montoModificador = totalBase * (porcentaje / 100);
+                totalFinal = esDescuento ? totalBase - montoModificador : totalBase + montoModificador;
+            }
+        } else {
+            const esDescuento = modificacionTexto.startsWith("-");
+            const limpio = modificacionTexto.replace(/[^0-9.]/g, "");
+            const montoFijo = parseFloat(limpio);
+            
+            if (!isNaN(montoFijo)) {
+                totalFinal = esDescuento ? totalBase - montoFijo : totalBase + montoFijo;
+            }
+        }
+    }
+
+    if (totalFinal < 0) totalFinal = 0;
+    totalText.textContent = `$${Math.round(totalFinal)}`;
+}
+
+// ========================================================
+// 6. HISTORIAL DE VENTAS (Carga Base)
+// ========================================================
+async function cargarHistorialVentas() {
+    try {
+        const token = localStorage.getItem("token");
+
+        console.log("🔑 TOKEN ENVIADO A VENTAS:", token);
+        
+        const respuesta = await fetch(`${API_URL}/ventas`, {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            }
+        });
+
+        if (!respuesta.ok) throw new Error(`Error: ${respuesta.status}`);
+
+        const ventas = await respuesta.json();
+        
+        // 💾 Guardamos la copia completa original en nuestra memoria global
+        window.ventasGlobales = ventas;
+        
+        // ⚙️ Activamos el motor de filtros (por defecto procesará e imprimirá todo)
+        window.filtrarVentas();
+        console.log("✅ Historial de ventas sincronizado con éxito.");
+
+    } catch (error) {
+        console.error("Error al obtener el historial:", error);
+        const tbody = document.getElementById("tablaHistorialBody"); 
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-rose-500 p-6 text-center">Error al cargar historial. Asegurate de estar logueado.</td></tr>`;
+        }
+    }
+}
+
+// ========================================================
+// 📊 RENDERIZADO EXCLUSIVO DE LA TABLA DE HISTORIAL
+// ========================================================
+window.dibujarTablaVentas = function(ventasAProcesar) {
+    const tbody = document.getElementById("tablaHistorialBody"); 
+    if (!tbody) return;
+
+    tbody.innerHTML = ""; 
+
+    if (!ventasAProcesar || ventasAProcesar.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-500 italic">No hay ventas registradas para este filtro.</td></tr>`;
+        return;
+    }
+
+    ventasAProcesar.forEach(venta => {
+        const fila = document.createElement("tr");
+        fila.className = "border-b border-slate-800 hover:bg-slate-900/50 transition-colors";
+        
+        const idVenta = venta.id || venta.Id || "---";
+        const fechaValida = venta.fecha || venta.fechaHora || venta.fecha_venta;
+        const fechaFormateada = fechaValida ? new Date(fechaValida).toLocaleString() : "Sin fecha";
+        const metodo = venta.metodoPago || venta.medioPago || "Efectivo";
+        const total = venta.total || venta.total_venta || 0;
+
+        fila.innerHTML = `
+            <td class="p-4 text-white font-mono font-bold">#${idVenta}</td>
+            <td class="p-4 text-slate-400 text-xs">${fechaFormateada}</td>
+            <td class="p-4 text-slate-400">${metodo}</td>
+            <td class="p-4 text-emerald-400 font-bold">$${total}</td>
+            <td class="p-4 text-center flex items-center justify-center gap-1">
+                <button onclick="verDetalleFactura(${idVenta})" 
+                        class="text-slate-400 hover:text-indigo-400 p-2 rounded-xl hover:bg-slate-900 transition-all inline-flex items-center justify-center cursor-pointer" 
+                        title="Ver Detalle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </button>
+                <button onclick="window.reimprimirTicket(${idVenta})"
+                        class="text-slate-400 hover:text-emerald-400 p-2 rounded-xl hover:bg-slate-900 transition-all inline-flex items-center justify-center cursor-pointer"
+                        title="Reimprimir Ticket">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(fila);
+    });
+};
+
+// ========================================================
+// ⚙️ MOTOR DE FILTRADO DE HISTORIAL EN TIEMPO REAL
+// ========================================================
+window.filtrarVentas = function() {
+    const inputFecha = document.getElementById("filtroFecha")?.value; // Obtiene el formato "YYYY-MM-DD"
+    
+    let ventasFiltradas = [...window.ventasGlobales];
+
+    if (inputFecha) {
+        ventasFiltradas = window.ventasGlobales.filter(venta => {
+            const fechaRaw = venta.fecha || venta.fechaHora || venta.fecha_venta || venta.createdAt;
+            if (!fechaRaw) return false;
+            
+            // Forzamos la conversión a formato local exacto "YYYY-MM-DD" para matchear con el input
+            const fechaVentaLocal = new Date(fechaRaw).toLocaleDateString('sv'); 
+            return fechaVentaLocal === inputFecha;
+        });
+    }
+
+    // 1. Recalculamos el Cierre de Caja basándonos en la lista filtrada
+    window.actualizarCierreCaja(ventasFiltradas);
+
+    // 2. Redibujamos la tabla únicamente con los elementos que corresponden al filtro
+    window.dibujarTablaVentas(ventasFiltradas);
+};
+
+// Controladores rápidos de los botones del panel (Hoy, Ayer, Todos)
+window.aplicarPreajusteFiltro = function(tipo) {
+    const inputFecha = document.getElementById("filtroFecha");
+    
+    // Limpiamos los estilos de botón activo/inactivo de Tailwind
+    ["btnFiltroHoy", "btnFiltroAyer", "btnFiltroTodos"].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) {
+            btn.className = btn.className.replace("bg-indigo-600 text-white shadow-lg shadow-indigo-950/50", "bg-slate-800 text-slate-300");
+            if (!btn.className.includes("bg-slate-800")) btn.className += " bg-slate-800 text-slate-300";
+        }
+    });
+
+    // Encendemos el botón presionado
+    const idActivo = tipo === 'hoy' ? 'btnFiltroHoy' : tipo === 'ayer' ? 'btnFiltroAyer' : 'btnFiltroTodos';
+    const btnActivo = document.getElementById(idActivo);
+    if (btnActivo) {
+        btnActivo.className = btnActivo.className.replace("bg-slate-800 text-slate-300", "bg-indigo-600 text-white shadow-lg shadow-indigo-950/50");
+    }
+
+    if (tipo === 'todos') {
+        if (inputFecha) inputFecha.value = ""; // Vaciamos input de fecha
+    } else {
+        const d = new Date();
+        if (tipo === 'ayer') d.setDate(d.getDate() - 1);
+        if (inputFecha) inputFecha.value = d.toLocaleDateString('sv'); // Asigna el día en formato YYYY-MM-DD
+    }
+
+    // Ejecuta el motor centralizado de filtrado
+    window.filtrarVentas();
+};
+
+// ========================================================
+// 📈 CÁLCULO AUTOMÁTICO DE CIERRE DE CAJA
+// ========================================================
+window.actualizarCierreCaja = function(listaDeVentas) {
+    if (!Array.isArray(listaDeVentas)) return;
+
+    let totalGeneral = 0;
+    let totalEfectivo = 0;
+    let totalTransferencia = 0;
+
+    listaDeVentas.forEach(venta => {
+        const total = parseFloat(venta.total || venta.total_venta || 0);
+        totalGeneral += total;
+
+        const metodo = (venta.metodoPago || venta.medioPago || "efectivo").toLowerCase();
+
+        if (metodo.includes("efectivo")) {
+            totalEfectivo += total;
+        } else {
+            totalTransferencia += total;
+        }
+    });
+
+    if (document.getElementById("cierreTotal")) {
+        document.getElementById("cierreTotal").textContent = `$${totalGeneral.toLocaleString('es-AR')}`;
+    }
+    if (document.getElementById("cierreEfectivo")) {
+        document.getElementById("cierreEfectivo").textContent = `$${totalEfectivo.toLocaleString('es-AR')}`;
+    }
+    if (document.getElementById("cierreTransferencia")) {
+        document.getElementById("cierreTransferencia").textContent = `$${totalTransferencia.toLocaleString('es-AR')}`;
+    }
+};
+
+// =========================================================================
+// 🖨️ IMPRESIÓN MANUAL EN TICKETERA TÉRMICA (80mm / 58mm)
+// =========================================================================
+window.imprimirEnTicketera = function(id) {
+    const modal = document.getElementById("modalDetalleFactura");
+    if (!modal) {
+        console.warn("⚠️ No se encontró el modal en pantalla para mandar a imprimir.");
+        return;
+    }
+
+    // Extraemos los datos reflejados en el modal actual
+    const metodoPago = modal.querySelector("span.bg-slate-800")?.textContent || "Efectivo";
+    const total = modal.querySelector("span.text-emerald-400")?.textContent || "$0";
+    
+    const bloquesPrendas = modal.querySelectorAll(".bg-slate-900\\/60, .bg-slate-900");
+    let itemsHTML = "";
+
+    bloquesPrendas.forEach(el => {
+        const nombre = el.querySelector("h4")?.textContent || "Prenda";
+        const cant = el.querySelector("span.bg-indigo-950")?.textContent || "x1";
+        const spansDetalle = el.querySelectorAll("span.text-\\[11px\\]");
+        const talleColor = Array.from(spansDetalle).map(s => s.textContent).join(" | ");
+        const subtotal = el.querySelector("span.text-white.font-bold")?.textContent || "$0";
+
+        itemsHTML += `
+            <tr>
+                <td colspan="2" style="font-weight: bold; padding-top: 5px;">${nombre} ${cant}</td>
+            </tr>
+            <tr>
+                <td style="font-size: 11px; color: #444;">${talleColor}</td>
+                <td style="text-align: right; font-weight: bold; font-size: 12px;">${subtotal}</td>
+            </tr>
+            <tr>
+                <td colspan="2" style="border-bottom: 1px dashed #000; padding-top: 3px;"></td>
+            </tr>
+        `;
+    });
+
+    const ventanaImpresion = window.open("", "_blank", "width=300,height=600");
+    
+    ventanaImpresion.document.write(`
+        <html>
+        <head>
+            <title>Ticket #${id}</title>
+            <style>
+                @page { size: auto; margin: 0mm; }
+                body { 
+                    font-family: 'Courier New', Courier, monospace; 
+                    width: 260px; 
+                    margin: 0; 
+                    padding: 10px; 
+                    color: #000; 
+                    background: #fff; 
+                    font-size: 12px; 
+                    line-height: 1.2;
+                }
+                .center { text-align: center; }
+                .bold { font-weight: bold; }
+                .header { font-size: 15px; margin-bottom: 5px; }
+                table { width: 100%; border-collapse: collapse; }
+                .total-table { font-size: 14px; font-weight: bold; margin-top: 8px; }
+                .footer { font-size: 10px; margin-top: 15px; }
+                .linea-divisoria { border-bottom: 1px dashed #000; margin: 8px 0; }
+            </style>
+        </head>
+        <body>
+            <div class="center bold header">SPACE TERMINAL</div>
+            <div class="center" style="font-size: 10px;">Gestión de Stock y Facturación</div>
+            <div class="linea-divisoria"></div>
+            
+            <div class="bold">TICKET DE VENTA #${id}</div>
+            <div style="margin-top: 4px;"><b>Forma de Pago:</b> ${metodoPago}</div>
+            
+            <div class="linea-divisoria"></div>
+            <div class="bold" style="font-size: 11px;">ITEMS:</div>
+            <table style="margin-top: 4px;">
+                ${itemsHTML}
+            </table>
+            
+            <table class="total-table">
+                <tr>
+                    <td>TOTAL COBRADO:</td>
+                    <td style="text-align: right;">${total}</td>
+                </tr>
+            </table>
+            
+            <div class="linea-divisoria"></div>
+            <div class="center footer">
+                ¡Gracias por tu compra!<br>
+                --- Sistema de Control Oficial ---
+            </div>
+            
+            <script>
+                window.onload = function() {
+                    window.print();
+                    setTimeout(function() { window.close(); }, 300);
+                };
+            <\/script>
+        </body>
+        </html>
+    `);
+    
+    ventanaImpresion.document.close();
+};
+// =========================================================================
+// 🎫 VISUALIZAR DETALLE DE FACTURA / TICKET (CON MENÚ DE OPCIONES)
+// =========================================================================
+async function verDetalleFactura(id, datosLocales = null) {
+    console.log("🔍 Buscando detalle de la venta N°: " + id);
+    const token = localStorage.getItem("token");
+
+    let metodoPagoDesdeTabla = null;
+    try {
+        const todasLasFilas = document.querySelectorAll("tr");
+        for (let fila of todasLasFilas) {
+            if (fila.textContent.includes(`#${id}`) || fila.textContent.includes(`${id}`)) {
+                const textoFila = fila.textContent.toLowerCase();
+                if (textoFila.includes("transferencia") || textoFila.includes("qr")) {
+                    metodoPagoDesdeTabla = "Transferencia"; break;
+                } else if (textoFila.includes("débito") || textoFila.includes("debito")) {
+                    metodoPagoDesdeTabla = "Débito"; break;
+                } else if (textoFila.includes("crédito") || textoFila.includes("credito") || textoFila.includes("tarjeta")) {
+                    metodoPagoDesdeTabla = "Crédito"; break;
+                } else if (textoFila.includes("efectivo")) {
+                    metodoPagoDesdeTabla = "Efectivo"; break;
+                }
+            }
+        }
+    } catch (domError) {
+        console.log("No se pudo escanear la tabla visual:", domError);
+    }
+
+    try {
+        let venta;
+
+        if (datosLocales) {
+            console.log("🎯 [SISTEMA] Usando datos locales para armar las opciones del ticket.");
+            venta = datosLocales;
+        } else {
+            const respuesta = await fetch(`${API_URL}/ventas/${id}`, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                }
+            });
+            if (!respuesta.ok) throw new Error("No se pudo obtener el detalle.");
+            venta = await respuesta.json();
+        }
+        
+        let prendas = [];
+        if (Array.isArray(venta)) {
+            prendas = venta;
+        } else if (venta && typeof venta === "object") {
+            if (Array.isArray(venta.productos)) prendas = venta.productos;
+            else if (Array.isArray(venta.items)) prendas = venta.items;
+            else if (Array.isArray(venta.detalles)) prendas = venta.detalles;
+            else {
+                const keyLista = Object.keys(venta).find(k => Array.isArray(venta[k]));
+                prendas = keyLista ? venta[keyLista] : [];
+            }
+        }
+
+        if ((!prendas || prendas.length === 0) && venta && !Array.isArray(venta)) {
+            if (venta.id || venta.Id || venta.venta_id) {
+                prendas = venta.items || venta.productos || [];
+            }
+        }
+
+        let datosGenerales = Array.isArray(venta) ? venta[0] : (venta.informacionVenta || venta);
+        const metodoPago = metodoPagoDesdeTabla || datosGenerales.metodoPago || datosGenerales.medioPago || datosGenerales.metodo || datosGenerales.metodo_pago || "Efectivo";
+        let totalFacturado = datosGenerales.total || datosGenerales.total_venta || datosGenerales.monto || 0;
+
+        if (!totalFacturado && venta.total) totalFacturado = venta.total;
+
+        let totalOriginalTeorico = 0;
+        let contenedorPrendasHTML = "";
+
+        if (!prendas || prendas.length === 0) {
+            contenedorPrendasHTML = `<p class="text-slate-400 text-xs italic p-2 text-center">Detalle procesado correctamente.</p>`;
+        } else {
+            prendas.forEach((item) => {
+                const nombrePrenda = item.productoNombre || item.ProductoNombre || item.nombre || item.Nombre || (item.Producto ? item.Producto.nombre : "Prenda");
+                const talle = item.talle || item.Talle || "N/A"; 
+                const color = item.color || item.Color || "N/A";
+                const cantidad = item.cantidad || item.amount || 1;
+                
+                const precioCobradoUnitario = item.precio || item.precioUnitario || item.precio_unitario || 0;
+                const subtotalCobrado = precioCobradoUnitario * cantidad;
+                
+                const precioListaUnitario = item.precioLista || item.precioOriginal || (datosGenerales.descuento ? (precioCobradoUnitario + Math.round(datosGenerales.descuento / cantidad)) : precioCobradoUnitario);
+                
+                totalOriginalTeorico += (precioListaUnitario * cantidad);
+                const ahorroItem = (precioListaUnitario - precioCobradoUnitario) * cantidad;
+
+                contenedorPrendasHTML += `
+                    <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 flex flex-col justify-between text-sm mb-3">
+                        <div>
+                            <div class="flex justify-between items-start">
+                                <h4 class="text-white font-bold text-sm max-w-[80%]">${nombrePrenda}</h4>
+                                <span class="bg-indigo-950 text-indigo-400 font-extrabold text-xs px-2 py-0.5 rounded border border-indigo-500/20">x${cantidad}</span>
+                            </div>
+                            <div class="flex gap-2 mt-1">
+                                <span class="text-[11px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded">Talle: ${talle}</span>
+                                <span class="text-[11px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded">Color: ${color}</span>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center mt-3 pt-2 border-t border-slate-800/40">
+                            <p class="text-xs text-slate-400">
+                                <span class="line-through text-slate-500 mr-1.5">$${precioListaUnitario * cantidad}</span>
+                                <span class="text-slate-300 font-medium">$${precioCobradoUnitario} u.</span>
+                            </p>
+                            <span class="text-white font-bold text-sm">$${subtotalCobrado}</span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        if (totalOriginalTeorico === 0) totalOriginalTeorico = totalFacturado;
+        const descuentoTotal = totalOriginalTeorico - totalFacturado;
+
+        // 🎯 MODAL ACTUALIZADO: Agregamos el contenedor de doble acción abajo
+        const modalHTML = `
+        <div id="modalDetalleFactura" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                
+                <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/40">
+                    <h3 class="text-white font-bold text-base flex items-center gap-2">📋 TICKET #${id}</h3>
+                    <button id="btnCerrarModalX" onclick="document.getElementById('modalDetalleFactura').remove()" class="text-slate-400 hover:text-white transition-colors text-lg cursor-pointer">✕</button>
+                </div>
+                
+                <div class="p-4 overflow-y-auto space-y-4 flex-1">
+                    <div class="bg-slate-950/50 border border-slate-800/80 rounded-xl p-4 space-y-2.5 text-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-400">💵 Método de Pago</span>
+                            <span class="bg-slate-800 text-slate-200 border border-slate-700 px-2.5 py-0.5 rounded-md font-medium text-xs">${metodoPago}</span>
+                        </div>
+                        <hr class="border-slate-800/60">
+                        <div class="flex justify-between items-center pt-0.5">
+                            <span class="text-white font-bold">👉 Total Cobrado:</span>
+                            <span class="text-emerald-400 font-extrabold text-lg font-mono">$${totalFacturado}</span>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 class="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2 px-1">Prendas de la compra</h4>
+                        ${contenedorPrendasHTML}
+                    </div>
+                </div>
+                
+                <div class="p-4 bg-slate-950/40 border-t border-slate-800 flex flex-col gap-2">
+                    <div class="flex gap-2">
+                        <button id="btnDescargarPDF" onclick="window.descargarPDF(${id})" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-900/20 cursor-pointer">
+                            📥 Guardar PDF
+                        </button>
+                        <button id="btnImprimirTicketera" onclick="window.imprimirEnTicketera(${id})" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-blue-900/20 cursor-pointer">
+                            🖨️ Enviar a Ticketera
+                        </button>
+                    </div>
+                    <button id="btnEntendido" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold py-2 px-4 rounded-xl transition-colors cursor-pointer">
+                        Entendido
+                    </button>
+                </div>
+            </div>
+        </div>
+        `;
+
+        const modalExistente = document.getElementById("modalDetalleFactura");
+        if (modalExistente) modalExistente.remove();
+        document.body.insertAdjacentHTML("beforeend", modalHTML);
+
+        const btnEntendido = document.getElementById("btnEntendido");
+        if (btnEntendido) {
+            btnEntendido.onclick = () => {
+                const modal = document.getElementById("modalDetalleFactura");
+                if (modal) modal.remove();
+            };
+        }
+
+    } catch (error) {
+        console.error("Error historial detalle:", error);
+        alert("No se pudo cargar el detalle de la factura de manera correcta.");
+    }
+}
+
+// ========================================================
+// 🚀 INICIALIZACIÓN AUTOMÁTICA DE LA APP
+// ========================================================
+//document.addEventListener("DOMContentLoaded", async () => {
+ //   console.log("🚀 Página cargada por completo. Iniciando servicios...");
+    
+//    try {
+//        await cargarProductos();
+ //       console.log("✅ Catálogo inicializado con éxito.");
+ //   } catch (err) {
+//        console.error("❌ Error crítico al cargar catálogo inicial:", err);
+//    }
+
+  //  try {
+    //    await cargarHistorialVentas();
+  //      console.log("✅ Historial de ventas cargado.");
+  //  } catch (err) {
+    //    console.error("❌ Error crítico al cargar historial inicial:", err);
+    //}
+//});
+
+// ========================================================
+// 🚀 CONTROLADORES GLOBALES DE ACCIONES (HTML BINDINGS)
+// ========================================================
+
+// 1. Botón Salir / Cerrar Sesión
+window.cerrarSesion = function() {
+    console.log("🚪 [SISTEMA] Cerrando sesión...");
+    localStorage.removeItem("token"); 
+    window.location.href = "login.html"; 
+};
+
+// 2. VACIAR CARRITO
+window.vaciarCarrito = function() {
+    if (!carrito || carrito.length === 0) {
+        alert("El carrito ya está vacío.");
+        return;
+    }
+
+    const confirmar = confirm("⚠️ ¿Estás seguro de que querés vaciar todo el carrito actual?");
+    if (confirmar) {
+        carrito = []; 
+        actualizarInterfazCarrito();
+        filtrarProductos();
+        console.log("🛒 Carrito vaciado con éxito.");
+    }
+};
+
+// =========================================================================
+// 💲 FIX: DESCUENTO EN CONFIRMAR VENTA
+// Reemplazá la función window.confirmarVenta completa en tu ventas.js
+// =========================================================================
+
+window.confirmarVenta = async function() {
+    if (carrito.length === 0) {
+        alert("🛒 El carrito está vacío.");
+        return;
+    }
+
+    const selectPago = document.getElementById("formaPago") || document.getElementById("metodoPago");
+    const medioPago  = selectPago ? selectPago.value : "Efectivo";
+
+    // ── Calcular el total base (sin descuento) ────────────────────────────
+    const totalBase = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+
+    // ── Leer el descuento/recargo del input ───────────────────────────────
+    const inputDesc       = document.getElementById("inputDescuentoRecargo");
+    const modificacionTxt = inputDesc ? inputDesc.value.trim() : "";
+    let totalFinal        = totalBase;
+    let factorDescuento   = 1; // 1 = sin cambio
+
+    if (modificacionTxt) {
+        if (modificacionTxt.includes("%")) {
+            const esDescuento = modificacionTxt.startsWith("-");
+            const porcentaje  = parseFloat(modificacionTxt.replace(/[^0-9.]/g, ""));
+            if (!isNaN(porcentaje)) {
+                const modificador = totalBase * (porcentaje / 100);
+                totalFinal = esDescuento ? totalBase - modificador : totalBase + modificador;
+            }
+        } else {
+            const esDescuento = modificacionTxt.startsWith("-");
+            const montoFijo   = parseFloat(modificacionTxt.replace(/[^0-9.]/g, ""));
+            if (!isNaN(montoFijo)) {
+                totalFinal = esDescuento ? totalBase - montoFijo : totalBase + montoFijo;
+            }
+        }
+        if (totalFinal < 0) totalFinal = 0;
+        // FIX: calcular el factor para distribuir el descuento en cada ítem
+        factorDescuento = totalBase > 0 ? totalFinal / totalBase : 1;
+    }
+
+    // ── Armar los ítems con el precio ajustado por el descuento ──────────
+    // El backend recalcula el total sumando (precioUnitario * cantidad) por cada ítem.
+    // Por eso mandamos el precio ya ajustado proporcional al descuento aplicado.
+    const itemsMapeados = carrito.map(item => ({
+        varianteId:     item.id,
+        cantidad:       item.cantidad,
+        // FIX: precio ajustado con el factor de descuento/recargo
+        precio:         Math.round(item.precio * factorDescuento * 100) / 100
+    }));
+
+    const payload = {
+        metodoPago: medioPago,
+        clienteId:  window.clienteSeleccionado || null,
+        items:      itemsMapeados
+    };
+
+    console.log("🚀 Payload enviado al backend:", payload);
+    console.log(`💲 Total base: $${totalBase} | Factor: ${factorDescuento} | Total final: $${totalFinal}`);
+
+    try {
+        const token    = localStorage.getItem("token");
+        const respuesta = await fetch(`${API_URL}/ventas`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (respuesta.ok) {
+            const resultado = await respuesta.json();
+
+            // Obtener el ID de la venta recién guardada
+            const ticketId = resultado.ventaId || resultado.id || resultado.Id || null;
+
+            if (ticketId && typeof verDetalleFactura === "function") {
+                console.log(`🎫 Abriendo ticket #${ticketId}`);
+                await verDetalleFactura(ticketId);
+            } else {
+                alert(`✅ ¡Venta guardada con éxito! Total: $${totalFinal.toLocaleString("es-AR")}`);
+            }
+
+            // Limpiar carrito y recargar
+            carrito = [];
+            actualizarInterfazCarrito();
+            await cargarProductos();
+            if (typeof cargarHistorialVentas === "function") await cargarHistorialVentas();
+
+        } else {
+            const errorTexto = await respuesta.text();
+            alert(`❌ Error al guardar la venta: ${errorTexto}`);
+        }
+
+    } catch (error) {
+        console.error("❌ Error en confirmarVenta:", error);
+        alert("❌ Hubo un problema de red al procesar la venta. Revisá la conexión.");
+    }
+};
+
+// 4. DESCARGAR PDF
+window.descargarPDF = function(id) {
+    console.log("📄 [SISTEMA] Generando e imprimiendo el PDF del ticket N°:", id);
+    window.print();
+};
+
+// ========================================================
+// 🎯 DESCUENTOS Y RECARGOS EN TIEMPO REAL (Líneas Reparadas)
+// ========================================================
+document.addEventListener("DOMContentLoaded", () => {
+    const inputDescuento = document.getElementById("inputDescuentoRecargo");
+
+    if (inputDescuento) {
+        inputDescuento.addEventListener("input", function() {
+            console.log("✍️ Escribiendo descuento o recargo:", this.value);
+            // Ejecuta el re-dibujo automático calculando el total modificado al instante
+            actualizarInterfazCarrito();
+        });
+    }
+});
+
+// =========================================================================
+// 🎫 MÓDULO DE REIMPRESIÓN DE TICKETS v2
+// =========================================================================
+
+// ── 1. GENERAR HTML LIMPIO DEL TICKET ────────────────────────────────────
+window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
+    const fechaFormateada = fecha
+        ? new Date(fecha).toLocaleString("es-AR", {
+              day: "2-digit", month: "2-digit", year: "numeric",
+              hour: "2-digit", minute: "2-digit"
+          })
+        : new Date().toLocaleString("es-AR", {
+              day: "2-digit", month: "2-digit", year: "numeric",
+              hour: "2-digit", minute: "2-digit"
+          });
+
+    let itemsHTML = "";
+    if (Array.isArray(prendas) && prendas.length > 0) {
+        prendas.forEach(item => {
+            // Mapeo exacto a los campos que devuelve GetVentaDetalle:
+            // { ProductoNombre, Talle, Color, Cantidad, PrecioUnitario, Subtotal }
+            const nombre   = item.productoNombre || item.ProductoNombre || item.nombre || "Prenda";
+            const talle    = item.talle    || item.Talle    || "N/A";
+            const color    = item.color    || item.Color    || "N/A";
+            const cantidad = item.cantidad || item.Cantidad || 1;
+            const precio   = item.precioUnitario || item.PrecioUnitario || item.precio || 0;
+            const subtotal = item.subtotal || item.Subtotal || (precio * cantidad);
+
+            itemsHTML += `
+                <tr>
+                    <td style="padding:6px 4px;border-bottom:1px dashed #ccc;font-size:12px;">
+                        <strong>${nombre}</strong><br>
+                        <span style="color:#666;font-size:11px;">T:${talle} / ${color}</span>
+                    </td>
+                    <td style="padding:6px 4px;border-bottom:1px dashed #ccc;text-align:center;font-size:12px;">${cantidad}</td>
+                    <td style="padding:6px 4px;border-bottom:1px dashed #ccc;text-align:right;font-size:12px;">$${Number(precio).toLocaleString("es-AR")}</td>
+                    <td style="padding:6px 4px;border-bottom:1px dashed #ccc;text-align:right;font-size:12px;font-weight:bold;">$${Number(subtotal).toLocaleString("es-AR")}</td>
+                </tr>
+            `;
+        });
+    } else {
+        itemsHTML = `<tr><td colspan="4" style="text-align:center;color:#999;padding:12px;font-size:12px;">Sin detalle de productos</td></tr>`;
+    }
+
+    return `
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <title>Ticket #${id} - Space Terminal</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                    font-family: 'Courier New', monospace;
+                    width: 80mm; max-width: 80mm;
+                    margin: 0 auto; padding: 8px;
+                    font-size: 12px; color: #000; background: #fff;
+                }
+                .header { text-align: center; margin-bottom: 12px; }
+                .header h1 { font-size: 18px; font-weight: bold; letter-spacing: 2px; }
+                .header p  { font-size: 11px; color: #555; }
+                .divider   { border-top: 1px dashed #000; margin: 8px 0; }
+                .info-row  { display: flex; justify-content: space-between; font-size: 12px; margin: 3px 0; }
+                table      { width: 100%; border-collapse: collapse; }
+                thead th   { font-size: 11px; text-align: left; padding: 4px; border-bottom: 2px solid #000; }
+                thead th:nth-child(2) { text-align: center; }
+                thead th:nth-child(3),
+                thead th:nth-child(4) { text-align: right; }
+                .total-row {
+                    display: flex; justify-content: space-between;
+                    font-size: 16px; font-weight: bold;
+                    border-top: 2px solid #000;
+                    padding-top: 6px; margin-top: 6px;
+                }
+                .footer { text-align: center; margin-top: 14px; font-size: 10px; color: #777; }
+                @media print {
+                    html, body { width: 80mm; }
+                    @page { margin: 0; size: 80mm auto; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>SPACE TERMINAL</h1>
+                <p>Tienda de Ropa</p>
+                <p>${fechaFormateada}</p>
+            </div>
+            <div class="divider"></div>
+            <div class="info-row">
+                <span>Ticket N°:</span>
+                <strong>#${id}</strong>
+            </div>
+            <div class="info-row">
+                <span>Método de pago:</span>
+                <strong>${metodoPago}</strong>
+            </div>
+            <div class="divider"></div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th>Cant</th>
+                        <th>P.Unit</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>${itemsHTML}</tbody>
+            </table>
+            <div class="total-row">
+                <span>TOTAL:</span>
+                <span>$${Number(total).toLocaleString("es-AR")}</span>
+            </div>
+            <div class="divider"></div>
+            <div class="footer">
+                <p>¡Gracias por tu compra!</p>
+                <p>Conservá este ticket</p>
+            </div>
+        </body>
+        </html>
+    `;
+};
+
+// ── 2. FUNCIÓN CENTRAL: Obtiene el detalle completo y abre la ventana ─────
+// FIX: Llama a GET /api/ventas/{id} para traer ArticulosComprados
+window.obtenerYImprimirTicket = async function(id, modoImpresion = "normal") {
+    const token = localStorage.getItem("token");
+
+    try {
+        // Siempre busca el detalle completo desde /api/ventas/{id}
+        // que devuelve { InformacionVenta, ArticulosComprados }
+        const respuesta = await fetch(`${API_URL}/ventas/${id}`, {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            }
+        });
+
+        if (!respuesta.ok) throw new Error(`Error HTTP ${respuesta.status}`);
+
+        const datos = await respuesta.json();
+        console.log("🎫 Datos del ticket recibidos:", datos);
+
+        // Mapeo exacto a la estructura que devuelve tu C#:
+        // { InformacionVenta: {...}, ArticulosComprados: [...] }
+        const info     = datos.informacionVenta || datos.InformacionVenta || datos;
+        const prendas  = datos.articulosComprados || datos.ArticulosComprados
+                      || datos.detalles || datos.items || datos.productos || [];
+
+        const total      = info.total      || info.Total      || 0;
+        const metodoPago = info.metodoPago || info.MetodoPago || "Efectivo";
+        const fecha      = info.fechaHora  || info.FechaHora  || info.fecha;
+
+        const htmlTicket = window.generarHTMLTicket(id, total, metodoPago, prendas, fecha);
+        const ancho      = modoImpresion === "ticketera" ? "320" : "400";
+        const ventanaImp = window.open("", "_blank", `width=${ancho},height=600,scrollbars=yes`);
+
+        if (!ventanaImp) {
+            alert("⚠️ El navegador bloqueó la ventana emergente. Permitila para este sitio e intentá de nuevo.");
+            return;
+        }
+
+        ventanaImp.document.write(htmlTicket);
+        ventanaImp.document.close();
+        ventanaImp.onload = () => { ventanaImp.focus(); ventanaImp.print(); };
+
+        console.log(`🖨️ Ticket #${id} enviado a impresión.`);
+
+    } catch (error) {
+        console.error("❌ Error al obtener el ticket:", error);
+        alert("No se pudo obtener el detalle de la venta. Revisá la consola (F12).");
+    }
+};
+
+// ── 3. BOTONES DEL MODAL ──────────────────────────────────────────────────
+window.descargarPDF = function(id) {
+    window.obtenerYImprimirTicket(id, "normal");
+};
+
+window.imprimirEnTicketera = function(id) {
+    window.obtenerYImprimirTicket(id, "ticketera");
+};
+
+// ── 4. BOTÓN REIMPRIMIR EN LA TABLA DEL HISTORIAL ────────────────────────
+window.reimprimirTicket = function(id) {
+    window.obtenerYImprimirTicket(id, "normal");
+};
+
+// =========================================================================
+// 💰 MÓDULO DE CONTROL DE CAJA
+// Pegá este bloque al final de tu ventas.js
+// =========================================================================
+
+// ── Abrir modal y cargar resumen del día ─────────────────────────────────
+window.abrirCierreCaja = async function() {
+    const token = localStorage.getItem("token");
+    const modal = document.getElementById("modalCierreCaja");
+    if (!modal) return;
+
+    // Mostrar el modal con estado de carga
+    modal.classList.remove("hidden");
+    document.getElementById("cajaCargando").classList.remove("hidden");
+    document.getElementById("cajaContenido").classList.add("hidden");
+    document.getElementById("cajaError").classList.add("hidden");
+
+    try {
+        const respuesta = await fetch(`${API_URL}/cierrecaja/resumen-hoy`, {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            }
+        });
+
+        if (!respuesta.ok) throw new Error(`Error HTTP ${respuesta.status}`);
+
+        const resumen = await respuesta.json();
+        console.log("💰 Resumen de caja:", resumen);
+
+        // Mapeo tolerante PascalCase / camelCase
+        const efectivo      = resumen.totalEfectivo      ?? resumen.TotalEfectivo      ?? 0;
+        const transferencia = resumen.totalTransferencia ?? resumen.TotalTransferencia ?? 0;
+        const debito        = resumen.totalDebito        ?? resumen.TotalDebito        ?? 0;
+        const credito       = resumen.totalCredito       ?? resumen.TotalCredito       ?? 0;
+        const totalGeneral  = resumen.totalGeneral       ?? resumen.TotalGeneral       ?? 0;
+        const cantVentas    = resumen.cantidadVentas     ?? resumen.CantidadVentas     ?? 0;
+
+        // Guardar en dataset del modal para usar al confirmar cierre
+        modal.dataset.efectivo      = efectivo;
+        modal.dataset.transferencia = transferencia;
+        modal.dataset.debito        = debito;
+        modal.dataset.credito       = credito;
+        modal.dataset.total         = totalGeneral;
+        modal.dataset.ventas        = cantVentas;
+
+        // Poblar los valores en pantalla
+        document.getElementById("cajaEfectivo").textContent      = `$${Number(efectivo).toLocaleString("es-AR")}`;
+        document.getElementById("cajaTransferencia").textContent = `$${Number(transferencia).toLocaleString("es-AR")}`;
+        document.getElementById("cajaDebito").textContent        = `$${Number(debito).toLocaleString("es-AR")}`;
+        document.getElementById("cajaCredito").textContent       = `$${Number(credito).toLocaleString("es-AR")}`;
+        document.getElementById("cajaTotalGeneral").textContent  = `$${Number(totalGeneral).toLocaleString("es-AR")}`;
+        document.getElementById("cajaCantVentas").textContent    = cantVentas;
+
+        // Mostrar contenido y ocultar loader
+        document.getElementById("cajaCargando").classList.add("hidden");
+        document.getElementById("cajaContenido").classList.remove("hidden");
+
+    } catch (error) {
+        console.error("❌ Error al cargar resumen de caja:", error);
+        document.getElementById("cajaCargando").classList.add("hidden");
+        document.getElementById("cajaError").classList.remove("hidden");
+    }
+};
+
+window.cerrarCierreCaja = function() {
+    document.getElementById("modalCierreCaja")?.classList.add("hidden");
+    document.getElementById("cajaObservaciones")?.value && 
+        (document.getElementById("cajaObservaciones").value = "");
+};
+
+// ── Confirmar y guardar el cierre en la BD ────────────────────────────────
+window.confirmarCierreCaja = async function() {
+    const token = localStorage.getItem("token");
+    const modal = document.getElementById("modalCierreCaja");
+    const btn   = document.getElementById("btnConfirmarCierre");
+
+    const observaciones = document.getElementById("cajaObservaciones")?.value.trim() || "";
+
+    const payload = {
+        totalEfectivo:      parseFloat(modal.dataset.efectivo      || 0),
+        totalTransferencia: parseFloat(modal.dataset.transferencia || 0),
+        totalDebito:        parseFloat(modal.dataset.debito        || 0),
+        totalCredito:       parseFloat(modal.dataset.credito       || 0),
+        totalGeneral:       parseFloat(modal.dataset.total         || 0),
+        cantidadVentas:     parseInt(modal.dataset.ventas          || 0),
+        observaciones
+    };
+
+    // Deshabilitar botón mientras guarda
+    if (btn) { btn.disabled = true; btn.textContent = "Guardando..."; }
+
+    try {
+        const respuesta = await fetch(`${API_URL}/cierrecaja`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!respuesta.ok) throw new Error(`Error HTTP ${respuesta.status}`);
+
+        const resultado = await respuesta.json();
+        console.log("✅ Cierre guardado:", resultado);
+
+        window.cerrarCierreCaja();
+
+        // Imprimir resumen automáticamente al cerrar
+        window.imprimirResumenCaja(payload);
+
+        alert(`✅ Caja cerrada correctamente.\nTotal del día: $${Number(payload.totalGeneral).toLocaleString("es-AR")}\nVentas realizadas: ${payload.cantidadVentas}`);
+
+    } catch (error) {
+        console.error("❌ Error al guardar cierre:", error);
+        alert("No se pudo guardar el cierre. Revisá la consola (F12).");
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = "✅ Confirmar Cierre de Caja"; }
+    }
+};
+
+// ── Imprimir resumen de caja ──────────────────────────────────────────────
+window.imprimirResumenCaja = function(datos) {
+    const fecha = new Date().toLocaleString("es-AR", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit"
+    });
+
+    const html = `
+        <!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+        <title>Cierre de Caja - ${fecha}</title>
+        <style>
+            * { margin:0; padding:0; box-sizing:border-box; }
+            body { font-family:'Courier New',monospace; width:80mm; margin:0 auto; padding:8px; color:#000; }
+            h1 { font-size:16px; text-align:center; font-weight:bold; letter-spacing:2px; }
+            .sub { text-align:center; font-size:11px; color:#555; margin-bottom:8px; }
+            .divider { border-top:1px dashed #000; margin:8px 0; }
+            .fila { display:flex; justify-content:space-between; font-size:13px; margin:5px 0; }
+            .total { display:flex; justify-content:space-between; font-size:16px; font-weight:bold; border-top:2px solid #000; padding-top:6px; margin-top:6px; }
+            .footer { text-align:center; font-size:10px; color:#777; margin-top:12px; }
+            @media print { @page { margin:0; size:80mm auto; } }
+        </style></head><body>
+        <h1>SPACE TERMINAL</h1>
+        <p class="sub">CIERRE DE CAJA</p>
+        <p class="sub">${fecha}</p>
+        <div class="divider"></div>
+        <div class="fila"><span>Ventas realizadas:</span><strong>${datos.cantidadVentas}</strong></div>
+        <div class="divider"></div>
+        <div class="fila"><span>💵 Efectivo:</span><span>$${Number(datos.totalEfectivo).toLocaleString("es-AR")}</span></div>
+        <div class="fila"><span>📲 Transferencia:</span><span>$${Number(datos.totalTransferencia).toLocaleString("es-AR")}</span></div>
+        <div class="fila"><span>💳 Débito:</span><span>$${Number(datos.totalDebito).toLocaleString("es-AR")}</span></div>
+        <div class="fila"><span>💳 Crédito:</span><span>$${Number(datos.totalCredito).toLocaleString("es-AR")}</span></div>
+        <div class="divider"></div>
+        <div class="total"><span>TOTAL:</span><span>$${Number(datos.totalGeneral).toLocaleString("es-AR")}</span></div>
+        ${datos.observaciones ? `<div class="divider"></div><div class="fila">Obs: ${datos.observaciones}</div>` : ""}
+        <div class="footer"><p>Cierre registrado correctamente</p></div>
+        </body></html>
+    `;
+
+    const ventana = window.open("", "_blank", "width=400,height=500");
+    if (!ventana) return;
+    ventana.document.write(html);
+    ventana.document.close();
+    ventana.onload = () => { ventana.focus(); ventana.print(); };
+};
+
+// =========================================================================
+// 📊 MÓDULO DE ESTADÍSTICAS
+// =========================================================================
+
+window.cargarEstadisticas = async function() {
+    const token = localStorage.getItem("token");
+
+    // Mostrar skeletons de carga
+    ["statTotalMes", "statVentasMes", "statTicketProm", "statMejorDia"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = "...";
+    });
+
+    try {
+        // Traer todas las ventas para procesar localmente
+        const respuesta = await fetch(`${API_URL}/ventas`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!respuesta.ok) throw new Error("Error al cargar ventas");
+
+        const ventas = await respuesta.json();
+        console.log("📊 Ventas para estadísticas:", ventas);
+
+        const ahora   = new Date();
+        const mesActual = ahora.getMonth();
+        const anioActual = ahora.getFullYear();
+
+        // Filtrar ventas del mes actual
+        const ventasMes = ventas.filter(v => {
+            const fecha = new Date(v.fechaHora || v.FechaHora || v.fecha);
+            return fecha.getMonth() === mesActual && fecha.getFullYear() === anioActual;
+        });
+
+        // ── KPIs principales ─────────────────────────────────────────────
+        const totalMes    = ventasMes.reduce((acc, v) => acc + (v.total || v.Total || 0), 0);
+        const cantVentas  = ventasMes.length;
+        const ticketProm  = cantVentas > 0 ? totalMes / cantVentas : 0;
+
+        // Mejor día del mes
+        const porDia = {};
+        ventasMes.forEach(v => {
+            const dia = new Date(v.fechaHora || v.FechaHora || v.fecha).toLocaleDateString("es-AR");
+            porDia[dia] = (porDia[dia] || 0) + (v.total || v.Total || 0);
+        });
+        const mejorDia = Object.entries(porDia).sort((a, b) => b[1] - a[1])[0];
+
+        document.getElementById("statTotalMes").textContent   = `$${Number(totalMes).toLocaleString("es-AR")}`;
+        document.getElementById("statVentasMes").textContent  = cantVentas;
+        document.getElementById("statTicketProm").textContent = `$${Number(ticketProm).toFixed(0)}`;
+        document.getElementById("statMejorDia").textContent   = mejorDia ? mejorDia[0] : "Sin datos";
+
+        // ── Gráfico 1: Ventas por día (últimos 14 días) ───────────────────
+        const labels14 = [];
+        const data14   = [];
+        for (let i = 13; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const label = d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+            const key   = d.toLocaleDateString("es-AR");
+            labels14.push(label);
+            data14.push(porDia[key] || 0);
+        }
+        window.renderGraficoLinea("graficoPorDia", labels14, data14, "Ventas diarias ($)");
+
+        // ── Gráfico 2: Métodos de pago ────────────────────────────────────
+        const metodos = {};
+        ventasMes.forEach(v => {
+            const m = v.metodoPago || v.MetodoPago || "Efectivo";
+            metodos[m] = (metodos[m] || 0) + (v.total || v.Total || 0);
+        });
+        window.renderGraficoDona("graficoMetodos",
+            Object.keys(metodos),
+            Object.values(metodos),
+            "Métodos de pago"
+        );
+
+        // ── Gráfico 3: Ventas por día de la semana ────────────────────────
+        const diasSemana = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+        const porSemana  = [0, 0, 0, 0, 0, 0, 0];
+        ventasMes.forEach(v => {
+            const d = new Date(v.fechaHora || v.FechaHora || v.fecha).getDay();
+            porSemana[d] += (v.total || v.Total || 0);
+        });
+        window.renderGraficoBarra("graficoPorSemana", diasSemana, porSemana, "Total por día de la semana ($)");
+
+    } catch (error) {
+        console.error("❌ Error al cargar estadísticas:", error);
+        ["statTotalMes","statVentasMes","statTicketProm","statMejorDia"].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = "Error";
+        });
+    }
+};
+
+// ── Helpers de gráficos (Chart.js) ───────────────────────────────────────
+window.renderGraficoLinea = function(canvasId, labels, data, label) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    if (canvas._chartInstance) canvas._chartInstance.destroy();
+
+    canvas._chartInstance = new Chart(canvas, {
+        type: "line",
+        data: {
+            labels,
+            datasets: [{
+                label,
+                data,
+                borderColor: "#6366f1",
+                backgroundColor: "rgba(99,102,241,0.15)",
+                borderWidth: 2,
+                pointBackgroundColor: "#6366f1",
+                pointRadius: 3,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: "#94a3b8", font: { size: 10 } }, grid: { color: "#1e293b" } },
+                y: { ticks: { color: "#94a3b8", font: { size: 10 }, callback: v => `$${Number(v).toLocaleString("es-AR")}` }, grid: { color: "#1e293b" } }
+            }
+        }
+    });
+};
+
+window.renderGraficoBarra = function(canvasId, labels, data, label) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    if (canvas._chartInstance) canvas._chartInstance.destroy();
+
+    canvas._chartInstance = new Chart(canvas, {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [{
+                label,
+                data,
+                backgroundColor: "rgba(99,102,241,0.7)",
+                borderColor: "#6366f1",
+                borderWidth: 1,
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: "#94a3b8" }, grid: { color: "#1e293b" } },
+                y: { ticks: { color: "#94a3b8", callback: v => `$${Number(v).toLocaleString("es-AR")}` }, grid: { color: "#1e293b" } }
+            }
+        }
+    });
+};
+
+window.renderGraficoDona = function(canvasId, labels, data, label) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    if (canvas._chartInstance) canvas._chartInstance.destroy();
+
+    canvas._chartInstance = new Chart(canvas, {
+        type: "doughnut",
+        data: {
+            labels,
+            datasets: [{
+                label,
+                data,
+                backgroundColor: ["#6366f1","#10b981","#3b82f6","#f59e0b","#ec4899"],
+                borderColor: "#0f172a",
+                borderWidth: 3
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: "bottom",
+                    labels: { color: "#94a3b8", font: { size: 11 }, padding: 12 }
+                }
+            }
+        }
+    });
+};
+
+// =========================================================================
+// 👤 MÓDULO DE CLIENTES
+// =========================================================================
+
+window.clientesMemoria = [];
+
+// ── Cargar y renderizar tabla de clientes ─────────────────────────────────
+window.cargarClientes = async function() {
+    const token = localStorage.getItem("token");
+    const tbody = document.getElementById("tablaClientesBody");
+    if (!tbody) return;
+
+    tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500 text-sm animate-pulse">Cargando clientes...</td></tr>`;
+
+    try {
+        const resp = await fetch(`${API_URL}/clientes`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al cargar clientes");
+
+        const clientes = await resp.json();
+        window.clientesMemoria = clientes;
+        window.renderizarTablaClientes(clientes);
+
+    } catch (error) {
+        console.error("❌ Error clientes:", error);
+        tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-rose-400 text-sm">No se pudo conectar con el servidor.</td></tr>`;
+    }
+};
+
+window.renderizarTablaClientes = function(lista) {
+    const tbody = document.getElementById("tablaClientesBody");
+    if (!tbody) return;
+
+    if (!lista || lista.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-500 italic text-sm">No hay clientes registrados aún.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = lista.map(c => `
+        <tr class="hover:bg-slate-900/30 transition-colors border-b border-slate-800/40">
+            <td class="p-4 font-bold text-white text-sm">${c.nombre}</td>
+            <td class="p-4 text-slate-400 text-xs font-mono">${c.dni || "—"}</td>
+            <td class="p-4 text-slate-400 text-xs">${c.telefono || "—"}</td>
+            <td class="p-4 text-slate-400 text-xs">${c.email || "—"}</td>
+            <td class="p-4 text-emerald-400 font-mono font-bold text-sm">$${Number(c.totalCompras || 0).toLocaleString("es-AR")}</td>
+            <td class="p-4 text-right space-x-1">
+                <button onclick="window.verHistorialCliente(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')"
+                    class="bg-indigo-950 hover:bg-indigo-900 text-indigo-400 text-xs px-2 py-1.5 rounded-lg border border-indigo-500/20 cursor-pointer">
+                    📋 Historial
+                </button>
+                <button onclick="window.eliminarCliente(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')"
+                    class="bg-rose-950/30 hover:bg-rose-900/60 text-rose-400 text-xs px-2 py-1.5 rounded-lg border border-rose-500/20 cursor-pointer">
+                    🗑️ Baja
+                </button>
+            </td>
+        </tr>
+    `).join("");
+};
+
+window.filtrarClientes = function() {
+    const txt = (document.getElementById("inputBuscarCliente")?.value || "").toLowerCase();
+    const filtrados = window.clientesMemoria.filter(c =>
+        (c.nombre || "").toLowerCase().includes(txt) ||
+        (c.dni || "").includes(txt) ||
+        (c.telefono || "").includes(txt) ||
+        (c.email || "").toLowerCase().includes(txt)
+    );
+    window.renderizarTablaClientes(filtrados);
+};
+
+// ── Modal agregar cliente ─────────────────────────────────────────────────
+window.abrirModalAgregarCliente = function() {
+    document.getElementById("modalAgregarCliente")?.classList.remove("hidden");
+    document.getElementById("clienteNombre")?.focus();
+};
+
+window.cerrarModalAgregarCliente = function() {
+    document.getElementById("modalAgregarCliente")?.classList.add("hidden");
+    document.getElementById("formAgregarCliente")?.reset();
+    document.getElementById("errorCliente")?.classList.add("hidden");
+};
+
+window.guardarNuevoCliente = async function(event) {
+    event.preventDefault();
+    const token    = localStorage.getItem("token");
+    const divError = document.getElementById("errorCliente");
+    const btn      = event.submitter;
+    const restaurar = window.btnLoading ? window.btnLoading(btn, "Guardando...") : () => {};
+
+    const payload = {
+        nombre:   document.getElementById("clienteNombre")?.value.trim(),
+        dni:      document.getElementById("clienteDni")?.value.trim() || null,
+        telefono: document.getElementById("clienteTelefono")?.value.trim() || null,
+        email:    document.getElementById("clienteEmail")?.value.trim() || null,
+        activo:   true
+    };
+
+    try {
+        const resp = await fetch(`${API_URL}/clientes`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({ mensaje: "Error desconocido." }));
+            throw new Error(err.mensaje);
+        }
+
+        window.cerrarModalAgregarCliente();
+        await window.cargarClientes();
+        alert(`✅ Cliente "${payload.nombre}" registrado con éxito.`);
+
+    } catch (error) {
+        divError.textContent = error.message || "No se pudo guardar el cliente.";
+        divError.classList.remove("hidden");
+    } finally {
+        restaurar();
+    }
+};
+
+// ── Ver historial de un cliente ───────────────────────────────────────────
+window.verHistorialCliente = async function(id, nombre) {
+    const token = localStorage.getItem("token");
+    const modal = document.getElementById("modalHistorialCliente");
+    if (!modal) return;
+
+    document.getElementById("historialClienteNombre").textContent = nombre;
+    document.getElementById("historialClienteBody").innerHTML =
+        `<tr><td colspan="3" class="p-4 text-center text-slate-500 animate-pulse text-sm">Cargando historial...</td></tr>`;
+    document.getElementById("historialClienteResumen").textContent = "";
+    modal.classList.remove("hidden");
+
+    try {
+        const resp = await fetch(`${API_URL}/clientes/${id}/historial`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al cargar historial");
+
+        const datos = await resp.json();
+        const historial      = datos.historial      || datos.Historial      || [];
+        const totalGastado   = datos.totalGastado   || datos.TotalGastado   || 0;
+        const cantVisitas    = datos.cantidadVisitas || datos.CantidadVisitas || 0;
+
+        document.getElementById("historialClienteResumen").innerHTML = `
+            <span class="text-slate-400 text-xs">${cantVisitas} visitas —</span>
+            <span class="text-emerald-400 font-bold text-sm ml-1">$${Number(totalGastado).toLocaleString("es-AR")} total</span>
+        `;
+
+        if (historial.length === 0) {
+            document.getElementById("historialClienteBody").innerHTML =
+                `<tr><td colspan="3" class="p-6 text-center text-slate-500 italic text-xs">Sin compras registradas.</td></tr>`;
+            return;
+        }
+
+        document.getElementById("historialClienteBody").innerHTML = historial.map(v => `
+            <tr class="border-b border-slate-800/40 hover:bg-slate-800/20 transition-colors">
+                <td class="py-2.5 text-slate-400 text-xs">
+                    ${new Date(v.fechaHora || v.FechaHora).toLocaleDateString("es-AR")}
+                </td>
+                <td class="py-2.5 text-slate-300 text-xs capitalize">${v.metodoPago || v.MetodoPago}</td>
+                <td class="py-2.5 text-right text-emerald-400 font-mono font-bold text-sm">
+                    $${Number(v.total || v.Total).toLocaleString("es-AR")}
+                </td>
+            </tr>
+        `).join("");
+
+    } catch (error) {
+        document.getElementById("historialClienteBody").innerHTML =
+            `<tr><td colspan="3" class="p-4 text-center text-rose-400 text-xs">Error al cargar el historial.</td></tr>`;
+    }
+};
+
+window.cerrarModalHistorialCliente = function() {
+    document.getElementById("modalHistorialCliente")?.classList.add("hidden");
+};
+
+// ── Eliminar cliente (soft delete) ────────────────────────────────────────
+window.eliminarCliente = async function(id, nombre) {
+    const ok = window.confirmar
+        ? await window.confirmar(`¿Dar de baja al cliente <strong>"${nombre}"</strong>?<br>Sus compras anteriores quedan intactas.`, "Dar de baja", "rose")
+        : confirm(`¿Dar de baja al cliente "${nombre}"?`);
+    if (!ok) return;
+
+    const token = localStorage.getItem("token");
+    try {
+        const resp = await fetch(`${API_URL}/clientes/${id}`, {
+            method: "DELETE",
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al dar de baja.");
+
+        await window.cargarClientes();
+        alert(`✅ Cliente "${nombre}" dado de baja correctamente.`);
+
+    } catch (error) {
+        alert(`❌ ${error.message}`);
+    }
+};
+
+// ── Autocompletado de cliente en el punto de venta ────────────────────────
+window.buscarClienteVenta = async function(query) {
+    if (!query || query.length < 2) {
+        document.getElementById("sugerenciasCliente")?.classList.add("hidden");
+        return;
+    }
+
+    const token = localStorage.getItem("token");
+    try {
+        const resp = await fetch(`${API_URL}/clientes/buscar?q=${encodeURIComponent(query)}`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        const clientes = await resp.json();
+        const div = document.getElementById("sugerenciasCliente");
+        if (!div) return;
+
+        if (clientes.length === 0) { div.classList.add("hidden"); return; }
+
+        div.innerHTML = clientes.map(c => `
+            <div onclick="window.seleccionarClienteVenta(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')"
+                class="px-3 py-2 hover:bg-slate-800 cursor-pointer text-sm text-slate-300 border-b border-slate-800/50 last:border-0">
+                <span class="font-bold text-white">${c.nombre}</span>
+                <span class="text-slate-500 text-xs ml-2">DNI: ${c.dni || "—"} · ${c.telefono || "—"}</span>
+            </div>
+        `).join("");
+        div.classList.remove("hidden");
+
+    } catch (e) { console.error("Error buscando cliente:", e); }
+};
+
+window.seleccionarClienteVenta = function(id, nombre) {
+    window.clienteSeleccionado = id;
+    const input = document.getElementById("inputClienteVenta");
+    if (input) input.value = nombre;
+    document.getElementById("sugerenciasCliente")?.classList.add("hidden");
+    console.log(`👤 Cliente seleccionado: ${nombre} (ID: ${id})`);
+};
+
+window.limpiarClienteVenta = function() {
+    window.clienteSeleccionado = null;
+    const input = document.getElementById("inputClienteVenta");
+    if (input) input.value = "";
+};
+
+// =========================================================================
+// 📷 MÓDULO DE LECTOR DE CÓDIGO DE BARRAS
+// Soporta: Lector USB/Bluetooth (teclado) + Cámara (html5-qrcode)
+// =========================================================================
+
+window.BarcodeScanner = (function() {
+
+    let bufferCodigo = "";
+    let timerBuffer  = null;
+    let escaneandoCamara = false;
+    let scannerCamara    = null;
+
+    // ── Procesar código escaneado (desde cualquier fuente) ────────────────
+    async function procesarCodigo(codigo, origen) {
+        codigo = codigo.trim();
+        if (!codigo) return;
+
+        console.log(`📷 Código escaneado [${origen}]: ${codigo}`);
+
+        const seccionActiva = obtenerSeccionActiva();
+
+        if (seccionActiva === "seccion-ventas") {
+            await agregarAlCarritoPorCodigo(codigo);
+        } else if (seccionActiva === "seccion-productos") {
+            buscarEnInventarioPorCodigo(codigo);
+        } else {
+            // Si no hay sección clara, intentar en ventas primero
+            await agregarAlCarritoPorCodigo(codigo);
+        }
+    }
+
+    function obtenerSeccionActiva() {
+        const secciones = [
+            "seccion-ventas",
+            "seccion-productos",
+            "seccion-usuarios",
+            "seccion-estadisticas",
+            "seccion-clientes"
+        ];
+        return secciones.find(id => {
+            const el = document.getElementById(id);
+            return el && !el.classList.contains("hidden");
+        }) || "seccion-ventas";
+    }
+
+    // ── Agregar al carrito por código de barras ───────────────────────────
+    async function agregarAlCarritoPorCodigo(codigo) {
+        const token = localStorage.getItem("token");
+
+        try {
+            const resp = await fetch(
+                `${window.ConfigInventario?.URL || API_URL}/variantes/buscar-codigo?codigo=${encodeURIComponent(codigo)}`,
+                { headers: { "Authorization": `Bearer ${token}` } }
+            );
+
+            if (resp.status === 404) {
+                window.toast?.warning(`Código ${codigo} no encontrado en el sistema.`) ||
+                alert(`⚠️ Código ${codigo} no encontrado.`);
+                return;
+            }
+            if (!resp.ok) throw new Error("Error al buscar código");
+
+            const variante = await resp.json();
+            console.log("✅ Variante encontrada:", variante);
+
+            // Usar la función de agregar al carrito que ya existe en ventas.js
+            if (typeof window.agregarAlCarrito === "function") {
+                window.agregarAlCarrito(
+                    variante.productoId   ?? variante.ProductoId,
+                    variante.id           ?? variante.Id,
+                    variante.productoNombre ?? variante.ProductoNombre ?? "Producto",
+                    variante.talle        ?? variante.Talle,
+                    variante.color        ?? variante.Color,
+                    variante.precioVenta  ?? variante.PrecioVenta ?? 0,
+                    variante.stockActual  ?? variante.StockActual ?? 0
+                );
+                window.toast?.success(`➕ ${variante.productoNombre ?? "Producto"} (${variante.talle}/${variante.color}) agregado al carrito`) ||
+                console.log("Agregado al carrito");
+            }
+
+        } catch (error) {
+            console.error("❌ Error buscando código:", error);
+            window.toast?.error("Error al buscar el código de barras.") ||
+            alert("❌ Error al buscar el código de barras.");
+        }
+    }
+
+    // ── Buscar en inventario por código ───────────────────────────────────
+    function buscarEnInventarioPorCodigo(codigo) {
+        const input = document.getElementById("inputBuscarProducto");
+        if (input) {
+            input.value = codigo;
+            if (typeof window.filtrarProductosInventario === "function") {
+                window.filtrarProductosInventario();
+            }
+            window.toast?.info(`🔍 Buscando código: ${codigo}`) ||
+            console.log("Buscando:", codigo);
+        }
+    }
+
+    // ── MODO 1: Lector USB/Bluetooth (captura de teclado global) ─────────
+    function iniciarLectorTeclado() {
+        document.addEventListener("keydown", function(e) {
+            // Ignorar si el foco está en un input de texto normal
+            const tag = document.activeElement?.tagName;
+            const tipo = document.activeElement?.type;
+            const ignorar = [
+                "inputBuscarProducto", "inputBuscador", "inputClienteVenta",
+                "inputNombreCategoria", "addNombre", "clienteNombre",
+                "reponerCantidad", "varianteTalle", "varianteColor"
+            ];
+            if (ignorar.includes(document.activeElement?.id)) return;
+            if (tag === "TEXTAREA") return;
+
+            // El lector envía los caracteres muy rápido y termina con Enter
+            if (e.key === "Enter") {
+                if (bufferCodigo.length >= 4) {
+                    const codigo = bufferCodigo;
+                    bufferCodigo = "";
+                    clearTimeout(timerBuffer);
+                    procesarCodigo(codigo, "USB/BT");
+                }
+                bufferCodigo = "";
+                return;
+            }
+
+            // Acumular caracteres en el buffer
+            if (e.key.length === 1) {
+                bufferCodigo += e.key;
+                clearTimeout(timerBuffer);
+                // Si pasan 100ms sin más teclas, limpiar el buffer
+                // (los lectores envían todo en menos de 50ms)
+                timerBuffer = setTimeout(() => {
+                    bufferCodigo = "";
+                }, 100);
+            }
+        });
+
+        console.log("⌨️ Lector USB/Bluetooth activado");
+    }
+
+    // ── MODO 2: Cámara (html5-qrcode) ────────────────────────────────────
+    function abrirCamara() {
+        const modal = document.getElementById("modalCamaraScanner");
+        if (!modal) return;
+
+        modal.classList.remove("hidden");
+        escaneandoCamara = true;
+
+        // Inicializar el escáner de cámara
+        if (typeof Html5Qrcode === "undefined") {
+            document.getElementById("camaraError").textContent =
+                "La librería de cámara no cargó. Verificá tu conexión.";
+            document.getElementById("camaraError").classList.remove("hidden");
+            return;
+        }
+
+        scannerCamara = new Html5Qrcode("camaraPreview");
+
+        Html5Qrcode.getCameras().then(cameras => {
+            if (!cameras || cameras.length === 0) {
+                throw new Error("No se encontró ninguna cámara.");
+            }
+
+            // Usar la cámara trasera si existe, si no la primera disponible
+            const camaraId = cameras.find(c =>
+                c.label.toLowerCase().includes("back") ||
+                c.label.toLowerCase().includes("trasera") ||
+                c.label.toLowerCase().includes("rear")
+            )?.id || cameras[0].id;
+
+            scannerCamara.start(
+                camaraId,
+                { fps: 10, qrbox: { width: 250, height: 150 } },
+                (codigoDecodificado) => {
+                    // Código detectado — procesar y cerrar cámara
+                    cerrarCamara();
+                    procesarCodigo(codigoDecodificado, "Cámara");
+                },
+                () => {} // Error silencioso por frame sin código
+            ).catch(err => {
+                console.error("Error cámara:", err);
+                document.getElementById("camaraError").textContent =
+                    "No se pudo acceder a la cámara. Verificá los permisos del navegador.";
+                document.getElementById("camaraError").classList.remove("hidden");
+            });
+
+        }).catch(err => {
+            document.getElementById("camaraError").textContent =
+                "No se encontró ninguna cámara disponible.";
+            document.getElementById("camaraError").classList.remove("hidden");
+        });
+    }
+
+    function cerrarCamara() {
+        const modal = document.getElementById("modalCamaraScanner");
+        if (modal) modal.classList.add("hidden");
+
+        if (scannerCamara && escaneandoCamara) {
+            scannerCamara.stop().catch(() => {});
+            scannerCamara = null;
+        }
+        escaneandoCamara = false;
+    }
+
+    // API pública
+    return {
+        init:         iniciarLectorTeclado,
+        abrirCamara:  abrirCamara,
+        cerrarCamara: cerrarCamara,
+        procesar:     procesarCodigo
+    };
+
+})();
+
+// Inicializar el lector de teclado automáticamente al cargar
+window.BarcodeScanner.init();
+
+// =========================================================================
+// 💳 MÓDULO DE MERCADO PAGO
+// =========================================================================
+
+window.MercadoPagoIntegration = (function() {
+
+    // ── Crear preferencia y mostrar QR + Link ────────────────────────────
+    async function abrirPagoMP(ventaId, total, itemsCarrito) {
+        const token = localStorage.getItem("token");
+        const modal = document.getElementById("modalMercadoPago");
+        if (!modal) return;
+
+        // Mostrar modal con loader
+        modal.classList.remove("hidden");
+        document.getElementById("mpCargando").classList.remove("hidden");
+        document.getElementById("mpContenido").classList.add("hidden");
+        document.getElementById("mpError").classList.add("hidden");
+        document.getElementById("mpTotal").textContent =
+            `$${Number(total).toLocaleString("es-AR")}`;
+
+        try {
+            // Armar los ítems para MP desde el carrito
+            const items = itemsCarrito.map(item => ({
+                nombre:         item.nombre || "Prenda",
+                cantidad:       item.cantidad || 1,
+                precioUnitario: item.precio || 0
+            }));
+
+            const payload = {
+                ventaId,
+                urlBase: window.location.origin || "http://localhost:5000",
+                items
+            };
+
+            const resp = await fetch(`${API_URL}/mercadopago/crear-preferencia`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({ mensaje: "Error desconocido." }));
+                throw new Error(err.mensaje || `Error HTTP ${resp.status}`);
+            }
+
+            const datos = await resp.json();
+            console.log("✅ Preferencia MP creada:", datos);
+
+            // ── Mostrar QR con la librería de MP ─────────────────────────
+            const contenedorQR = document.getElementById("mpQRContenedor");
+            if (contenedorQR) {
+                contenedorQR.innerHTML = ""; // Limpiar QR anterior
+
+                // Usar el SDK de MP para renderizar el QR
+                if (typeof MercadoPago !== "undefined") {
+                    const mp = new MercadoPago(
+                        document.getElementById("mpPublicKey")?.value || "",
+                        { locale: "es-AR" }
+                    );
+                    mp.bricks().create("wallet", "mpQRContenedor", {
+                        initialization: { preferenceId: datos.preferenceId }
+                    });
+                } else {
+                    // Fallback: mostrar QR como imagen vía API de QR
+                    const urlQR = encodeURIComponent(datos.sandboxUrl || datos.initPoint);
+                    contenedorQR.innerHTML = `
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${urlQR}"
+                             alt="QR Mercado Pago"
+                             class="rounded-xl mx-auto border-4 border-indigo-500/30">
+                    `;
+                }
+            }
+
+            // ── Mostrar link de pago ──────────────────────────────────────
+            const linkPago = datos.initPoint || datos.initPoint;
+            const btnLink  = document.getElementById("mpBtnLink");
+            if (btnLink) btnLink.href = linkPago;
+
+            // Guardar link para WhatsApp
+            window._mpLinkActual = linkPago;
+            window._mpTotalActual = total;
+
+            // Ocultar loader y mostrar contenido
+            document.getElementById("mpCargando").classList.add("hidden");
+            document.getElementById("mpContenido").classList.remove("hidden");
+
+        } catch (error) {
+            console.error("❌ Error MP:", error);
+            document.getElementById("mpCargando").classList.add("hidden");
+            document.getElementById("mpError").textContent =
+                error.message || "No se pudo conectar con Mercado Pago.";
+            document.getElementById("mpError").classList.remove("hidden");
+        }
+    }
+
+    function cerrarModal() {
+        document.getElementById("modalMercadoPago")?.classList.add("hidden");
+        window._mpLinkActual = null;
+    }
+
+    // ── Compartir por WhatsApp ────────────────────────────────────────────
+    function compartirWhatsApp() {
+        if (!window._mpLinkActual) return;
+        const total = Number(window._mpTotalActual || 0).toLocaleString("es-AR");
+        const msg   = encodeURIComponent(
+            `Hola! Te comparto el link de pago por $${total} 👇\n${window._mpLinkActual}`
+        );
+        window.open(`https://wa.me/?text=${msg}`, "_blank");
+    }
+
+    // ── Copiar link al portapapeles ───────────────────────────────────────
+    function copiarLink() {
+        if (!window._mpLinkActual) return;
+        navigator.clipboard.writeText(window._mpLinkActual).then(() => {
+            window.toast?.success("Link copiado al portapapeles") ||
+            alert("✅ Link copiado");
+        });
+    }
+
+    return { abrirPagoMP, cerrarModal, compartirWhatsApp, copiarLink };
+
+})();
+
+// ── Botón "Cobrar con MP" en el carrito ───────────────────────────────────
+window.cobrarConMercadoPago = async function() {
+    if (!carrito || carrito.length === 0) {
+        alert("⚠️ El carrito está vacío.");
+        return;
+    }
+
+    // Primero registrar la venta normalmente
+    const selectPago    = document.getElementById("formaPago");
+    const metodoPagoOrig = selectPago?.value;
+
+    // Forzar método de pago a Transferencia para que quede registrado
+    if (selectPago) selectPago.value = "Transferencia";
+
+    // Calcular total con descuento
+    const totalBase = carrito.reduce((s, i) => s + (i.precio * i.cantidad), 0);
+    const inputDesc = document.getElementById("inputDescuentoRecargo");
+    const modTxt    = inputDesc ? inputDesc.value.trim() : "";
+    let totalFinal  = totalBase;
+    let factor      = 1;
+
+    if (modTxt) {
+        if (modTxt.includes("%")) {
+            const esDesc = modTxt.startsWith("-");
+            const pct    = parseFloat(modTxt.replace(/[^0-9.]/g, ""));
+            if (!isNaN(pct)) {
+                const mod = totalBase * (pct / 100);
+                totalFinal = esDesc ? totalBase - mod : totalBase + mod;
+            }
+        } else {
+            const esDesc = modTxt.startsWith("-");
+            const monto  = parseFloat(modTxt.replace(/[^0-9.]/g, ""));
+            if (!isNaN(monto)) totalFinal = esDesc ? totalBase - monto : totalBase + monto;
+        }
+        if (totalFinal < 0) totalFinal = 0;
+        factor = totalBase > 0 ? totalFinal / totalBase : 1;
+    }
+
+    // Registrar la venta en la BD
+    const token = localStorage.getItem("token");
+    const itemsMapeados = carrito.map(item => ({
+        varianteId: item.id,
+        cantidad:   item.cantidad,
+        precio:     Math.round(item.precio * factor * 100) / 100
+    }));
+
+    try {
+        const resp = await fetch(`${window.ConfigInventario?.URL?.replace('/api', '') + '/api'}/ventas`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+                metodoPago: "Transferencia",
+                clienteId:  window.clienteSeleccionado || null,
+                items:      itemsMapeados
+            })
+        });
+
+        if (!resp.ok) {
+            const err = await resp.text();
+            throw new Error(err);
+        }
+
+        const resultado = await resp.json();
+        const ventaId   = resultado.ventaId || resultado.id;
+
+        // Abrir modal de MP con el QR y el link
+        await window.MercadoPagoIntegration.abrirPagoMP(ventaId, totalFinal, carrito);
+
+        // Limpiar carrito
+        carrito = [];
+        actualizarInterfazCarrito();
+        if (selectPago) selectPago.value = metodoPagoOrig;
+        await cargarProductos();
+        if (typeof cargarHistorialVentas === "function") await cargarHistorialVentas();
+
+    } catch (error) {
+        console.error("❌ Error al registrar venta MP:", error);
+        alert(`❌ Error al procesar: ${error.message}`);
+        if (selectPago) selectPago.value = metodoPagoOrig;
+    }
+};
+
+// ── Control de tabs del modal ─────────────────────────────────────────────
+window.mpMostrarTab = function(tab) {
+    const panelQR   = document.getElementById("panelQR");
+    const panelLink = document.getElementById("panelLink");
+    const tabQR     = document.getElementById("tabQR");
+    const tabLink   = document.getElementById("tabLink");
+
+    if (tab === "qr") {
+        panelQR?.classList.remove("hidden");
+        panelLink?.classList.add("hidden");
+        tabQR?.classList.add("bg-indigo-600", "text-white");
+        tabQR?.classList.remove("text-slate-400");
+        tabLink?.classList.remove("bg-indigo-600", "text-white");
+        tabLink?.classList.add("text-slate-400");
+    } else {
+        panelLink?.classList.remove("hidden");
+        panelQR?.classList.add("hidden");
+        tabLink?.classList.add("bg-indigo-600", "text-white");
+        tabLink?.classList.remove("text-slate-400");
+        tabQR?.classList.remove("bg-indigo-600", "text-white");
+        tabQR?.classList.add("text-slate-400");
+    }
+};
+
+// =========================================================================
+// 🧠 PROCESAMIENTO INTELIGENTE DE VENTA
+// Reemplazá la función window.cobrarConARCA en ventas.js
+// y agregá window.procesarVentaInteligente al final del archivo
+// =========================================================================
+
+// ── Función central que decide qué flujo usar ─────────────────────────────
+window.procesarVentaInteligente = async function() {
+    if (!carrito || carrito.length === 0) {
+        alert("⚠️ El carrito está vacío.");
+        return;
+    }
+
+    const quiereFactura = document.getElementById("toggleFacturaARCA")?.checked || false;
+
+    if (quiereFactura) {
+        // Verificar si ARCA está configurado
+        const configurado = await window.arcaConfigurado?.() || false;
+
+        if (!configurado) {
+            // Mostrar modal informativo de ARCA
+            const modal = document.getElementById("modalARCANoConfigurado");
+            if (modal) modal.classList.remove("hidden");
+            return;
+        }
+
+        // ARCA configurado → flujo de factura electrónica
+        // (se completa cuando el cliente tenga sus credenciales)
+        window.toast?.info("Iniciando facturación electrónica con ARCA...");
+        return;
+    }
+
+    // Sin factura → comprobante simple (flujo normal)
+    await window.confirmarVenta();
+};
+
+// ── Actualizar texto del botón según el toggle ────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+    const toggle = document.getElementById("toggleFacturaARCA");
+    const btnProcesar = toggle?.closest(".pt-4")?.querySelector("button[onclick*='procesarVentaInteligente']");
+
+    toggle?.addEventListener("change", function() {
+        if (!btnProcesar) return;
+        if (this.checked) {
+            btnProcesar.innerHTML = "🏛️ Procesar + Factura ARCA";
+            btnProcesar.classList.remove("bg-indigo-600", "hover:bg-indigo-500");
+            btnProcesar.classList.add("bg-violet-700", "hover:bg-violet-600");
+        } else {
+            btnProcesar.innerHTML = "🧾 Procesar Venta";
+            btnProcesar.classList.remove("bg-violet-700", "hover:bg-violet-600");
+            btnProcesar.classList.add("bg-indigo-600", "hover:bg-indigo-500");
+        }
+    });
+});
+
+// ── Actualizar cobrarConMercadoPago para respetar el toggle de factura ─────
+// Reemplaza la función anterior
+window.cobrarConMercadoPago = async function() {
+    if (!carrito || carrito.length === 0) {
+        alert("🛒 El carrito está vacío.");
+        return;
+    }
+
+    const quiereFactura = document.getElementById("toggleFacturaARCA")?.checked || false;
+
+    // Calcular total con descuento
+    const totalBase = carrito.reduce((s, i) => s + (i.precio * i.cantidad), 0);
+    const inputDesc = document.getElementById("inputDescuentoRecargo");
+    const modTxt    = inputDesc ? inputDesc.value.trim() : "";
+    let totalFinal  = totalBase;
+    let factor      = 1;
+
+    if (modTxt) {
+        if (modTxt.includes("%")) {
+            const esDesc = modTxt.startsWith("-");
+            const pct    = parseFloat(modTxt.replace(/[^0-9.]/g, ""));
+            if (!isNaN(pct)) {
+                const mod = totalBase * (pct / 100);
+                totalFinal = esDesc ? totalBase - mod : totalBase + mod;
+            }
+        } else {
+            const esDesc = modTxt.startsWith("-");
+            const monto  = parseFloat(modTxt.replace(/[^0-9.]/g, ""));
+            if (!isNaN(monto)) totalFinal = esDesc ? totalBase - monto : totalBase + monto;
+        }
+        if (totalFinal < 0) totalFinal = 0;
+        factor = totalBase > 0 ? totalFinal / totalBase : 1;
+    }
+
+    const token = localStorage.getItem("token");
+    const itemsMapeados = carrito.map(item => ({
+        varianteId: item.id,
+        cantidad:   item.cantidad,
+        precio:     Math.round(item.precio * factor * 100) / 100
+    }));
+
+    try {
+        // 1. Registrar la venta con método Mercado Pago
+        const resp = await fetch(`${API_URL}/ventas`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+                metodoPago: "Mercado Pago",
+                clienteId:  window.clienteSeleccionado || null,
+                items:      itemsMapeados
+            })
+        });
+
+        if (!resp.ok) throw new Error(await resp.text());
+
+        const resultado = await resp.json();
+        const ventaId   = resultado.ventaId || resultado.id;
+
+        // 2. Si quiere factura y ARCA está configurado → facturar también
+        if (quiereFactura) {
+            const configurado = await window.arcaConfigurado?.() || false;
+            if (configurado) {
+                window.toast?.info("Generando factura electrónica...");
+                // flujo ARCA — se implementa cuando el cliente tenga credenciales
+            } else {
+                window.toast?.warning("La venta se registró pero ARCA no está configurado para emitir factura.");
+            }
+        }
+
+        // 3. Abrir modal de MP con QR y link
+        await window.MercadoPagoIntegration.abrirPagoMP(ventaId, totalFinal, carrito);
+
+        // 4. Limpiar carrito
+        carrito = [];
+        actualizarInterfazCarrito();
+        await cargarProductos();
+        if (typeof cargarHistorialVentas === "function") await cargarHistorialVentas();
+
+    } catch (error) {
+        console.error("❌ Error MP:", error);
+        alert(`❌ Error al procesar: ${error.message}`);
+    }
+};
+
+// =========================================================================
+// 🧾 MÓDULO ARCA — Preparado pero inactivo hasta configuración
+// Pegá este bloque al final de tu ventas.js
+// =========================================================================
+
+// ── Verificar si ARCA está configurado ───────────────────────────────────
+window.arcaConfigurado = async function() {
+    try {
+        const token = localStorage.getItem("token");
+        const resp  = await fetch(`${API_URL}/facturas/estado`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) return false;
+        const datos = await resp.json();
+        return datos.configurado === true;
+    } catch {
+        return false;
+    }
+};
+
+// ── Botón "Factura ARCA" ──────────────────────────────────────────────────
+window.cobrarConARCA = async function() {
+    const configurado = await window.arcaConfigurado();
+
+    if (!configurado) {
+        // ARCA no está configurado — mostrar mensaje al usuario
+        const modal = document.getElementById("modalARCANoConfigurado");
+        if (modal) {
+            modal.classList.remove("hidden");
+        } else {
+            window.toast?.info(
+                "La facturación electrónica con ARCA no está configurada aún. " +
+                "Contactá al administrador del sistema para activarla."
+            );
+        }
+        return;
+    }
+
+    // Si está configurado, proceder con la facturación
+    // (esta parte se completa cuando el cliente tenga sus credenciales ARCA)
+    window.toast?.info("Iniciando facturación electrónica con ARCA...");
+};
+
+// ── Abrir / cerrar modal de ARCA no configurado ───────────────────────────
+window.cerrarModalARCANoConfigurado = function() {
+    document.getElementById("modalARCANoConfigurado")?.classList.add("hidden");
+};
+
+// =========================================================================
+// 📊 MÓDULO DE EXPORTACIÓN DE REPORTES — Excel + PDF
+// =========================================================================
+
+// ── UTILIDADES COMPARTIDAS ────────────────────────────────────────────────
+
+// Obtener fecha formateada para nombres de archivo
+function fechaArchivo() {
+    return new Date().toLocaleDateString("es-AR", {
+        day: "2-digit", month: "2-digit", year: "numeric"
+    }).replace(/\//g, "-");
+}
+
+// Abrir ventana de impresión limpia (igual que los tickets)
+function abrirVentanaImpresion(html, titulo) {
+    const ventana = window.open("", "_blank", "width=900,height=700,scrollbars=yes");
+    if (!ventana) {
+        alert("⚠️ El navegador bloqueó la ventana emergente. Permitila para este sitio.");
+        return;
+    }
+    ventana.document.write(html);
+    ventana.document.close();
+    ventana.onload = () => { ventana.focus(); ventana.print(); };
+}
+
+// Estilos base para todos los PDF
+function estilosBasePDF() {
+    return `
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: Arial, sans-serif; font-size: 12px; color: #1e293b; padding: 24px; }
+        h1  { font-size: 20px; font-weight: bold; color: #1e293b; margin-bottom: 4px; }
+        h2  { font-size: 14px; font-weight: bold; color: #475569; margin-bottom: 16px; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 2px solid #6366f1; padding-bottom: 12px; }
+        .header-right { text-align: right; font-size: 11px; color: #64748b; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        thead th { background: #6366f1; color: white; padding: 8px 10px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+        tbody tr:nth-child(even) { background: #f8fafc; }
+        tbody tr:hover { background: #f1f5f9; }
+        tbody td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; }
+        .total-row td { font-weight: bold; background: #eef2ff; border-top: 2px solid #6366f1; }
+        .badge-verde { color: #16a34a; font-weight: bold; }
+        .badge-rojo  { color: #dc2626; font-weight: bold; }
+        .badge-amber { color: #d97706; font-weight: bold; }
+        .resumen { display: flex; gap: 16px; margin: 16px 0; flex-wrap: wrap; }
+        .resumen-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 16px; flex: 1; min-width: 120px; }
+        .resumen-item .label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+        .resumen-item .valor { font-size: 18px; font-weight: bold; color: #6366f1; margin-top: 2px; }
+        .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 10px; color: #94a3b8; }
+        @media print { @page { margin: 1cm; } body { padding: 0; } }
+    `;
+}
+
+// =========================================================================
+// 📅 1. REPORTE DE VENTAS
+// =========================================================================
+
+window.exportarVentasExcel = async function() {
+    const token = localStorage.getItem("token");
+    const btn   = document.getElementById("btnExportarVentasExcel");
+    const restaurar = window.btnLoading ? window.btnLoading(btn, "Generando...") : () => {};
+
+    try {
+        const resp = await fetch(`${API_URL}/ventas`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al obtener ventas");
+        const ventas = await resp.json();
+
+        // Importar SheetJS dinámicamente
+        const XLSX = await import("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.mjs");
+
+        const datos = ventas.map(v => ({
+            "ID Venta":       v.id        || v.Id,
+            "Fecha":          new Date(v.fechaHora || v.FechaHora).toLocaleString("es-AR"),
+            "Método de Pago": v.metodoPago || v.MetodoPago,
+            "Total ($)":      v.total      || v.Total,
+            "Comentarios":    v.comentarios || v.Comentarios || ""
+        }));
+
+        const hoja  = XLSX.utils.json_to_sheet(datos);
+        const libro = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(libro, hoja, "Ventas");
+
+        // Ancho de columnas
+        hoja["!cols"] = [
+            { wch: 10 }, { wch: 22 }, { wch: 20 }, { wch: 12 }, { wch: 30 }
+        ];
+
+        XLSX.writeFile(libro, `Ventas_SpaceTerminal_${fechaArchivo()}.xlsx`);
+        alert("✅ Reporte de ventas exportado a Excel.");
+
+    } catch (error) {
+        console.error("❌ Error Excel ventas:", error);
+        alert("❌ No se pudo generar el Excel. Revisá la consola.");
+    } finally {
+        restaurar();
+    }
+};
+
+window.exportarVentasPDF = async function() {
+    const token = localStorage.getItem("token");
+    const btn   = document.getElementById("btnExportarVentasPDF");
+    const restaurar = window.btnLoading ? window.btnLoading(btn, "Generando...") : () => {};
+
+    try {
+        const resp = await fetch(`${API_URL}/ventas`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al obtener ventas");
+        const ventas = await resp.json();
+
+        const totalGeneral  = ventas.reduce((s, v) => s + (v.total || v.Total || 0), 0);
+        const totalEfectivo = ventas.filter(v => (v.metodoPago || v.MetodoPago || "").toLowerCase().includes("efectivo"))
+                                    .reduce((s, v) => s + (v.total || v.Total || 0), 0);
+        const totalMP       = ventas.filter(v => (v.metodoPago || v.MetodoPago || "").toLowerCase().includes("mercado"))
+                                    .reduce((s, v) => s + (v.total || v.Total || 0), 0);
+        const totalTransf   = ventas.filter(v => (v.metodoPago || v.MetodoPago || "").toLowerCase().includes("transfer"))
+                                    .reduce((s, v) => s + (v.total || v.Total || 0), 0);
+
+        const filas = ventas.map(v => `
+            <tr>
+                <td>#${v.id || v.Id}</td>
+                <td>${new Date(v.fechaHora || v.FechaHora).toLocaleString("es-AR")}</td>
+                <td>${v.metodoPago || v.MetodoPago}</td>
+                <td class="badge-verde">$${Number(v.total || v.Total).toLocaleString("es-AR")}</td>
+            </tr>
+        `).join("");
+
+        const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+        <title>Reporte de Ventas — Space Terminal</title>
+        <style>${estilosBasePDF()}</style></head><body>
+        <div class="header">
+            <div><h1>👕 Space Terminal</h1><h2>Reporte de Ventas</h2></div>
+            <div class="header-right">
+                <div>Generado: ${new Date().toLocaleString("es-AR")}</div>
+                <div>Total de registros: ${ventas.length}</div>
+            </div>
+        </div>
+        <div class="resumen">
+            <div class="resumen-item"><div class="label">Total general</div><div class="valor">$${Number(totalGeneral).toLocaleString("es-AR")}</div></div>
+            <div class="resumen-item"><div class="label">Efectivo</div><div class="valor">$${Number(totalEfectivo).toLocaleString("es-AR")}</div></div>
+            <div class="resumen-item"><div class="label">Transferencia</div><div class="valor">$${Number(totalTransf).toLocaleString("es-AR")}</div></div>
+            <div class="resumen-item"><div class="label">Mercado Pago</div><div class="valor">$${Number(totalMP).toLocaleString("es-AR")}</div></div>
+        </div>
+        <table>
+            <thead><tr><th>ID</th><th>Fecha y Hora</th><th>Método de Pago</th><th>Total</th></tr></thead>
+            <tbody>
+                ${filas}
+                <tr class="total-row"><td colspan="3">TOTAL GENERAL</td><td>$${Number(totalGeneral).toLocaleString("es-AR")}</td></tr>
+            </tbody>
+        </table>
+        <div class="footer">Space Terminal — Sistema de Punto de Venta</div>
+        </body></html>`;
+
+        abrirVentanaImpresion(html, "Reporte de Ventas");
+
+    } catch (error) {
+        console.error("❌ Error PDF ventas:", error);
+        alert("❌ No se pudo generar el PDF.");
+    } finally {
+        restaurar();
+    }
+};
+
+// =========================================================================
+// 📦 2. REPORTE DE INVENTARIO
+// =========================================================================
+
+window.exportarInventarioExcel = async function() {
+    const token = localStorage.getItem("token");
+    const btn   = document.getElementById("btnExportarInventarioExcel");
+    const restaurar = window.btnLoading ? window.btnLoading(btn, "Generando...") : () => {};
+
+    try {
+        const resp = await fetch(`${window.ConfigInventario.URL}/productos`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al obtener productos");
+        const productos = await resp.json();
+
+        const XLSX = await import("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.mjs");
+
+        // Una fila por variante
+        const datos = [];
+        productos.forEach(p => {
+            const variantes = p.variantes || p.Variantes || [];
+            if (variantes.length === 0) {
+                datos.push({
+                    "Producto":       p.nombre || p.Nombre,
+                    "Categoría":      p.categoria || p.Categoria || "General",
+                    "Precio Costo":   p.precioCosto || p.PrecioCosto || 0,
+                    "Precio Venta":   p.precio || p.PrecioVenta || 0,
+                    "Talle":          "—",
+                    "Color":          "—",
+                    "Stock Actual":   0,
+                    "Stock Mínimo":   0,
+                    "Estado":         "SIN STOCK"
+                });
+            } else {
+                variantes.forEach(v => {
+                    const stock = v.stock || v.StockActual || 0;
+                    const min   = v.stockMinimo || v.StockMinimo || 2;
+                    datos.push({
+                        "Producto":       p.nombre || p.Nombre,
+                        "Categoría":      p.categoria || p.Categoria || "General",
+                        "Precio Costo":   p.precioCosto || p.PrecioCosto || 0,
+                        "Precio Venta":   p.precio || p.PrecioVenta || 0,
+                        "Talle":          v.talle || v.Talle,
+                        "Color":          v.color || v.Color,
+                        "Stock Actual":   stock,
+                        "Stock Mínimo":   min,
+                        "Estado":         stock === 0 ? "SIN STOCK" : stock <= min ? "CRÍTICO" : "OK"
+                    });
+                });
+            }
+        });
+
+        const hoja  = XLSX.utils.json_to_sheet(datos);
+        const libro = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(libro, hoja, "Inventario");
+        hoja["!cols"] = [
+            {wch:25},{wch:15},{wch:14},{wch:14},{wch:8},{wch:15},{wch:12},{wch:12},{wch:10}
+        ];
+
+        XLSX.writeFile(libro, `Inventario_SpaceTerminal_${fechaArchivo()}.xlsx`);
+        alert("✅ Reporte de inventario exportado a Excel.");
+
+    } catch (error) {
+        console.error("❌ Error Excel inventario:", error);
+        alert("❌ No se pudo generar el Excel.");
+    } finally {
+        restaurar();
+    }
+};
+
+window.exportarInventarioPDF = async function() {
+    const token = localStorage.getItem("token");
+    const btn   = document.getElementById("btnExportarInventarioPDF");
+    const restaurar = window.btnLoading ? window.btnLoading(btn, "Generando...") : () => {};
+
+    try {
+        const resp = await fetch(`${window.ConfigInventario.URL}/productos`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al obtener productos");
+        const productos = await resp.json();
+
+        let filas = "";
+        let totalVariantes = 0;
+        let sinStock = 0;
+        let criticos = 0;
+
+        productos.forEach(p => {
+            const variantes = p.variantes || p.Variantes || [];
+            variantes.forEach(v => {
+                totalVariantes++;
+                const stock = v.stock || v.StockActual || 0;
+                const min   = v.stockMinimo || v.StockMinimo || 2;
+                if (stock === 0) sinStock++;
+                else if (stock <= min) criticos++;
+
+                const estadoClass = stock === 0 ? "badge-rojo" : stock <= min ? "badge-amber" : "badge-verde";
+                const estadoText  = stock === 0 ? "SIN STOCK" : stock <= min ? "CRÍTICO" : "OK";
+
+                filas += `
+                    <tr>
+                        <td><strong>${p.nombre || p.Nombre}</strong></td>
+                        <td>${p.categoria || "General"}</td>
+                        <td>${v.talle || "—"} / ${v.color || "—"}</td>
+                        <td>$${Number(p.precioCosto || 0).toLocaleString("es-AR")}</td>
+                        <td>$${Number(p.precio || 0).toLocaleString("es-AR")}</td>
+                        <td style="text-align:center"><strong>${stock}</strong></td>
+                        <td style="text-align:center" class="${estadoClass}">${estadoText}</td>
+                    </tr>`;
+            });
+        });
+
+        const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+        <title>Inventario — Space Terminal</title>
+        <style>${estilosBasePDF()}</style></head><body>
+        <div class="header">
+            <div><h1>👕 Space Terminal</h1><h2>Reporte de Inventario</h2></div>
+            <div class="header-right">
+                <div>Generado: ${new Date().toLocaleString("es-AR")}</div>
+                <div>Productos: ${productos.length} | Variantes: ${totalVariantes}</div>
+            </div>
+        </div>
+        <div class="resumen">
+            <div class="resumen-item"><div class="label">Total variantes</div><div class="valor">${totalVariantes}</div></div>
+            <div class="resumen-item"><div class="label">Sin stock</div><div class="valor" style="color:#dc2626">${sinStock}</div></div>
+            <div class="resumen-item"><div class="label">Stock crítico</div><div class="valor" style="color:#d97706">${criticos}</div></div>
+            <div class="resumen-item"><div class="label">Stock OK</div><div class="valor" style="color:#16a34a">${totalVariantes - sinStock - criticos}</div></div>
+        </div>
+        <table>
+            <thead><tr><th>Producto</th><th>Categoría</th><th>Talle/Color</th><th>P.Costo</th><th>P.Venta</th><th>Stock</th><th>Estado</th></tr></thead>
+            <tbody>${filas}</tbody>
+        </table>
+        <div class="footer">Space Terminal — Sistema de Punto de Venta</div>
+        </body></html>`;
+
+        abrirVentanaImpresion(html, "Inventario");
+
+    } catch (error) {
+        console.error("❌ Error PDF inventario:", error);
+        alert("❌ No se pudo generar el PDF.");
+    } finally {
+        restaurar();
+    }
+};
+
+// =========================================================================
+// 💰 3. REPORTE DE CIERRE DE CAJA
+// =========================================================================
+
+window.exportarCajaExcel = async function() {
+    const token = localStorage.getItem("token");
+    const btn   = document.getElementById("btnExportarCajaExcel");
+    const restaurar = window.btnLoading ? window.btnLoading(btn, "Generando...") : () => {};
+
+    try {
+        const resp = await fetch(`${API_URL}/cierrecaja`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al obtener cierres");
+        const cierres = await resp.json();
+
+        const XLSX = await import("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.mjs");
+
+        const datos = cierres.map(c => ({
+            "Fecha":            new Date(c.fecha || c.Fecha).toLocaleString("es-AR"),
+            "Ventas":           c.cantidadVentas || c.CantidadVentas || 0,
+            "Efectivo ($)":     c.totalEfectivo  || c.TotalEfectivo  || 0,
+            "Transferencia ($)":c.totalTransferencia || c.TotalTransferencia || 0,
+            "Débito ($)":       c.totalDebito    || c.TotalDebito    || 0,
+            "Crédito ($)":      c.totalCredito   || c.TotalCredito   || 0,
+            "Total General ($)":c.totalGeneral   || c.TotalGeneral   || 0,
+            "Observaciones":    c.observaciones  || c.Observaciones  || ""
+        }));
+
+        const hoja  = XLSX.utils.json_to_sheet(datos);
+        const libro = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(libro, hoja, "Cierres de Caja");
+        hoja["!cols"] = [
+            {wch:22},{wch:8},{wch:14},{wch:16},{wch:12},{wch:12},{wch:16},{wch:30}
+        ];
+
+        XLSX.writeFile(libro, `CierreCaja_SpaceTerminal_${fechaArchivo()}.xlsx`);
+        alert("✅ Reporte de caja exportado a Excel.");
+
+    } catch (error) {
+        console.error("❌ Error Excel caja:", error);
+        alert("❌ No se pudo generar el Excel.");
+    } finally {
+        restaurar();
+    }
+};
+
+window.exportarCajaPDF = async function() {
+    const token = localStorage.getItem("token");
+    const btn   = document.getElementById("btnExportarCajaPDF");
+    const restaurar = window.btnLoading ? window.btnLoading(btn, "Generando...") : () => {};
+
+    try {
+        const resp = await fetch(`${API_URL}/cierrecaja`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al obtener cierres");
+        const cierres = await resp.json();
+
+        const totalAcumulado = cierres.reduce((s, c) => s + (c.totalGeneral || c.TotalGeneral || 0), 0);
+
+        const filas = cierres.map(c => `
+            <tr>
+                <td>${new Date(c.fecha || c.Fecha).toLocaleString("es-AR")}</td>
+                <td style="text-align:center">${c.cantidadVentas || 0}</td>
+                <td>$${Number(c.totalEfectivo     || 0).toLocaleString("es-AR")}</td>
+                <td>$${Number(c.totalTransferencia|| 0).toLocaleString("es-AR")}</td>
+                <td>$${Number(c.totalDebito       || 0).toLocaleString("es-AR")}</td>
+                <td>$${Number(c.totalCredito      || 0).toLocaleString("es-AR")}</td>
+                <td class="badge-verde"><strong>$${Number(c.totalGeneral || 0).toLocaleString("es-AR")}</strong></td>
+            </tr>
+        `).join("");
+
+        const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+        <title>Cierres de Caja — Space Terminal</title>
+        <style>${estilosBasePDF()}</style></head><body>
+        <div class="header">
+            <div><h1>👕 Space Terminal</h1><h2>Historial de Cierres de Caja</h2></div>
+            <div class="header-right">
+                <div>Generado: ${new Date().toLocaleString("es-AR")}</div>
+                <div>Cierres registrados: ${cierres.length}</div>
+            </div>
+        </div>
+        <div class="resumen">
+            <div class="resumen-item"><div class="label">Cierres</div><div class="valor">${cierres.length}</div></div>
+            <div class="resumen-item"><div class="label">Total acumulado</div><div class="valor">$${Number(totalAcumulado).toLocaleString("es-AR")}</div></div>
+        </div>
+        <table>
+            <thead><tr><th>Fecha</th><th>Ventas</th><th>Efectivo</th><th>Transferencia</th><th>Débito</th><th>Crédito</th><th>Total</th></tr></thead>
+            <tbody>
+                ${filas}
+                <tr class="total-row"><td colspan="6">TOTAL ACUMULADO</td><td>$${Number(totalAcumulado).toLocaleString("es-AR")}</td></tr>
+            </tbody>
+        </table>
+        <div class="footer">Space Terminal — Sistema de Punto de Venta</div>
+        </body></html>`;
+
+        abrirVentanaImpresion(html, "Cierres de Caja");
+
+    } catch (error) {
+        console.error("❌ Error PDF caja:", error);
+        alert("❌ No se pudo generar el PDF.");
+    } finally {
+        restaurar();
+    }
+};

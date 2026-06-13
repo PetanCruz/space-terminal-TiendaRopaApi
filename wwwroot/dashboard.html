@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control - Sistema de Operaciones</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Space Terminal">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
+
+    <header class="bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-40 backdrop-blur shadow-md">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <h1 class="text-xl font-black tracking-wider text-indigo-400">👕 SPACE TERMINAL</h1>
+            <nav class="flex items-center gap-2 flex-wrap">
+               <button onclick="cambiarPantalla('seccion-ventas')" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-all shadow-md">🛒 Punto de Venta</button>
+               <button id="btnNavInventario" onclick="cambiarPantalla('seccion-productos'); if(window.cargarProductosInventario) window.cargarProductosInventario();" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-all">📦 Inventario</button>
+               <button id="btnNavPersonal" onclick="cambiarPantalla('seccion-usuarios')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-all">👥 Personal</button>
+               <button id="btnNavClientes" onclick="cambiarPantalla('seccion-clientes'); window.cargarClientes();" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-all">🧑‍🤝‍🧑 Clientes</button>
+               <button id="btnNavEstadisticas" onclick="cambiarPantalla('seccion-estadisticas'); window.cargarEstadisticas();" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-all">📊 Estadísticas</button>
+               <button id="btnNavReportes" onclick="cambiarPantalla('seccion-reportes')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-all">📋 Reportes</button>
+               <button id="btnNavCaja" onclick="window.abrirCierreCaja()" class="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-semibold text-sm transition-all">💰 Cerrar Caja</button>
+               <div id="usuarioActualHeader" class="ml-2"></div>
+               <button onclick="window.cerrarSesion()" class="ml-1 p-2 rounded-xl bg-rose-950/40 text-rose-400 border border-rose-900/30 hover:bg-rose-900/60 text-xs font-bold transition-colors">🚪 Salir</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="flex-1 p-4 md:p-6 max-w-7xl w-full mx-auto space-y-8">
+
+        <!-- ===================== SECCIÓN VENTAS ===================== -->
+        <div id="seccion-ventas" class="space-y-8">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 space-y-4">
+                    <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-3">
+                        <h2 class="text-lg font-bold text-white flex items-center gap-2">🛍️ Catálogo de Prendas</h2>
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                            <input type="text" id="inputBuscador" oninput="filtrarProductos()" placeholder="Buscar por nombre, talle o color..."
+                                   class="flex-1 sm:w-72 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors">
+                            <button onclick="window.BarcodeScanner.abrirCamara()"
+                                class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 px-3 py-2 rounded-xl text-sm transition-colors cursor-pointer flex-shrink-0"
+                                title="Escanear código de barras con la cámara">📷</button>
+                        </div>
+                    </div>
+                    <div id="productosCatalogo" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between max-h-[860px] sticky top-24 shadow-xl">
+                    <div class="space-y-4 flex-1 flex flex-col overflow-hidden">
+                        <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+                            <h3 class="font-bold text-white text-base">🧾 Detalle del Ticket</h3>
+                            <button onclick="window.vaciarCarrito()" class="text-xs font-medium text-rose-400 hover:text-rose-300 transition-colors">Vaciar todo</button>
+                        </div>
+                        <div id="carritoItems" class="overflow-y-auto flex-1 pr-1 space-y-2"></div>
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-800 space-y-3 bg-slate-900/50">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Método de Pago</label>
+                            <select id="formaPago" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 cursor-pointer">
+                                <option value="Efectivo">💵 Efectivo</option>
+                                <option value="Transferencia">💳 Transferencia / QR</option>
+                                <option value="Débito">💳 Tarjeta de Débito</option>
+                                <option value="Crédito">💳 Tarjeta de Crédito</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Descuento o Recargo</label>
+                            <input type="text" id="inputDescuentoRecargo" placeholder="Ej: -10%, 500, -200"
+                                   class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Cliente (opcional)</label>
+                            <div class="relative">
+                                <input type="text" id="inputClienteVenta" oninput="window.buscarClienteVenta(this.value)"
+                                    placeholder="🔍 Buscar por nombre o DNI..."
+                                    class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors">
+                                <div id="sugerenciasCliente" class="hidden absolute z-10 w-full bg-slate-900 border border-slate-700 rounded-lg mt-1 shadow-xl overflow-hidden"></div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center py-2 bg-slate-950 px-3 rounded-xl border border-slate-800">
+                            <span class="text-sm font-bold text-slate-300">Total Final:</span>
+                            <span id="totalVenta" class="text-2xl font-black text-emerald-400">$0</span>
+                        </div>
+
+                        <!-- Toggle Factura ARCA -->
+                        <div class="flex items-center justify-between bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2.5">
+                            <div>
+                                <p class="text-xs font-bold text-slate-300">¿Necesita Factura Electrónica?</p>
+                                <p class="text-[10px] text-slate-500 mt-0.5">Requiere activación módulo ARCA</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="toggleFacturaARCA" class="sr-only peer">
+                                <div class="w-10 h-6 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            </label>
+                        </div>
+
+                        <!-- Botón procesar venta -->
+                        <button onclick="window.procesarVentaInteligente()"
+                            class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-indigo-950/40 flex items-center justify-center gap-2">
+                            🧾 Procesar Venta
+                        </button>
+
+                        <!-- Botón Mercado Pago -->
+                        <button onclick="window.cobrarConMercadoPago()"
+                            class="w-full bg-sky-700 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm border border-sky-600/30">
+                            <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
+                                <circle cx="16" cy="16" r="16" fill="#009EE3"/>
+                                <path d="M8 16.5C8 12.36 11.36 9 15.5 9C17.85 9 19.96 10.03 21.41 11.67L24 9.5C21.94 7.34 19.07 6 15.5 6C9.7 6 5 10.7 5 16.5C5 22.3 9.7 27 15.5 27C19.07 27 21.94 25.66 24 23.5L21.41 21.33C19.96 22.97 17.85 24 15.5 24C11.36 24 8 20.64 8 16.5Z" fill="white"/>
+                                <path d="M27 14H25V12H23V14H21V16H23V18H25V16H27V14Z" fill="white"/>
+                            </svg>
+                            Cobrar con Mercado Pago
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="border-slate-800/60 my-8">
+
+            <div id="seccionHistorialVentas" class="space-y-6">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-md">
+                    <div>
+                        <h2 class="text-xl font-bold text-white">📈 Libro de Ventas Realizadas</h2>
+                        <p class="text-xs text-slate-400">Filtros dinámicos de auditoría en tiempo real</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button id="btnFiltroHoy" onclick="window.aplicarPreajusteFiltro('hoy')" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 transition-all">Hoy</button>
+                        <button id="btnFiltroAyer" onclick="window.aplicarPreajusteFiltro('ayer')" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 transition-all">Ayer</button>
+                        <button id="btnFiltroTodos" onclick="window.aplicarPreajusteFiltro('todos')" class="px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-semibold text-xs transition-all shadow-md">Todos</button>
+                        <input type="date" id="filtroFecha" onchange="window.filtrarVentas()" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 cursor-pointer">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-md">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cierre Total General</p>
+                        <p id="cierreTotal" class="text-xl font-black text-indigo-400 mt-1">$0</p>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-md">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">💰 Flujo en Efectivo</p>
+                        <p id="cierreEfectivo" class="text-xl font-black text-emerald-400 mt-1">$0</p>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-md">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">💳 Flujo en Transferencias</p>
+                        <p id="cierreTransferencia" class="text-xl font-black text-blue-400 mt-1">$0</p>
+                    </div>
+                </div>
+                <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-slate-800 text-slate-300 text-xs uppercase tracking-wider">
+                            <tr>
+                                <th class="p-4">ID Venta</th>
+                                <th class="p-4">Fecha y Hora</th>
+                                <th class="p-4">Medio de Pago</th>
+                                <th class="p-4">Total Liquidado</th>
+                                <th class="p-4 text-center">Detalle</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaHistorialBody" class="divide-y divide-slate-800/60 text-slate-300 text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- FIN SECCIÓN VENTAS -->
+
+        <!-- ===================== SECCIÓN INVENTARIO ===================== -->
+        <div id="seccion-productos" class="hidden space-y-4">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900 p-4 rounded-2xl border border-slate-800">
+                <div>
+                    <h2 class="text-xl font-bold text-white">📦 Panel de Control de Stock</h2>
+                    <p class="text-xs text-slate-400">Monitoreo de variantes de prendas y precios globales</p>
+                </div>
+                <div class="flex gap-2 w-full sm:w-auto">
+                    <button onclick="window.abrirModalAgregar()" class="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold text-sm transition-colors shadow-lg shadow-indigo-950/30 whitespace-nowrap">+ Agregar Producto</button>
+                    <button onclick="window.abrirModalAgregarCategoria ? window.abrirModalAgregarCategoria() : alert('Función no disponible.')" class="flex-1 sm:flex-none px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-sm transition-colors border border-slate-700 whitespace-nowrap">+ Nueva Categoría</button>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+                <input type="text" id="inputBuscarProducto" oninput="window.filtrarProductosInventario()" placeholder="Filtrar inventario por nombre..."
+                       class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                <select id="selectFiltroCategoria" onchange="window.filtrarProductosInventario()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 cursor-pointer">
+                    <option value="">📁 Todas las Categorías</option>
+                </select>
+            </div>
+            <!-- Stock crítico -->
+            <div id="seccionStockCritico" class="hidden space-y-3">
+                <div class="bg-amber-950/30 border border-amber-500/30 rounded-xl p-4 flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">⚠️</span>
+                        <div>
+                            <h3 class="text-sm font-bold text-amber-400">Variantes con Stock Crítico</h3>
+                            <p class="text-xs text-amber-400/70 mt-0.5">Estas variantes tienen stock igual o menor al mínimo configurado</p>
+                        </div>
+                    </div>
+                    <button onclick="window.cargarStockCritico()" class="text-amber-400/70 hover:text-amber-400 text-xs border border-amber-500/20 px-3 py-1.5 rounded-lg transition-colors cursor-pointer">🔄 Actualizar</button>
+                </div>
+                <div class="bg-slate-900 border border-amber-500/20 rounded-xl overflow-hidden">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-950/60 border-b border-amber-500/10 text-[11px] font-bold text-amber-400/60 uppercase tracking-wider">
+                                <th class="p-3">Producto</th>
+                                <th class="p-3">Variante</th>
+                                <th class="p-3 text-center">Stock Actual</th>
+                                <th class="p-3 text-center">Mínimo</th>
+                                <th class="p-3 text-right">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaStockCriticoBody" class="divide-y divide-slate-800/40"></tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Tabla principal -->
+            <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-slate-800 text-slate-300 text-xs uppercase tracking-wider">
+                        <tr>
+                            <th class="p-4">Detalle de Prenda</th>
+                            <th class="p-4">Categoría</th>
+                            <th class="p-4">Precio Compra</th>
+                            <th class="p-4">Precio Venta</th>
+                            <th class="p-4 text-center">Disponibilidad</th>
+                            <th class="p-4 text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaProductosBody" class="divide-y divide-slate-800/60 text-slate-300 text-sm"></tbody>
+                </table>
+            </div>
+        </div>
+        <!-- FIN SECCIÓN INVENTARIO -->
+
+        <!-- ===================== SECCIÓN PERSONAL ===================== -->
+        <div id="seccion-usuarios" class="hidden space-y-4">
+            <div class="flex justify-between items-center bg-slate-900 p-4 rounded-2xl border border-slate-800">
+                <div>
+                    <h2 class="text-xl font-bold text-white">👥 Control de Accesos y Roles</h2>
+                    <p class="text-xs text-slate-400">Administración operativa de personal autorizado</p>
+                </div>
+                <button onclick="abrirModalUsuario()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold text-sm transition-colors shadow-lg shadow-emerald-950/30">+ Nuevo Usuario</button>
+            </div>
+            <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-slate-800 text-slate-300 text-xs uppercase tracking-wider">
+                        <tr>
+                            <th class="p-4">ID</th>
+                            <th class="p-4">Nombre Completo</th>
+                            <th class="p-4">Correo Electrónico</th>
+                            <th class="p-4">Rol del Sistema</th>
+                            <th class="p-4 text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaUsuariosBody" class="divide-y divide-slate-800/60 text-slate-300 text-sm"></tbody>
+                </table>
+            </div>
+        </div>
+        <!-- FIN SECCIÓN PERSONAL -->
+
+        <!-- ===================== SECCIÓN CLIENTES ===================== -->
+        <div id="seccion-clientes" class="hidden space-y-6">
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex justify-between items-center">
+                <div>
+                    <h2 class="text-xl font-bold text-white">🧑‍🤝‍🧑 Clientes</h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Historial de compras y datos de contacto</p>
+                </div>
+                <button onclick="window.abrirModalAgregarCliente()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors cursor-pointer">+ Nuevo Cliente</button>
+            </div>
+            <div class="bg-slate-900/40 border border-slate-900 p-3 rounded-xl">
+                <input type="text" id="inputBuscarCliente" oninput="window.filtrarClientes()" placeholder="Buscar por nombre, DNI o teléfono..."
+                    class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors">
+            </div>
+            <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-xl">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-950/60 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                <th class="p-4">Nombre</th>
+                                <th class="p-4">DNI</th>
+                                <th class="p-4">Teléfono</th>
+                                <th class="p-4">Email</th>
+                                <th class="p-4">Total comprado</th>
+                                <th class="p-4 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaClientesBody" class="divide-y divide-slate-800/40">
+                            <tr><td colspan="6" class="p-8 text-center text-slate-500 italic text-sm">Cargando clientes...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- FIN SECCIÓN CLIENTES -->
+
+        <!-- ===================== SECCIÓN ESTADÍSTICAS ===================== -->
+        <div id="seccion-estadisticas" class="hidden space-y-6">
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex justify-between items-center">
+                <div>
+                    <h2 class="text-xl font-bold text-white">📊 Panel de Estadísticas</h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Resumen del mes en curso</p>
+                </div>
+                <button onclick="window.cargarEstadisticas()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors cursor-pointer">🔄 Actualizar</button>
+            </div>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-1">
+                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">💰 Total del Mes</p>
+                    <p id="statTotalMes" class="text-2xl font-black text-indigo-400">...</p>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-1">
+                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">🛒 Ventas Realizadas</p>
+                    <p id="statVentasMes" class="text-2xl font-black text-emerald-400">...</p>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-1">
+                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">🎯 Ticket Promedio</p>
+                    <p id="statTicketProm" class="text-2xl font-black text-amber-400">...</p>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-1">
+                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">🏆 Mejor Día</p>
+                    <p id="statMejorDia" class="text-xl font-black text-rose-400">...</p>
+                </div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6">
+                <h3 class="text-sm font-bold text-slate-300 mb-4">📈 Ventas diarias — últimos 14 días</h3>
+                <div class="relative h-56"><canvas id="graficoPorDia"></canvas></div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6">
+                    <h3 class="text-sm font-bold text-slate-300 mb-4">📅 Ventas por día de la semana</h3>
+                    <div class="relative h-48"><canvas id="graficoPorSemana"></canvas></div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-6">
+                    <h3 class="text-sm font-bold text-slate-300 mb-4">💳 Distribución por método de pago</h3>
+                    <div class="relative h-48"><canvas id="graficoMetodos"></canvas></div>
+                </div>
+            </div>
+        </div>
+        <!-- FIN SECCIÓN ESTADÍSTICAS -->
+
+        <!-- ===================== SECCIÓN REPORTES ===================== -->
+        <div id="seccion-reportes" class="hidden space-y-6">
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+                <h2 class="text-xl font-bold text-white">📋 Exportar Reportes</h2>
+                <p class="text-xs text-slate-400 mt-0.5">Descargá los datos del sistema en Excel o PDF</p>
+            </div>
+
+            <!-- Ventas -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+                <div class="p-4 border-b border-slate-800 flex items-center gap-3">
+                    <span class="text-2xl">📈</span>
+                    <div>
+                        <h3 class="text-sm font-bold text-white">Historial de Ventas</h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Todas las ventas registradas con totales y métodos de pago</p>
+                    </div>
+                </div>
+                <div class="p-4 flex flex-wrap gap-3">
+                    <button id="btnExportarVentasExcel" onclick="window.exportarVentasExcel()"
+                        class="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl transition-colors cursor-pointer">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8.5 17l-1.5-2.5L5.5 17H4l2-3.2L4.1 11h1.5l1.4 2.3L8.4 11H10l-1.9 2.8 2 3.2H8.5zm4.5 0h-1.4l-1.5-5.5h1.4l.8 3.3.8-3.3H14L12.5 17h.5zm4.5 0h-3v-6h1.3v5h1.7v1z"/></svg>
+                        Descargar Excel
+                    </button>
+                    <button id="btnExportarVentasPDF" onclick="window.exportarVentasPDF()"
+                        class="flex items-center gap-2 bg-rose-700 hover:bg-rose-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl transition-colors cursor-pointer">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 16h1v-5H8v5zm2-5v5h1.5c.8 0 1.5-.7 1.5-1.5v-2c0-.8-.7-1.5-1.5-1.5H10zm1 4v-3h.5c.3 0 .5.2.5.5v2c0 .3-.2.5-.5.5H11zm3-4v5h3v-1h-2v-1.5h1.5v-1H15V12h2v-1h-3z"/></svg>
+                        Ver / Imprimir PDF
+                    </button>
+                </div>
+            </div>
+
+            <!-- Inventario -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+                <div class="p-4 border-b border-slate-800 flex items-center gap-3">
+                    <span class="text-2xl">📦</span>
+                    <div>
+                        <h3 class="text-sm font-bold text-white">Inventario y Stock</h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Catálogo completo con variantes, precios y estado del stock</p>
+                    </div>
+                </div>
+                <div class="p-4 flex flex-wrap gap-3">
+                    <button id="btnExportarInventarioExcel" onclick="window.exportarInventarioExcel()"
+                        class="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl transition-colors cursor-pointer">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8.5 17l-1.5-2.5L5.5 17H4l2-3.2L4.1 11h1.5l1.4 2.3L8.4 11H10l-1.9 2.8 2 3.2H8.5zm4.5 0h-1.4l-1.5-5.5h1.4l.8 3.3.8-3.3H14L12.5 17h.5zm4.5 0h-3v-6h1.3v5h1.7v1z"/></svg>
+                        Descargar Excel
+                    </button>
+                    <button id="btnExportarInventarioPDF" onclick="window.exportarInventarioPDF()"
+                        class="flex items-center gap-2 bg-rose-700 hover:bg-rose-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl transition-colors cursor-pointer">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 16h1v-5H8v5zm2-5v5h1.5c.8 0 1.5-.7 1.5-1.5v-2c0-.8-.7-1.5-1.5-1.5H10zm1 4v-3h.5c.3 0 .5.2.5.5v2c0 .3-.2.5-.5.5H11zm3-4v5h3v-1h-2v-1.5h1.5v-1H15V12h2v-1h-3z"/></svg>
+                        Ver / Imprimir PDF
+                    </button>
+                </div>
+            </div>
+
+            <!-- Cierre de Caja -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+                <div class="p-4 border-b border-slate-800 flex items-center gap-3">
+                    <span class="text-2xl">💰</span>
+                    <div>
+                        <h3 class="text-sm font-bold text-white">Historial de Cierres de Caja</h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Todos los cierres registrados con desglose por método de pago</p>
+                    </div>
+                </div>
+                <div class="p-4 flex flex-wrap gap-3">
+                    <button id="btnExportarCajaExcel" onclick="window.exportarCajaExcel()"
+                        class="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl transition-colors cursor-pointer">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8.5 17l-1.5-2.5L5.5 17H4l2-3.2L4.1 11h1.5l1.4 2.3L8.4 11H10l-1.9 2.8 2 3.2H8.5zm4.5 0h-1.4l-1.5-5.5h1.4l.8 3.3.8-3.3H14L12.5 17h.5zm4.5 0h-3v-6h1.3v5h1.7v1z"/></svg>
+                        Descargar Excel
+                    </button>
+                    <button id="btnExportarCajaPDF" onclick="window.exportarCajaPDF()"
+                        class="flex items-center gap-2 bg-rose-700 hover:bg-rose-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl transition-colors cursor-pointer">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 16h1v-5H8v5zm2-5v5h1.5c.8 0 1.5-.7 1.5-1.5v-2c0-.8-.7-1.5-1.5-1.5H10zm1 4v-3h.5c.3 0 .5.2.5.5v2c0 .3-.2.5-.5.5H11zm3-4v5h3v-1h-2v-1.5h1.5v-1H15V12h2v-1h-3z"/></svg>
+                        Ver / Imprimir PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- FIN SECCIÓN REPORTES -->
+
+    </main>
+
+    <!-- ===================== MODALES ===================== -->
+
+    <!-- Modal: Agregar Producto -->
+    <div id="modalAgregar" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl text-slate-100">
+            <div class="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/40">
+                <h3 class="text-lg font-bold text-white">📦 Registrar Nuevo Producto</h3>
+                <button type="button" onclick="window.cerrarModalAgregar()" class="text-slate-400 hover:text-white text-xl cursor-pointer">&times;</button>
+            </div>
+            <form id="formAgregarProducto" onsubmit="window.guardarNuevoProducto(event)" class="p-6 space-y-6">
+                <div>
+                    <h4 class="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-3">1. Información General</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs text-slate-400 font-medium">Nombre de la Prenda *</label>
+                            <input type="text" id="addNombre" required placeholder="Ej: Jean Levi's 501" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors">
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs text-slate-400 font-medium">Categoría *</label>
+                            <select id="addCategoria" required class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"></select>
+                        </div>
+                        <div class="md:col-span-2 flex flex-col gap-1.5">
+                            <label class="text-xs text-slate-400 font-medium">Descripción (Opcional)</label>
+                            <textarea id="addDescripcion" rows="2" placeholder="Detalles de la prenda, material, etc." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors resize-none"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="border-t border-slate-800/60 pt-4">
+                    <h4 class="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-3">2. Precios</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs text-slate-400 font-medium">Precio de Costo ($) *</label>
+                            <input type="number" id="addPrecioCosto" step="0.01" required placeholder="0.00" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-emerald-500 transition-colors">
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs text-slate-400 font-medium">Precio de Venta ($) *</label>
+                            <input type="number" id="addPrecioVenta" step="0.01" required placeholder="0.00" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-mono text-emerald-400 focus:outline-none focus:border-emerald-500 transition-colors">
+                        </div>
+                    </div>
+                </div>
+                <div class="border-t border-slate-800/60 pt-4">
+                    <h4 class="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3">3. Variante de Stock Inicial</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs text-slate-400 font-medium">Talle *</label>
+                            <input type="text" id="addTalle" required placeholder="Ej: M, L, 42" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 transition-colors">
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs text-slate-400 font-medium">Color *</label>
+                            <input type="text" id="addColor" required placeholder="Ej: Azul Localizado" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 transition-colors">
+                        </div>
+                        <div class="col-span-2 md:col-span-1 flex flex-col gap-1.5">
+                            <label class="text-xs text-slate-400 font-medium">Código de Barras *</label>
+                            <input type="text" id="addCodigoBarras" required placeholder="Ej: 779123456" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-amber-500 transition-colors">
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs text-slate-400 font-medium">Stock Inicial *</label>
+                            <input type="number" id="addStockActual" min="0" required placeholder="0" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-amber-500 transition-colors">
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-xs text-slate-400 font-medium">Stock Mínimo (Aviso)</label>
+                            <input type="number" id="addStockMinimo" min="1" value="2" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm font-mono text-slate-400 focus:outline-none focus:border-amber-500 transition-colors">
+                        </div>
+                    </div>
+                </div>
+                <div class="border-t border-slate-800 pt-4 flex justify-end gap-2 bg-slate-950/20 -mx-6 -mb-6 p-6 rounded-b-xl">
+                    <button type="button" onclick="window.cerrarModalAgregar()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm px-4 py-2 rounded-lg transition-colors cursor-pointer">Cancelar</button>
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm px-5 py-2 rounded-lg shadow-md shadow-indigo-950/50 transition-colors cursor-pointer">💾 Guardar Producto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Ver Variantes -->
+    <div id="modalVariantes" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl flex flex-col max-h-[85vh]">
+            <div class="mb-4">
+                <h3 id="modalVariantesTitulo" class="text-lg font-bold text-white">---</h3>
+                <p id="modalVariantesSubtitulo" class="text-xs text-indigo-400 font-medium mt-0.5">---</p>
+            </div>
+            <div class="overflow-y-auto flex-1 border border-slate-800 bg-slate-950/40 rounded-xl px-4 py-2">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead class="text-xs text-slate-500 border-b border-slate-800 uppercase tracking-wider">
+                        <tr><th class="py-2">Talle</th><th class="py-2">Color</th><th class="py-2 text-right">Stock</th></tr>
+                    </thead>
+                    <tbody id="modalVariantesBody" class="divide-y divide-slate-800/40 text-slate-300"></tbody>
+                </table>
+            </div>
+            <div class="flex justify-end pt-4">
+                <button type="button" onclick="window.cerrarModalVariantes()" class="px-5 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-bold tracking-wide uppercase text-slate-300 transition-colors">Cerrar Vista</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Agregar Variante -->
+    <div id="modalAgregarVariante" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
+                <div>
+                    <h3 id="modalVarianteTitulo" class="text-base font-bold text-white">Agregar Variante</h3>
+                    <p id="modalVarianteSubtitulo" class="text-xs text-indigo-400 font-medium mt-0.5"></p>
+                </div>
+                <button onclick="window.cerrarModalAgregarVariante()" class="text-slate-400 hover:text-white text-xl p-1 cursor-pointer leading-none">&times;</button>
+            </div>
+            <form id="formAgregarVariante" onsubmit="window.guardarNuevaVariante(event)" class="p-4 space-y-4">
+                <input type="hidden" id="varianteProductoId">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Talle *</label>
+                        <input type="text" id="varianteTalle" required placeholder="Ej: S, M, L, 42" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Color *</label>
+                        <input type="text" id="varianteColor" required placeholder="Ej: Azul oscuro" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Código de Barras *</label>
+                    <input type="text" id="varianteCodigoBarras" required placeholder="Ej: 779123456789" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-sm font-mono text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Stock Inicial *</label>
+                        <input type="number" id="varianteStock" required min="0" placeholder="0" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-sm font-mono text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Stock Mínimo</label>
+                        <input type="number" id="varianteStockMinimo" min="1" value="2" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-sm font-mono text-slate-400 focus:outline-none focus:border-amber-500 transition-colors">
+                    </div>
+                </div>
+                <div id="errorVariante" class="hidden text-xs text-rose-400 bg-rose-950/40 border border-rose-500/20 rounded-lg px-3 py-2"></div>
+                <div class="flex justify-end gap-2 pt-1 border-t border-slate-800/60">
+                    <button type="button" onclick="window.cerrarModalAgregarVariante()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-4 py-2 rounded-lg border border-slate-700 transition-colors cursor-pointer">Cancelar</button>
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors cursor-pointer">👕 Guardar Variante</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Nueva Categoría -->
+    <div id="modalAgregarCategoria" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-xl shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
+                <div>
+                    <h3 class="text-base font-bold text-white">Nueva Categoría</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Agregá una categoría al catálogo</p>
+                </div>
+                <button onclick="window.cerrarModalAgregarCategoria()" class="text-slate-400 hover:text-white text-xl p-1 cursor-pointer leading-none">&times;</button>
+            </div>
+            <form id="formAgregarCategoria" onsubmit="window.guardarNuevaCategoria(event)" class="p-4 space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Nombre de la categoría</label>
+                    <input type="text" id="inputNombreCategoria" required maxlength="100" placeholder="Ej: Buzos, Zapatillas, Accesorios..."
+                        class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors">
+                </div>
+                <div id="errorCategoria" class="hidden text-xs text-rose-400 bg-rose-950/40 border border-rose-500/20 rounded-lg px-3 py-2"></div>
+                <div class="flex justify-end gap-2 pt-1">
+                    <button type="button" onclick="window.cerrarModalAgregarCategoria()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-4 py-2 rounded-lg border border-slate-700 transition-colors cursor-pointer">Cancelar</button>
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors cursor-pointer">Guardar Categoría</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Nuevo Usuario -->
+    <div id="modalUsuario" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <h3 class="text-lg font-bold text-white mb-4">🆕 Registrar Operador Autorizado</h3>
+            <form id="formUsuario" onsubmit="guardarUsuario(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Nombre Completo</label>
+                    <input type="text" id="usuarioNombre" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Correo Electrónico</label>
+                    <input type="email" id="usuarioEmail" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Clave de Acceso</label>
+                    <input type="password" id="usuarioPassword" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Rol</label>
+                    <select id="usuarioRol" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-indigo-500 cursor-pointer">
+                        <option value="Empleado">Empleado Operativo</option>
+                        <option value="administrador">Administrador de Sistema</option>
+                    </select>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="cerrarModalUsuario()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-sm font-semibold text-slate-300">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm font-semibold text-white">Habilitar Cuenta</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Agregar Cliente -->
+    <div id="modalAgregarCliente" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
+                <div>
+                    <h3 class="text-base font-bold text-white">👤 Nuevo Cliente</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Registrar cliente en el sistema</p>
+                </div>
+                <button onclick="window.cerrarModalAgregarCliente()" class="text-slate-400 hover:text-white text-xl p-1 cursor-pointer leading-none">&times;</button>
+            </div>
+            <form id="formAgregarCliente" onsubmit="window.guardarNuevoCliente(event)" class="p-4 space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Nombre completo *</label>
+                    <input type="text" id="clienteNombre" required placeholder="Ej: María González" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">DNI</label>
+                        <input type="text" id="clienteDni" placeholder="Ej: 38521409" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-sm font-mono text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Teléfono</label>
+                        <input type="text" id="clienteTelefono" placeholder="Ej: 3814521234" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-sm font-mono text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Email</label>
+                    <input type="email" id="clienteEmail" placeholder="Ej: maria@email.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors">
+                </div>
+                <div id="errorCliente" class="hidden text-xs text-rose-400 bg-rose-950/40 border border-rose-500/20 rounded-lg px-3 py-2"></div>
+                <div class="flex justify-end gap-2 pt-1 border-t border-slate-800/60">
+                    <button type="button" onclick="window.cerrarModalAgregarCliente()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-4 py-2 rounded-lg border border-slate-700 transition-colors cursor-pointer">Cancelar</button>
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors cursor-pointer">👤 Guardar Cliente</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Historial de Cliente -->
+    <div id="modalHistorialCliente" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
+                <div>
+                    <h3 id="historialClienteNombre" class="text-base font-bold text-white">Historial</h3>
+                    <div id="historialClienteResumen" class="mt-0.5"></div>
+                </div>
+                <button onclick="window.cerrarModalHistorialCliente()" class="text-slate-400 hover:text-white text-xl p-1 cursor-pointer leading-none">&times;</button>
+            </div>
+            <div class="p-4 max-h-96 overflow-y-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-800 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                            <th class="pb-2">Fecha</th><th class="pb-2">Método</th><th class="pb-2 text-right">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historialClienteBody"></tbody>
+                </table>
+            </div>
+            <div class="p-3 bg-slate-950/40 border-t border-slate-800 text-right">
+                <button onclick="window.cerrarModalHistorialCliente()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-4 py-2 rounded-lg border border-slate-700 transition-colors cursor-pointer">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Cierre de Caja -->
+    <div id="modalCierreCaja" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-xl shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
+                <div>
+                    <h3 class="text-base font-bold text-white">💰 Cierre de Caja</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Resumen de ventas del día</p>
+                </div>
+                <button onclick="window.cerrarCierreCaja()" class="text-slate-400 hover:text-white text-xl p-1 cursor-pointer leading-none">&times;</button>
+            </div>
+            <div id="cajaCargando" class="p-8 text-center text-slate-400 text-sm"><div class="animate-pulse">⏳ Calculando resumen del día...</div></div>
+            <div id="cajaError" class="hidden p-6 text-center text-rose-400 text-sm">No se pudo cargar el resumen.</div>
+            <div id="cajaContenido" class="hidden">
+                <div class="p-4 space-y-3">
+                    <div class="bg-slate-950/50 border border-slate-800 rounded-xl p-3 flex justify-between items-center">
+                        <span class="text-xs text-slate-400 font-medium uppercase tracking-wider">Ventas del día</span>
+                        <span id="cajaCantVentas" class="text-white font-bold text-lg font-mono">0</span>
+                    </div>
+                    <div class="bg-slate-950/50 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Desglose por método</p>
+                        <div class="flex justify-between items-center text-sm"><span class="text-slate-400">💵 Efectivo</span><span id="cajaEfectivo" class="text-white font-mono font-bold">$0</span></div>
+                        <div class="flex justify-between items-center text-sm"><span class="text-slate-400">📲 Transferencia / QR</span><span id="cajaTransferencia" class="text-white font-mono font-bold">$0</span></div>
+                        <div class="flex justify-between items-center text-sm"><span class="text-slate-400">💳 Débito</span><span id="cajaDebito" class="text-white font-mono font-bold">$0</span></div>
+                        <div class="flex justify-between items-center text-sm"><span class="text-slate-400">💳 Crédito</span><span id="cajaCredito" class="text-white font-mono font-bold">$0</span></div>
+                    </div>
+                    <div class="bg-emerald-950/40 border border-emerald-500/20 rounded-xl p-3 flex justify-between items-center">
+                        <span class="text-emerald-400 font-bold text-sm">TOTAL DEL DÍA</span>
+                        <span id="cajaTotalGeneral" class="text-emerald-400 font-extrabold text-xl font-mono">$0</span>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Observaciones (opcional)</label>
+                        <textarea id="cajaObservaciones" rows="2" placeholder="Ej: Faltante de $500..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors resize-none"></textarea>
+                    </div>
+                </div>
+                <div class="p-4 border-t border-slate-800 bg-slate-950/40 flex flex-col gap-2">
+                    <button id="btnConfirmarCierre" onclick="window.confirmarCierreCaja()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold py-2.5 rounded-xl transition-colors cursor-pointer">✅ Confirmar Cierre de Caja</button>
+                    <button onclick="window.cerrarCierreCaja()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs py-2 rounded-xl border border-slate-700 transition-colors cursor-pointer">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Reponer Stock -->
+    <div id="modalReponerStock" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-xl shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
+                <div>
+                    <h3 class="text-base font-bold text-white">📦 Reponer Stock</h3>
+                    <p id="reponerProductoNombre" class="text-xs text-indigo-400 font-medium mt-0.5"></p>
+                </div>
+                <button onclick="window.cerrarModalReponerStock()" class="text-slate-400 hover:text-white text-xl p-1 cursor-pointer leading-none">&times;</button>
+            </div>
+            <form id="formReponerStock" onsubmit="window.confirmarReposicion(event)" class="p-4 space-y-4">
+                <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-3 space-y-2">
+                    <div class="flex justify-between items-center text-sm"><span class="text-slate-400">Variante:</span><span id="reponerVarianteDetalle" class="text-white font-bold capitalize"></span></div>
+                    <div class="flex justify-between items-center text-sm"><span class="text-slate-400">Stock actual:</span><span id="reponerStockActual" class="text-amber-400 font-bold font-mono"></span></div>
+                    <div class="flex justify-between items-center text-sm border-t border-slate-800 pt-2"><span class="text-slate-400">Stock después de reponer:</span><span id="reponerStockNuevo" class="text-emerald-400 font-black font-mono text-base"></span></div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Cantidad a agregar *</label>
+                    <input type="number" id="reponerCantidad" required min="1" placeholder="Ej: 10" oninput="window.previewNuevoStock()"
+                        class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-sm font-mono text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors">
+                    <p class="text-[10px] text-slate-500 mt-1">Se sumará al stock actual de esta variante</p>
+                </div>
+                <div id="errorReponerStock" class="hidden text-xs text-rose-400 bg-rose-950/40 border border-rose-500/20 rounded-lg px-3 py-2"></div>
+                <div class="flex justify-end gap-2 pt-1 border-t border-slate-800/60">
+                    <button type="button" onclick="window.cerrarModalReponerStock()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-4 py-2 rounded-lg border border-slate-700 transition-colors cursor-pointer">Cancelar</button>
+                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors cursor-pointer">✅ Confirmar Reposición</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Cámara Scanner -->
+    <div id="modalCamaraScanner" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-xl shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
+                <div>
+                    <h3 class="text-base font-bold text-white">📷 Escanear Código</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Apuntá la cámara al código de barras</p>
+                </div>
+                <button onclick="window.BarcodeScanner.cerrarCamara()" class="text-slate-400 hover:text-white text-xl p-1 cursor-pointer leading-none">&times;</button>
+            </div>
+            <div class="p-4 space-y-3">
+                <div id="camaraPreview" class="w-full rounded-xl overflow-hidden bg-slate-950 min-h-48"></div>
+                <div id="camaraError" class="hidden text-xs text-rose-400 bg-rose-950/40 border border-rose-500/20 rounded-lg px-3 py-2 text-center"></div>
+                <p class="text-xs text-slate-500 text-center">El código se procesa automáticamente al detectarse</p>
+            </div>
+            <div class="p-3 border-t border-slate-800 text-right">
+                <button onclick="window.BarcodeScanner.cerrarCamara()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-4 py-2 rounded-lg border border-slate-700 transition-colors cursor-pointer">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Mercado Pago -->
+    <input type="hidden" id="mpPublicKey" value="APP_USR-199e9e32-2ad6-479f-8935-efa0216ffffb">
+    <div id="modalMercadoPago" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-xl shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">💳</span>
+                    <div>
+                        <h3 class="text-base font-bold text-white">Pagar con Mercado Pago</h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Total: <span id="mpTotal" class="text-emerald-400 font-bold">$0</span></p>
+                    </div>
+                </div>
+                <button onclick="window.MercadoPagoIntegration.cerrarModal()" class="text-slate-400 hover:text-white text-xl p-1 cursor-pointer leading-none">&times;</button>
+            </div>
+            <div id="mpCargando" class="p-8 text-center text-slate-400 text-sm"><div class="animate-pulse">⏳ Generando código de pago...</div></div>
+            <div id="mpError" class="hidden p-4 text-xs text-rose-400 bg-rose-950/40 border border-rose-500/20 rounded-lg mx-4 my-2 text-center"></div>
+            <div id="mpContenido" class="hidden p-4 space-y-4">
+                <div class="flex bg-slate-950 rounded-xl p-1 gap-1">
+                    <button id="tabQR" onclick="window.mpMostrarTab('qr')" class="flex-1 py-2 rounded-lg text-xs font-bold transition-colors bg-indigo-600 text-white">📷 QR</button>
+                    <button id="tabLink" onclick="window.mpMostrarTab('link')" class="flex-1 py-2 rounded-lg text-xs font-bold transition-colors text-slate-400 hover:text-white">🔗 Link</button>
+                </div>
+                <div id="panelQR" class="space-y-3">
+                    <p class="text-xs text-slate-400 text-center">El cliente escanea este QR con Mercado Pago</p>
+                    <div id="mpQRContenedor" class="flex items-center justify-center bg-white rounded-xl p-4 min-h-48"></div>
+                    <p class="text-[10px] text-slate-500 text-center">El QR expira en 30 minutos</p>
+                </div>
+                <div id="panelLink" class="hidden space-y-3">
+                    <p class="text-xs text-slate-400 text-center">Compartí este link con el cliente</p>
+                    <button onclick="window.MercadoPagoIntegration.compartirWhatsApp()" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-bold py-3 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.533 5.862L0 24l6.305-1.654A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.885 0-3.65-.52-5.16-1.427l-.37-.219-3.742.982.999-3.648-.242-.378A9.96 9.96 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+                        Enviar por WhatsApp
+                    </button>
+                    <button onclick="window.MercadoPagoIntegration.copiarLink()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-bold py-2.5 rounded-xl border border-slate-700 transition-colors cursor-pointer">📋 Copiar Link</button>
+                    <a id="mpBtnLink" href="#" target="_blank" class="block w-full text-center bg-indigo-950/60 hover:bg-indigo-900/60 text-indigo-400 text-xs font-bold py-2.5 rounded-xl border border-indigo-500/20 transition-colors cursor-pointer">🌐 Abrir en navegador</a>
+                </div>
+            </div>
+            <div class="p-3 border-t border-slate-800 text-right">
+                <button onclick="window.MercadoPagoIntegration.cerrarModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-4 py-2 rounded-lg border border-slate-700 transition-colors cursor-pointer">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: ARCA No Configurado -->
+    <div id="modalARCANoConfigurado" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-xl shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
+                <div>
+                    <h3 class="text-base font-bold text-white">🏛️ Facturación Electrónica</h3>
+                    <p class="text-xs text-amber-400 font-medium mt-0.5">Módulo no configurado</p>
+                </div>
+                <button onclick="window.cerrarModalARCANoConfigurado()" class="text-slate-400 hover:text-white text-xl p-1 cursor-pointer leading-none">&times;</button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="bg-amber-950/30 border border-amber-500/20 rounded-xl p-4">
+                    <p class="text-sm text-amber-400 font-medium mb-1">¿Qué es esto?</p>
+                    <p class="text-xs text-amber-400/80 leading-relaxed">La facturación electrónica permite emitir comprobantes fiscales válidos conectados con ARCA (ex-AFIP).</p>
+                </div>
+                <ul class="space-y-2 text-xs text-slate-400">
+                    <li class="flex items-start gap-2"><span class="text-indigo-400 mt-0.5">①</span> CUIT activo con clave fiscal en AFIP/ARCA</li>
+                    <li class="flex items-start gap-2"><span class="text-indigo-400 mt-0.5">②</span> Servicio de Facturación Electrónica habilitado</li>
+                    <li class="flex items-start gap-2"><span class="text-indigo-400 mt-0.5">③</span> Certificado digital generado para este sistema</li>
+                    <li class="flex items-start gap-2"><span class="text-indigo-400 mt-0.5">④</span> Punto de venta registrado en AFIP</li>
+                </ul>
+                <p class="text-xs text-slate-500 text-center">Contactá al desarrollador para activar este módulo.</p>
+            </div>
+            <div class="p-3 border-t border-slate-800 flex gap-2">
+                <button onclick="window.confirmarVenta(); window.cerrarModalARCANoConfigurado();" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2.5 rounded-xl transition-colors cursor-pointer">Continuar con comprobante simple</button>
+                <button onclick="window.cerrarModalARCANoConfigurado()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-4 py-2 rounded-xl border border-slate-700 transition-colors cursor-pointer">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/config.js"></script>
+    <script src="/js/productos.js"></script>
+    <script src="/js/ventas.js"></script>
+    <script src="/js/usuarios.js"></script>
+    <script src="/js/init.js"></script>
+</body>
+</html>

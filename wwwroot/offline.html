@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sin conexión — Space Terminal</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #020617;
+            color: #e2e8f0;
+            font-family: sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .card {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 20px;
+            padding: 40px 32px;
+            max-width: 380px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .icon { font-size: 56px; margin-bottom: 20px; }
+        h1 { font-size: 22px; font-weight: 800; color: #f8fafc; margin-bottom: 8px; }
+        p  { font-size: 14px; color: #64748b; line-height: 1.6; margin-bottom: 24px; }
+        .badge {
+            display: inline-block;
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            font-size: 12px;
+            padding: 6px 16px;
+            border-radius: 999px;
+            margin-bottom: 28px;
+        }
+        button {
+            width: 100%;
+            background: #6366f1;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 14px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background: #4f46e5; }
+        .hint {
+            margin-top: 16px;
+            font-size: 11px;
+            color: #475569;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon">📡</div>
+        <h1>Sin conexión</h1>
+        <p>Space Terminal necesita conexión al servidor para operar. Verificá que el servidor esté encendido y que tengas acceso a la red.</p>
+        <div class="badge">👕 Space Terminal</div>
+        <button onclick="window.location.reload()">
+            🔄 Reintentar conexión
+        </button>
+        <p class="hint">Si el problema persiste, contactá al administrador del sistema.</p>
+    </div>
+</body>
+</html>
