@@ -99,12 +99,13 @@ app.UseStaticFiles();
 // 2. CONFIGURACIÓN DEL PIPELINE (Middlewares)
 // =============================================================================
 
-if (app.Environment.IsDevelopment())
+// Swagger disponible en todos los entornos para testing
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Tienda Ropa API v1");
+    c.RoutePrefix = "swagger";
+});
 app.UseStaticFiles();
 
 app.UseCors("PermitirTodo");
