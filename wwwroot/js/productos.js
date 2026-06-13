@@ -3,7 +3,7 @@
 // =========================================================================
 
 window.ConfigInventario = window.ConfigInventario || {
-    URL: "http://localhost:5000/api",
+    URL: "https://tu-app.railway.app/api",
     obtenerToken: () => localStorage.getItem("token")
 };
 

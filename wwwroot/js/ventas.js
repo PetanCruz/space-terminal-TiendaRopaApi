@@ -1,7 +1,7 @@
 // ========================================================
 // CONFIGURACIÓN GLOBAL Y ESTADO DE LA APP
 // ========================================================
-const API_URL = "http://localhost:5000/api"; // Ajustá el puerto si usás otro
+const API_URL = "https://tu-app.railway.app/api"; // Ajustá el puerto si usás otro
 let productos = [];       // Guarda las prendas traídas de la API
 let carrito = [];         // Guarda los artículos seleccionados para la venta
 window.ventasGlobales = []; // 📅 Almacén en memoria para filtros instantáneos de historial
