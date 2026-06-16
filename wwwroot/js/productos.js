@@ -3,7 +3,7 @@
 // =========================================================================
 
 window.ConfigInventario = window.ConfigInventario || {
-    URL: "https://tu-app.railway.app/api",
+    URL: "https://space-terminal-tiendaropaapi-production.up.railway.app/api",
     obtenerToken: () => localStorage.getItem("token")
 };
 
