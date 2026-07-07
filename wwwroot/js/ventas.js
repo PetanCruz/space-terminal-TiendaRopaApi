@@ -14,11 +14,16 @@ async function cargarProductos() {
     if (!contenedor) return;
 
     try {
-        const token = localStorage.getItem("token"); // Recuperamos el token
-        const respuesta = await fetch(`${API_URL}/productos`, {
+        const token = localStorage.getItem("token");
+        // Extraemos los datos del usuario guardados en el login
+        const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+        const sucursalId = usuarioLocal.sucursalId || 1; // Si no hay, mandamos la 1 por defecto
+
+        // Le pegamos el sucursalId a la URL
+        const respuesta = await fetch(`${API_URL}/productos?sucursalId=${sucursalId}`, {
             method: "GET",
             headers: {
-                "Authorization": `Bearer ${token}`, // ENVIAMOS EL TOKEN
+                "Authorization": `Bearer ${token}`,
                 "Content-Type": "application/json"
             }
         });
@@ -27,7 +32,7 @@ async function cargarProductos() {
         
         productos = await respuesta.json();
         renderizarCatalogo(productos);
-        console.log("✅ Catálogo cargado con éxito.");
+        console.log("✅ Catálogo cargado con éxito para la sucursal:", sucursalId);
 
     } catch (error) {
         console.error("Error al cargar productos:", error);
@@ -860,6 +865,7 @@ window.confirmarVenta = async function() {
     const payload = {
         metodoPago: medioPago,
         clienteId:  window.clienteSeleccionado || null,
+        sucursalId: usuarioLocal.sucursalId || 1,
         items:      itemsMapeados
     };
 
@@ -1763,9 +1769,14 @@ window.BarcodeScanner = (function() {
     async function agregarAlCarritoPorCodigo(codigo) {
         const token = localStorage.getItem("token");
 
+        // 🌟 NUEVO: Obtenemos la sucursal del cajero
+        const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+        const sucursalId = usuarioLocal.sucursalId || 1;
+
         try {
+            // 🌟 NUEVO: Le inyectamos &sucursalId=${sucursalId} a la URL
             const resp = await fetch(
-                `${window.ConfigInventario?.URL || API_URL}/variantes/buscar-codigo?codigo=${encodeURIComponent(codigo)}`,
+                `${window.ConfigInventario?.URL || API_URL}/variantes/buscar-codigo?codigo=${encodeURIComponent(codigo)}&sucursalId=${sucursalId}`,
                 { headers: { "Authorization": `Bearer ${token}` } }
             );
 

@@ -35,5 +35,7 @@ namespace TiendaRopaAPI.Models
 
         [Column("usuario_id")]
         public int? UsuarioId { get; set; }
+
+        public int? SucursalId { get; set; }
     }
 }

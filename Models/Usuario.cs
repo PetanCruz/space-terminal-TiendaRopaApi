@@ -24,5 +24,7 @@ namespace TiendaRopaAPI.Models
         [Required]
         [StringLength(20)]
         public string Rol { get; set; } = "Empleado"; // "Admin" o "Empleado"
+
+        public int? SucursalId { get; set; }
     }
 }

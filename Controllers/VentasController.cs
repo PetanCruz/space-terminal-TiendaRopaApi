@@ -37,6 +37,7 @@ namespace TiendaRopaAPI.Controllers
                     MetodoPago = request.MetodoPago,
                     Comentarios = request.Comentarios,
                     ClienteId  = request.ClienteId,
+                    SucursalId = request.SucursalId, // 🌟 AGREGADO
                     Total = 0
                 };
 
@@ -56,14 +57,19 @@ namespace TiendaRopaAPI.Controllers
                         return NotFound(new { mensaje = $"La variante con ID {item.VarianteId} no existe." });
                     }
 
-                    if (variante.StockActual < item.Cantidad)
+                    // 🌟 CAMBIO: Buscamos el stock en la nueva tabla usando la sucursal
+                    var stockSucursal = await _context.StockSucursales
+                        .FirstOrDefaultAsync(s => s.VarianteId == item.VarianteId && s.SucursalId == request.SucursalId);
+
+                    if (stockSucursal == null || stockSucursal.StockActual < item.Cantidad)
                     {
                         return BadRequest(new { 
-                            mensaje = $"Stock insuficiente para {variante.Producto?.Nombre} ({variante.Color} - Talle {variante.Talle}). Disponibles: {variante.StockActual}" 
+                            mensaje = $"Stock insuficiente en esta sucursal para {variante.Producto?.Nombre}. Disponibles: {(stockSucursal != null ? stockSucursal.StockActual : 0)}" 
                         });
                     }
 
-                    variante.StockActual -= item.Cantidad;
+                    // 🌟 CAMBIO: Descontamos a la sucursal, ya no a la variante global
+                    stockSucursal.StockActual -= item.Cantidad; 
 
                     // 🌟 RECALCULO INTELIGENTE: Si el frontend mandó un precio (con descuento), usamos ese. 
                     // Si no mandó nada (o es 0), usa el precio de venta original de la Base de Datos.
@@ -174,6 +180,7 @@ namespace TiendaRopaAPI.Controllers
         public string MetodoPago { get; set; } = string.Empty;
         public string? Comentarios { get; set; }
         public int? ClienteId { get; set; }
+        public int SucursalId { get; set; } = 1;
         public List<VentaItemRequest> Items { get; set; } = new();
     }
 

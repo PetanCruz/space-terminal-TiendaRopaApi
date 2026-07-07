@@ -28,5 +28,7 @@ namespace TiendaRopaAPI.Models
 
         [ForeignKey("ClienteId")]
         public Cliente? Cliente { get; set; }
+
+        public int? SucursalId { get; set; }
     }
 }

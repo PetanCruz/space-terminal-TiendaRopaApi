@@ -68,13 +68,19 @@ namespace TiendaRopaAPI.Controllers
                 return Unauthorized(new { mensaje = "Credenciales incorrectas." });
             }
 
-            // Si todo está bien, fabricamos el Token JWT
+           // Si todo está bien, fabricamos el Token JWT
             var token = GenerarJwtToken(usuario);
 
             return Ok(new { 
                 mensaje = "Login correcto", 
                 token = token,
-                usuario = new { usuario.Nombre, usuario.Email, usuario.Rol }
+                usuario = new { 
+                    id = usuario.Id,          
+                    nombre = usuario.Nombre, 
+                    email = usuario.Email, 
+                    rol = usuario.Rol,
+                    sucursalId = usuario.SucursalId ?? 1 // 🌟 (Por defecto 1 si es null)
+                }
             });
         }
 

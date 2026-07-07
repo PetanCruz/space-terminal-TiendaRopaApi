@@ -79,8 +79,13 @@ window.cargarProductosInventario = async function() {
     const token = window.ConfigInventario.obtenerToken();
     const tbody = document.getElementById("tablaProductosBody");
 
+    // 🌟 NUEVO: Obtenemos la sucursal del empleado logueado
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const sucursalId = usuarioLocal.sucursalId || 1;
+
     try {
-        const respuesta = await fetch(`${window.ConfigInventario.URL}/productos`, {
+        // 🌟 NUEVO: Le pasamos la sucursal a la URL de productos
+        const respuesta = await fetch(`${window.ConfigInventario.URL}/productos?sucursalId=${sucursalId}`, {
             method: "GET",
             headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
         });
@@ -338,6 +343,7 @@ window.guardarNuevoProducto = async function(event) {
         precioCosto:  precioCosto,
         precioVenta:  precioVenta,
         activo:       true,
+        sucursalId:   usuarioLocal.sucursalId || 1,
         variantes: [
             {
                 talle:        talle,
@@ -526,7 +532,8 @@ window.guardarNuevaVariante = async function(event) {
         color,
         codigoBarras: codBarras,
         stockActual:  stock,
-        stockMinimo:  stockMin
+        stockMinimo:  stockMin,
+        sucursalId:   usuarioLocal.sucursalId || 1
     };
 
     console.log("👕 Enviando nueva variante:", payload);
@@ -574,8 +581,13 @@ window.guardarNuevaVariante = async function(event) {
 window.cargarStockCritico = async function() {
     const token = localStorage.getItem("token");
 
+    // 🌟 NUEVO: Obtenemos la sucursal
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const sucursalId = usuarioLocal.sucursalId || 1;
+
     try {
-        const resp = await fetch(`${window.ConfigInventario.URL}/variantes/stock-critico`, {
+        // 🌟 NUEVO: Filtramos el stock crítico por la sucursal actual
+        const resp = await fetch(`${window.ConfigInventario.URL}/variantes/stock-critico?sucursalId=${sucursalId}`, {
             headers: { "Authorization": `Bearer ${token}` }
         });
         if (!resp.ok) throw new Error("Error al cargar stock crítico");
@@ -585,13 +597,8 @@ window.cargarStockCritico = async function() {
         const sinStock = datos.sinStock ?? datos.SinStock ?? 0;
         const criticos = datos.criticos ?? datos.Criticos ?? [];
 
-        // ── Actualizar badge en el nav ────────────────────────────────────
         window.actualizarBadgeStock(total, sinStock);
-
-        // ── Renderizar tabla de críticos en el inventario ─────────────────
         window.renderizarStockCritico(criticos);
-
-        console.log(`⚠️ Stock crítico: ${total} variantes (${sinStock} sin stock)`);
 
     } catch (error) {
         console.error("❌ Error al cargar stock crítico:", error);
@@ -757,17 +764,21 @@ window.confirmarReposicion = async function(event) {
     }
 
     const nuevoStock = stockActual + cantidad;
+    
+    // 🌟 NUEVO: Obtenemos la sucursal
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const sucursalId = usuarioLocal.sucursalId || 1;
 
     try {
+        // 🌟 NUEVO: Llamamos a la ruta exacta de C# pasando cantidad y sucursal por URL
         const resp = await fetch(
-            `${window.ConfigInventario.URL}/variantes/${varianteId}/stock`,
+            `${window.ConfigInventario.URL}/productos/reponer-stock/${varianteId}?cantidadAAgregar=${cantidad}&sucursalId=${sucursalId}`,
             {
                 method: "PUT",
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ stockActual: nuevoStock })
+                }
             }
         );
 

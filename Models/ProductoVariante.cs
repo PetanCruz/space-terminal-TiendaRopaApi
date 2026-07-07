@@ -26,13 +26,13 @@ namespace TiendaRopaAPI.Models
         [StringLength(50)]
         public string CodigoBarras { get; set; } = string.Empty;
 
-        [Required]
-        [Column("stock_actual")]
-        public int StockActual { get; set; } = 0;
+        //[Required]
+        //[Column("stock_actual")]
+        //public int StockActual { get; set; } = 0;
 
-        [Required]
-        [Column("stock_minimo")]
-        public int StockMinimo { get; set; } = 2;
+       // [Required]
+        //[Column("stock_minimo")]
+        //public int StockMinimo { get; set; } = 2;
 
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.Now;

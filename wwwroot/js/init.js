@@ -485,3 +485,13 @@ window.addEventListener("load", () => {
         document.documentElement.style.setProperty("--safe-area-bottom", "env(safe-area-inset-bottom)");
     }
 });
+
+document.addEventListener("DOMContentLoaded", () => {
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario"));
+    if(usuarioLocal && usuarioLocal.sucursalNombre) {
+        const headerDiv = document.getElementById("usuarioActualHeader");
+        if(headerDiv) {
+            headerDiv.innerHTML = `<span class="text-indigo-300 font-bold text-xs ml-2">📍 ${usuarioLocal.sucursalNombre}</span>`;
+        }
+    }
+});
