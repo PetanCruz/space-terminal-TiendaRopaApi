@@ -75,6 +75,7 @@ window.eliminarUsuario = async function(id, nombre) {
 // 3. CONTROL DEL MODAL (ABRIR / CERRAR)
 window.abrirModalUsuario = function() {
     document.getElementById("modalUsuario").classList.remove("hidden");
+    window.cargarSucursalesSelect();
 };
 
 window.cerrarModalUsuario = function() {
@@ -122,5 +123,35 @@ window.guardarUsuario = async function(event) {
     } catch (error) {
         console.error("Error al registrar usuario:", error);
         alert(error.message || "No se pudo crear el usuario.");
+    }
+};
+
+// 5. CARGAR SUCURSALES DINÁMICAMENTE
+window.cargarSucursalesSelect = async function() {
+    try {
+        const respuesta = await fetch(`${API_URL}/sucursales`);
+        const sucursales = await respuesta.json();
+        
+        const select = document.getElementById("usuarioSucursal");
+        const contenedor = document.getElementById("contenedorSucursal");
+        
+        select.innerHTML = ""; // Limpiamos opciones viejas
+
+        if (sucursales.length <= 1) {
+            // MAGIA: Si hay 1 sola sucursal (ej: Ferretería), se oculta visualmente
+            contenedor.classList.add("hidden");
+            if (sucursales.length === 1) {
+                // Pero dejamos su ID guardado en secreto
+                select.innerHTML = `<option value="${sucursales[0].id}">${sucursales[0].nombre}</option>`;
+            }
+        } else {
+            // MAGIA 2: Si hay varias (ej: Monteros y San Miguel), le mostramos el menú al dueño
+            contenedor.classList.remove("hidden");
+            sucursales.forEach(s => {
+                select.innerHTML += `<option value="${s.id}">${s.nombre}</option>`;
+            });
+        }
+    } catch (error) {
+        console.error("Error al buscar sucursales:", error);
     }
 };

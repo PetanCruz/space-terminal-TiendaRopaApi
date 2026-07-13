@@ -19,5 +19,6 @@ namespace TiendaRopaAPI.Data
         public DbSet<CierreCaja> CierresCaja { get; set; }
         public DbSet<Cliente> Clientes { get; set; }
         public DbSet<StockSucursal> StockSucursales { get; set; }
+        public DbSet<Sucursal> Sucursales { get; set; }
     }
 }
