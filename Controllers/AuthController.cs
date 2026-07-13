@@ -39,6 +39,7 @@ namespace TiendaRopaAPI.Controllers
                 Email = request.Email,
                 Nombre = request.Nombre,
                 Rol = request.Rol
+                SucursalId = request.SucursalId
             };
 
             // Encriptamos la contraseña antes de guardarla en la base de datos
@@ -118,7 +119,8 @@ namespace TiendaRopaAPI.Controllers
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string Nombre { get; set; } = string.Empty;
-        public string Rol { get; set; } = "Empleado"; 
+        public string Rol { get; set; } = "Empleado";
+        public int SucursalId { get; set; } 
     }
 
     public class LoginRequest

@@ -90,6 +90,8 @@ window.guardarUsuario = async function(event) {
     const email = document.getElementById("usuarioEmail").value;
     const password = document.getElementById("usuarioPassword").value;
     const rol = document.getElementById("usuarioRol").value;
+    // NUEVO: Capturamos la sucursal elegida
+    const sucursalId = document.getElementById("usuarioSucursal").value; 
 
     try {
         const respuesta = await fetch(`${API_URL}/auth/registrar`, {
@@ -97,7 +99,14 @@ window.guardarUsuario = async function(event) {
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ nombre, email, password, rol })
+            // NUEVO: Enviamos el sucursalId (convertido a número) junto con el resto
+            body: JSON.stringify({ 
+                nombre, 
+                email, 
+                password, 
+                rol, 
+                sucursalId: parseInt(sucursalId) 
+            })
         });
 
         const datos = await respuesta.json();
@@ -106,7 +115,7 @@ window.guardarUsuario = async function(event) {
             throw new Error(datos.mensaje || "Error al registrar.");
         }
 
-        alert("🎉 Usuario registrado con éxito.");
+        alert("🎉 Usuario registrado con éxito en su sucursal.");
         cerrarModalUsuario();
         await cargarUsuarios(); // Actualiza la lista en tiempo real
 
