@@ -305,6 +305,14 @@ window.verVariantes = function(id) {
     document.getElementById("modalVariantes")?.classList.remove("hidden");
 };
 
+// ── Cerrar Modal de Variantes ─────────────────────────────────────────────
+window.cerrarModalVariantes = function() {
+    const modal = document.getElementById("modalVariantes");
+    if (modal) {
+        modal.classList.add("hidden");
+    }
+};
+
 // =========================================================================
 // ✨ 6. MODAL AGREGAR PRODUCTO — Abrir / Cerrar
 // =========================================================================
