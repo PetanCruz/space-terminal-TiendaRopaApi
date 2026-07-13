@@ -74,8 +74,16 @@
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Descuento o Recargo</label>
-                            <input type="text" id="inputDescuentoRecargo" placeholder="Ej: -10%, 500, -200"
-                                   class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+                            <div class="flex gap-2">
+                                <select id="tipoModificador" onchange="window.actualizarInterfazCarrito()" class="w-1/2 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 cursor-pointer">
+                                    <option value="nada">Sin cambios</option>
+                                    <option value="descuento_pct">Descuento (%)</option>
+                                    <option value="descuento_fijo">Descuento ($)</option>
+                                    <option value="recargo_pct">Recargo (%)</option>
+                                    <option value="recargo_fijo">Recargo ($)</option>
+                                </select>
+                                <input type="number" id="valorModificador" oninput="window.actualizarInterfazCarrito()" placeholder="0" class="w-1/2 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+                            </div>
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Cliente (opcional)</label>

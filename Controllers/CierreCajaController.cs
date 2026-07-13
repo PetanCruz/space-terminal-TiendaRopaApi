@@ -49,8 +49,12 @@ namespace TiendaRopaAPI.Controllers
             var hoy = DateTime.Today;
             var manana = hoy.AddDays(1);
 
+            // 🌟 NUEVO: Traemos las ventas de hoy, pero EXCLUIMOS las cuentas corrientes/fiados
+            // porque no es dinero físico que haya entrado a la caja.
             var ventasHoy = await _context.Ventas
-                .Where(v => v.FechaHora >= hoy && v.FechaHora < manana)
+                .Where(v => v.FechaHora >= hoy && v.FechaHora < manana 
+                            && !v.MetodoPago.ToLower().Contains("cuenta corriente")
+                            && !v.MetodoPago.ToLower().Contains("fiado"))
                 .ToListAsync();
 
             var resumen = new

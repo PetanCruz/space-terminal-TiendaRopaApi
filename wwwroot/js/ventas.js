@@ -227,7 +227,7 @@ function eliminarDelCarrito(index) {
 // ========================================================
 // 4. ACTUALIZAR EL TICKET VISUAL (DERECHA)
 // ========================================================
-function actualizarInterfazCarrito() {
+window.actualizarInterfazCarrito = function() {
     const contenedor = document.getElementById("carritoItems");
     const totalText = document.getElementById("totalVenta");
     if (!contenedor || !totalText) return;
@@ -235,20 +235,12 @@ function actualizarInterfazCarrito() {
     contenedor.innerHTML = "";
     
     if (carrito.length === 0) {
-        contenedor.innerHTML = `
-            <div id="carritoVacio" class="text-slate-500 text-center py-8 text-sm">
-                El ticket está vacío. Seleccioná una prenda.
-            </div>
-        `;
+        contenedor.innerHTML = `<div id="carritoVacio" class="text-slate-500 text-center py-8 text-sm">El ticket está vacío. Seleccioná una prenda.</div>`;
         totalText.textContent = "$0";
-        
-        const inputDesc = document.getElementById("inputDescuentoRecargo");
-        if (inputDesc) inputDesc.value = "";
         return;
     }
 
     let totalBase = 0;
-
     carrito.forEach((item, index) => {
         totalBase += item.precio * item.cantidad;
         const row = document.createElement("div");
@@ -266,34 +258,20 @@ function actualizarInterfazCarrito() {
         contenedor.appendChild(row);
     });
 
-    const inputDesc = document.getElementById("inputDescuentoRecargo");
-    let modificacionTexto = inputDesc ? inputDesc.value.trim() : "";
+    // 🌟 NUEVA LÓGICA DE DESCUENTOS LIMPIA
+    const tipoMod = document.getElementById("tipoModificador")?.value || "nada";
+    const valorMod = parseFloat(document.getElementById("valorModificador")?.value) || 0;
+    
     let totalFinal = totalBase;
 
-    if (modificacionTexto) {
-        if (modificacionTexto.includes("%")) {
-            const esDescuento = modificacionTexto.startsWith("-");
-            const limpio = modificacionTexto.replace(/[^0-9.]/g, ""); 
-            const porcentaje = parseFloat(limpio);
-            
-            if (!isNaN(porcentaje)) {
-                const montoModificador = totalBase * (porcentaje / 100);
-                totalFinal = esDescuento ? totalBase - montoModificador : totalBase + montoModificador;
-            }
-        } else {
-            const esDescuento = modificacionTexto.startsWith("-");
-            const limpio = modificacionTexto.replace(/[^0-9.]/g, "");
-            const montoFijo = parseFloat(limpio);
-            
-            if (!isNaN(montoFijo)) {
-                totalFinal = esDescuento ? totalBase - montoFijo : totalBase + montoFijo;
-            }
-        }
-    }
+    if (tipoMod === "descuento_pct") totalFinal -= totalBase * (valorMod / 100);
+    if (tipoMod === "descuento_fijo") totalFinal -= valorMod;
+    if (tipoMod === "recargo_pct") totalFinal += totalBase * (valorMod / 100);
+    if (tipoMod === "recargo_fijo") totalFinal += valorMod;
 
     if (totalFinal < 0) totalFinal = 0;
     totalText.textContent = `$${Math.round(totalFinal)}`;
-}
+};
 
 // ========================================================
 // 6. HISTORIAL DE VENTAS (Carga Base)
@@ -816,10 +794,8 @@ window.vaciarCarrito = function() {
 };
 
 // =========================================================================
-// 💲 FIX: DESCUENTO EN CONFIRMAR VENTA
-// Reemplazá la función window.confirmarVenta completa en tu ventas.js
+// 💲 CONFIRMAR VENTA EN LA BASE DE DATOS
 // =========================================================================
-
 window.confirmarVenta = async function() {
     if (carrito.length === 0) {
         alert("🛒 El carrito está vacío.");
@@ -829,99 +805,74 @@ window.confirmarVenta = async function() {
     const selectPago = document.getElementById("formaPago") || document.getElementById("metodoPago");
     const medioPago  = selectPago ? selectPago.value : "Efectivo";
 
+    // 🌟 BLOQUEO DE SEGURIDAD PARA FIADOS
     if (medioPago === "Cuenta Corriente" && !window.clienteSeleccionado) {
         alert("⚠️ Para anotar un fiado (Cuenta Corriente) DEBÉS buscar y seleccionar un cliente primero.");
         document.getElementById("inputClienteVenta")?.focus();
         return;
     }
 
-    // ── Calcular el total base (sin descuento) ────────────────────────────
+    // 🌟 EL FIX: "Despertamos" al usuario local para saber su sucursal
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const sucursalCajero = usuarioLocal.sucursalId || 1;
+
     const totalBase = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+    
+    // 🌟 LECTURA DEL NUEVO DESCUENTO
+    const tipoMod = document.getElementById("tipoModificador")?.value || "nada";
+    const valorMod = parseFloat(document.getElementById("valorModificador")?.value) || 0;
+    
+    let totalFinal = totalBase;
+    if (tipoMod === "descuento_pct") totalFinal -= totalBase * (valorMod / 100);
+    if (tipoMod === "descuento_fijo") totalFinal -= valorMod;
+    if (tipoMod === "recargo_pct") totalFinal += totalBase * (valorMod / 100);
+    if (tipoMod === "recargo_fijo") totalFinal += valorMod;
+    if (totalFinal < 0) totalFinal = 0;
 
-    // ── Leer el descuento/recargo del input ───────────────────────────────
-    const inputDesc       = document.getElementById("inputDescuentoRecargo");
-    const modificacionTxt = inputDesc ? inputDesc.value.trim() : "";
-    let totalFinal        = totalBase;
-    let factorDescuento   = 1; // 1 = sin cambio
+    const factorDescuento = totalBase > 0 ? totalFinal / totalBase : 1;
 
-    if (modificacionTxt) {
-        if (modificacionTxt.includes("%")) {
-            const esDescuento = modificacionTxt.startsWith("-");
-            const porcentaje  = parseFloat(modificacionTxt.replace(/[^0-9.]/g, ""));
-            if (!isNaN(porcentaje)) {
-                const modificador = totalBase * (porcentaje / 100);
-                totalFinal = esDescuento ? totalBase - modificador : totalBase + modificador;
-            }
-        } else {
-            const esDescuento = modificacionTxt.startsWith("-");
-            const montoFijo   = parseFloat(modificacionTxt.replace(/[^0-9.]/g, ""));
-            if (!isNaN(montoFijo)) {
-                totalFinal = esDescuento ? totalBase - montoFijo : totalBase + montoFijo;
-            }
-        }
-        if (totalFinal < 0) totalFinal = 0;
-        // FIX: calcular el factor para distribuir el descuento en cada ítem
-        factorDescuento = totalBase > 0 ? totalFinal / totalBase : 1;
-    }
-
-    // ── Armar los ítems con el precio ajustado por el descuento ──────────
-    // El backend recalcula el total sumando (precioUnitario * cantidad) por cada ítem.
-    // Por eso mandamos el precio ya ajustado proporcional al descuento aplicado.
     const itemsMapeados = carrito.map(item => ({
         varianteId:     item.id,
         cantidad:       item.cantidad,
-        // FIX: precio ajustado con el factor de descuento/recargo
         precio:         Math.round(item.precio * factorDescuento * 100) / 100
     }));
 
     const payload = {
         metodoPago: medioPago,
         clienteId:  window.clienteSeleccionado || null,
-        sucursalId: usuarioLocal.sucursalId || 1,
+        sucursalId: sucursalCajero, 
         items:      itemsMapeados
     };
 
-    console.log("🚀 Payload enviado al backend:", payload);
-    console.log(`💲 Total base: $${totalBase} | Factor: ${factorDescuento} | Total final: $${totalFinal}`);
-
     try {
-        const token    = localStorage.getItem("token");
+        const token = localStorage.getItem("token");
         const respuesta = await fetch(`${API_URL}/ventas`, {
             method: "POST",
-            headers: {
-                "Authorization": `Bearer ${token}`,
-                "Content-Type": "application/json"
-            },
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         });
 
         if (respuesta.ok) {
             const resultado = await respuesta.json();
-
-            // Obtener el ID de la venta recién guardada
-            const ticketId = resultado.ventaId || resultado.id || resultado.Id || null;
+            const ticketId = resultado.ventaId || resultado.id || null;
 
             if (ticketId && typeof verDetalleFactura === "function") {
-                console.log(`🎫 Abriendo ticket #${ticketId}`);
                 await verDetalleFactura(ticketId);
             } else {
-                alert(`✅ ¡Venta guardada con éxito! Total: $${totalFinal.toLocaleString("es-AR")}`);
+                alert(`✅ ¡Venta guardada con éxito!`);
             }
 
-            // Limpiar carrito y recargar
             carrito = [];
             actualizarInterfazCarrito();
             await cargarProductos();
             if (typeof cargarHistorialVentas === "function") await cargarHistorialVentas();
-
         } else {
             const errorTexto = await respuesta.text();
             alert(`❌ Error al guardar la venta: ${errorTexto}`);
         }
-
     } catch (error) {
         console.error("❌ Error en confirmarVenta:", error);
-        alert("❌ Hubo un problema de red al procesar la venta. Revisá la conexión.");
+        alert("❌ Hubo un problema de red al procesar la venta.");
     }
 };
 
@@ -2800,31 +2751,19 @@ window.generarPresupuesto = function() {
         return;
     }
 
-    // 1. Calculamos el total con descuento igual que en la venta
     const totalBase = carrito.reduce((s, i) => s + (i.precio * i.cantidad), 0);
-    const inputDesc = document.getElementById("inputDescuentoRecargo");
-    const modTxt    = inputDesc ? inputDesc.value.trim() : "";
-    let totalFinal  = totalBase;
-    let factor      = 1;
+    const tipoMod = document.getElementById("tipoModificador")?.value || "nada";
+    const valorMod = parseFloat(document.getElementById("valorModificador")?.value) || 0;
+    
+    let totalFinal = totalBase;
+    if (tipoMod === "descuento_pct") totalFinal -= totalBase * (valorMod / 100);
+    if (tipoMod === "descuento_fijo") totalFinal -= valorMod;
+    if (tipoMod === "recargo_pct") totalFinal += totalBase * (valorMod / 100);
+    if (tipoMod === "recargo_fijo") totalFinal += valorMod;
+    if (totalFinal < 0) totalFinal = 0;
 
-    if (modTxt) {
-        if (modTxt.includes("%")) {
-            const esDesc = modTxt.startsWith("-");
-            const pct    = parseFloat(modTxt.replace(/[^0-9.]/g, ""));
-            if (!isNaN(pct)) {
-                const mod = totalBase * (pct / 100);
-                totalFinal = esDesc ? totalBase - mod : totalBase + mod;
-            }
-        } else {
-            const esDesc = modTxt.startsWith("-");
-            const monto  = parseFloat(modTxt.replace(/[^0-9.]/g, ""));
-            if (!isNaN(monto)) totalFinal = esDesc ? totalBase - monto : totalBase + monto;
-        }
-        if (totalFinal < 0) totalFinal = 0;
-        factor = totalBase > 0 ? totalFinal / totalBase : 1;
-    }
+    const factor = totalBase > 0 ? totalFinal / totalBase : 1;
 
-    // 2. Mapeamos las prendas al formato del ticket
     const prendasMapeadas = carrito.map(item => ({
         productoNombre: item.nombre,
         talle: item.talle,
@@ -2833,27 +2772,15 @@ window.generarPresupuesto = function() {
         precioUnitario: Math.round(item.precio * factor * 100) / 100
     }));
 
-    // 3. Generamos el HTML base del ticket
-    let htmlPresupuesto = window.generarHTMLTicket(
-        "PRESUPUESTO", 
-        totalFinal, 
-        "A Confirmar", 
-        prendasMapeadas, 
-        new Date().toISOString()
-    );
-
-    // 4. Truco: Reemplazamos los textos para que no diga "Ticket de Venta"
+    let htmlPresupuesto = window.generarHTMLTicket("PRESUPUESTO", totalFinal, "A Confirmar", prendasMapeadas, new Date().toISOString());
     htmlPresupuesto = htmlPresupuesto.replace("Ticket N°:", "Documento:");
     htmlPresupuesto = htmlPresupuesto.replace("¡Gracias por tu compra!", "Presupuesto válido por 7 días");
     htmlPresupuesto = htmlPresupuesto.replace("Conservá este ticket", "No válido como factura");
 
-    // 5. Mandamos a imprimir
     const ventanaImp = window.open("", "_blank", "width=400,height=600,scrollbars=yes");
-    if (!ventanaImp) {
-        alert("⚠️ El navegador bloqueó la ventana emergente.");
-        return;
+    if (ventanaImp) {
+        ventanaImp.document.write(htmlPresupuesto);
+        ventanaImp.document.close();
+        ventanaImp.onload = () => { ventanaImp.focus(); ventanaImp.print(); };
     }
-    ventanaImp.document.write(htmlPresupuesto);
-    ventanaImp.document.close();
-    ventanaImp.onload = () => { ventanaImp.focus(); ventanaImp.print(); };
 };
