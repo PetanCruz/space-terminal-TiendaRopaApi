@@ -69,6 +69,7 @@
                                 <option value="Transferencia">💳 Transferencia / QR</option>
                                 <option value="Débito">💳 Tarjeta de Débito</option>
                                 <option value="Crédito">💳 Tarjeta de Crédito</option>
+                                <option value="Cuenta Corriente">📒 Fiado (Cuenta Corriente)</option>
                             </select>
                         </div>
                         <div>
@@ -103,6 +104,10 @@
                         </div>
 
                         <!-- Botón procesar venta -->
+                         <button onclick="window.generarPresupuesto()"
+                            class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl transition-all border border-slate-700 flex items-center justify-center gap-2 mb-2">
+                            📝 Generar Presupuesto
+                        </button>
                         <button onclick="window.procesarVentaInteligente()"
                             class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-indigo-950/40 flex items-center justify-center gap-2">
                             🧾 Procesar Venta

@@ -442,24 +442,30 @@ window.aplicarPreajusteFiltro = function(tipo) {
 };
 
 // ========================================================
-// 📈 CÁLCULO AUTOMÁTICO DE CIERRE DE CAJA
+// 📈 CÁLCULO AUTOMÁTICO DE CIERRE DE CAJA (FRONTEND)
 // ========================================================
 window.actualizarCierreCaja = function(listaDeVentas) {
     if (!Array.isArray(listaDeVentas)) return;
 
-    let totalGeneral = 0;
+    let totalGeneral = 0; // Solo plata real
     let totalEfectivo = 0;
     let totalTransferencia = 0;
 
     listaDeVentas.forEach(venta => {
         const total = parseFloat(venta.total || venta.total_venta || 0);
-        totalGeneral += total;
-
         const metodo = (venta.metodoPago || venta.medioPago || "efectivo").toLowerCase();
+
+        // 🌟 NUEVO: Ignoramos la Cuenta Corriente para que no ensucie la caja
+        if (metodo.includes("cuenta corriente") || metodo.includes("fiado")) {
+            return; // Cortamos acá, no suma ni a efectivo ni a general
+        }
+
+        totalGeneral += total;
 
         if (metodo.includes("efectivo")) {
             totalEfectivo += total;
         } else {
+            // Tarjetas, Transferencias, MP, etc.
             totalTransferencia += total;
         }
     });
@@ -822,6 +828,12 @@ window.confirmarVenta = async function() {
 
     const selectPago = document.getElementById("formaPago") || document.getElementById("metodoPago");
     const medioPago  = selectPago ? selectPago.value : "Efectivo";
+
+    if (medioPago === "Cuenta Corriente" && !window.clienteSeleccionado) {
+        alert("⚠️ Para anotar un fiado (Cuenta Corriente) DEBÉS buscar y seleccionar un cliente primero.");
+        document.getElementById("inputClienteVenta")?.focus();
+        return;
+    }
 
     // ── Calcular el total base (sin descuento) ────────────────────────────
     const totalBase = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
@@ -2777,4 +2789,71 @@ window.exportarCajaPDF = async function() {
     } finally {
         restaurar();
     }
+};
+
+// =========================================================================
+// 📝 GENERAR PRESUPUESTO (Sin descontar stock)
+// =========================================================================
+window.generarPresupuesto = function() {
+    if (!carrito || carrito.length === 0) {
+        alert("🛒 El carrito está vacío. Agregá prendas para armar el presupuesto.");
+        return;
+    }
+
+    // 1. Calculamos el total con descuento igual que en la venta
+    const totalBase = carrito.reduce((s, i) => s + (i.precio * i.cantidad), 0);
+    const inputDesc = document.getElementById("inputDescuentoRecargo");
+    const modTxt    = inputDesc ? inputDesc.value.trim() : "";
+    let totalFinal  = totalBase;
+    let factor      = 1;
+
+    if (modTxt) {
+        if (modTxt.includes("%")) {
+            const esDesc = modTxt.startsWith("-");
+            const pct    = parseFloat(modTxt.replace(/[^0-9.]/g, ""));
+            if (!isNaN(pct)) {
+                const mod = totalBase * (pct / 100);
+                totalFinal = esDesc ? totalBase - mod : totalBase + mod;
+            }
+        } else {
+            const esDesc = modTxt.startsWith("-");
+            const monto  = parseFloat(modTxt.replace(/[^0-9.]/g, ""));
+            if (!isNaN(monto)) totalFinal = esDesc ? totalBase - monto : totalBase + monto;
+        }
+        if (totalFinal < 0) totalFinal = 0;
+        factor = totalBase > 0 ? totalFinal / totalBase : 1;
+    }
+
+    // 2. Mapeamos las prendas al formato del ticket
+    const prendasMapeadas = carrito.map(item => ({
+        productoNombre: item.nombre,
+        talle: item.talle,
+        color: item.color,
+        cantidad: item.cantidad,
+        precioUnitario: Math.round(item.precio * factor * 100) / 100
+    }));
+
+    // 3. Generamos el HTML base del ticket
+    let htmlPresupuesto = window.generarHTMLTicket(
+        "PRESUPUESTO", 
+        totalFinal, 
+        "A Confirmar", 
+        prendasMapeadas, 
+        new Date().toISOString()
+    );
+
+    // 4. Truco: Reemplazamos los textos para que no diga "Ticket de Venta"
+    htmlPresupuesto = htmlPresupuesto.replace("Ticket N°:", "Documento:");
+    htmlPresupuesto = htmlPresupuesto.replace("¡Gracias por tu compra!", "Presupuesto válido por 7 días");
+    htmlPresupuesto = htmlPresupuesto.replace("Conservá este ticket", "No válido como factura");
+
+    // 5. Mandamos a imprimir
+    const ventanaImp = window.open("", "_blank", "width=400,height=600,scrollbars=yes");
+    if (!ventanaImp) {
+        alert("⚠️ El navegador bloqueó la ventana emergente.");
+        return;
+    }
+    ventanaImp.document.write(htmlPresupuesto);
+    ventanaImp.document.close();
+    ventanaImp.onload = () => { ventanaImp.focus(); ventanaImp.print(); };
 };
