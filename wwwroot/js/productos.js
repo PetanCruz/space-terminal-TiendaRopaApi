@@ -250,8 +250,7 @@ window.eliminarProducto = async function(id, nombre) {
 };
 
 // =========================================================================
-// 👕 5. MODAL VARIANTES
-// FIX: Mapeo directo a campos camelCase del C#
+// 👕 5. MODAL VARIANTES (Visibilidad Omnicanal)
 // =========================================================================
 window.verVariantes = function(id) {
     if (!window.productosMemoria) return;
@@ -261,17 +260,42 @@ window.verVariantes = function(id) {
 
     document.getElementById("modalVariantesTitulo").innerText = prod.nombre ?? "Producto";
 
-    const tbody         = document.getElementById("modalVariantesBody");
+    const tbody = document.getElementById("modalVariantesBody");
     const listaVariantes = prod.variantes ?? [];
     let html = "";
 
     if (Array.isArray(listaVariantes) && listaVariantes.length > 0) {
         listaVariantes.forEach(v => {
+            
+            // 🌟 NUEVO: Armamos los mini-textos por sucursal
+            let detalleHtml = "";
+            if (v.stockDetalle && v.stockDetalle.length > 0) {
+                // Si hay más de 1 sucursal, dibujamos el desglose
+                if (v.stockDetalle.length > 1) {
+                    detalleHtml = `<div class="mt-1.5 pt-1.5 border-t border-slate-700/50 flex flex-col gap-0.5">`;
+                    v.stockDetalle.forEach(d => {
+                        const colorNum = d.cantidad > 0 ? "text-emerald-400" : "text-slate-500";
+                        detalleHtml += `
+                            <div class="flex justify-between items-center text-[10px]">
+                                <span class="text-slate-400">${d.sucursal}</span>
+                                <span class="font-mono font-bold ${colorNum}">${d.cantidad} u.</span>
+                            </div>
+                        `;
+                    });
+                    detalleHtml += `</div>`;
+                }
+            }
+
             html += `
                 <tr class="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors">
-                    <td class="py-2.5 font-medium text-white capitalize">${v.talle ?? "-"}</td>
-                    <td class="py-2.5 text-slate-400 capitalize">${v.color ?? "-"}</td>
-                    <td class="py-2.5 text-right font-mono text-emerald-400 font-bold">${v.stock ?? 0} u.</td>
+                    <td class="py-3 font-medium text-white capitalize align-top">${v.talle ?? "-"}</td>
+                    <td class="py-3 text-slate-400 capitalize align-top">${v.color ?? "-"}</td>
+                    <td class="py-3 text-right align-top w-40">
+                        <div class="font-mono text-white font-bold text-xs bg-slate-950/50 px-2 py-1 rounded border border-slate-800 inline-block mb-1">
+                            Local actual: <span class="text-indigo-400">${v.stock ?? 0}</span>
+                        </div>
+                        ${detalleHtml}
+                    </td>
                 </tr>
             `;
         });
@@ -281,10 +305,6 @@ window.verVariantes = function(id) {
 
     if (tbody) tbody.innerHTML = html;
     document.getElementById("modalVariantes")?.classList.remove("hidden");
-};
-
-window.cerrarModalVariantes = function() {
-    document.getElementById("modalVariantes")?.classList.add("hidden");
 };
 
 // =========================================================================

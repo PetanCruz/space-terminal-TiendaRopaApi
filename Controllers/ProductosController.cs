@@ -17,21 +17,19 @@ namespace TiendaRopaAPI.Controllers
             _context = context;
         }
 
-        // 1. LEER TODOS (Formato Seguro y Limpio - MULTISUCURSAL)
+       // 1. LEER TODOS (Formato Seguro y Limpio - MULTISUCURSAL OMNICANAL)
         [HttpGet]
         public async Task<IActionResult> GetProductos([FromQuery] int sucursalId = 1)
         {
-            // Traemos los productos con sus tablas relacionadas
             var productos = await _context.Productos
                 .Where(p => p.Activo == true)
                 .Include(p => p.Categoria)
                 .Include(p => p.Variantes)
                 .ToListAsync();
 
-            // 🌟 AGREGADO: Buscamos el stock específico de esta sucursal en un solo viaje
-            var stockEnEstaSucursal = await _context.StockSucursales
-                .Where(s => s.SucursalId == sucursalId)
-                .ToListAsync();
+            // 🌟 NUEVO: Traemos TODO el stock y TODAS las sucursales activas
+            var todoElStock = await _context.StockSucursales.ToListAsync();
+            var sucursales = await _context.Sucursales.Where(s => s.Activo).ToListAsync();
 
             var resultado = productos.Select(p => new
             {
@@ -43,15 +41,22 @@ namespace TiendaRopaAPI.Controllers
                 categoriaId = p.CategoriaId,
                 variantes = p.Variantes.Select(v => 
                 {
-                    // Buscamos el stock de esta variante en la lista de la sucursal
-                    var stockReal = stockEnEstaSucursal.FirstOrDefault(s => s.VarianteId == v.Id);
+                    // Stock para la tabla principal (lo que hay físicamente donde está el usuario)
+                    var stockLocal = todoElStock.FirstOrDefault(s => s.VarianteId == v.Id && s.SucursalId == sucursalId);
                     
+                    // 🌟 NUEVO: Armamos la lista de cuánto hay en cada local para el Modal
+                    var stockDesglose = sucursales.Select(suc => new {
+                        sucursal = suc.Nombre,
+                        cantidad = todoElStock.FirstOrDefault(s => s.VarianteId == v.Id && s.SucursalId == suc.Id)?.StockActual ?? 0
+                    }).ToList();
+
                     return new
                     {
                         id = v.Id,
                         talle = v.Talle,
                         color = v.Color,
-                        stock = stockReal != null ? stockReal.StockActual : 0 // 🌟 AGREGADO
+                        stock = stockLocal != null ? stockLocal.StockActual : 0, 
+                        stockDetalle = stockDesglose // Mandamos la lista desglosada al JS
                     };
                 }).ToList()
             }).ToList();
