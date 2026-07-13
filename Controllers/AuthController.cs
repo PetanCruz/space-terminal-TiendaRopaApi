@@ -38,7 +38,7 @@ namespace TiendaRopaAPI.Controllers
             {
                 Email = request.Email,
                 Nombre = request.Nombre,
-                Rol = request.Rol
+                Rol = request.Rol,
                 SucursalId = request.SucursalId
             };
 
