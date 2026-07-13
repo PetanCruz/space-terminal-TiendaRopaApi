@@ -57,22 +57,20 @@ namespace TiendaRopaAPI.Controllers
                         return NotFound(new { mensaje = $"La variante con ID {item.VarianteId} no existe." });
                     }
 
-                    // 🌟 CAMBIO: Buscamos el stock en la nueva tabla usando la sucursal
+                    // 🌟 CAMBIO CLAVE: Ahora busca el stock en la sucursal que el usuario eligió para ESTA prenda
                     var stockSucursal = await _context.StockSucursales
-                        .FirstOrDefaultAsync(s => s.VarianteId == item.VarianteId && s.SucursalId == request.SucursalId);
+                        .FirstOrDefaultAsync(s => s.VarianteId == item.VarianteId && s.SucursalId == item.SucursalId);
 
                     if (stockSucursal == null || stockSucursal.StockActual < item.Cantidad)
                     {
                         return BadRequest(new { 
-                            mensaje = $"Stock insuficiente en esta sucursal para {variante.Producto?.Nombre}. Disponibles: {(stockSucursal != null ? stockSucursal.StockActual : 0)}" 
+                            mensaje = $"Stock insuficiente en la sucursal seleccionada para {variante.Producto?.Nombre}." 
                         });
                     }
 
-                    // 🌟 CAMBIO: Descontamos a la sucursal, ya no a la variante global
+                    // Descontamos a la sucursal específica
                     stockSucursal.StockActual -= item.Cantidad; 
 
-                    // 🌟 RECALCULO INTELIGENTE: Si el frontend mandó un precio (con descuento), usamos ese. 
-                    // Si no mandó nada (o es 0), usa el precio de venta original de la Base de Datos.
                     decimal precioUnitario = (item.Precio.HasValue && item.Precio.Value > 0) 
                         ? item.Precio.Value 
                         : (variante.Producto?.PrecioVenta ?? 0);
@@ -188,6 +186,7 @@ namespace TiendaRopaAPI.Controllers
     {
         public int VarianteId { get; set; }
         public int Cantidad { get; set; }
-        public decimal? Precio { get; set; } // 🌟 AGREGADO: Para que .NET pueda recibir el precio del JS
+        public decimal? Precio { get; set; }
+        public int SucursalId { get; set; } 
     }
 }

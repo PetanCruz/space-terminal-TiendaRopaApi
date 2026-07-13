@@ -4,6 +4,16 @@
 const API_URL = "https://space-terminal-tiendaropaapi-production.up.railway.app/api"; // Ajustá el puerto si usás otro
 let productos = [];       // Guarda las prendas traídas de la API
 let carrito = [];         // Guarda los artículos seleccionados para la venta
+
+window.sucursalesParaVentas = [];
+window.cargarSucursalesParaVentas = async function() {
+    try {
+        const resp = await fetch(`${API_URL}/sucursales`);
+        if (resp.ok) window.sucursalesParaVentas = await resp.json();
+    } catch(e) { console.error("Error cargando sucursales:", e); }
+};
+// Lo ejecutamos apenas carga el archivo
+window.cargarSucursalesParaVentas();
 window.ventasGlobales = []; // 📅 Almacén en memoria para filtros instantáneos de historial
 
 // ========================================================
@@ -202,6 +212,7 @@ function agregarAlCarrito(index, varianteId) {
             return;
         }
     } else {
+        const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
         carrito.push({
             id: varianteId, 
             nombre: productoSeleccionado.nombre,
@@ -209,7 +220,8 @@ function agregarAlCarrito(index, varianteId) {
             talle: varianteSeleccionada.talle ?? varianteSeleccionada.Talle ?? "N/A",
             color: varianteSeleccionada.color ?? varianteSeleccionada.Color ?? "N/A",
             amount: 1, 
-            cantidad: 1
+            cantidad: 1,
+            sucursalId: usuarioLocal.sucursalId || 1 // 🌟 Asigna la sucursal del cajero por defecto
         });
     }
 
@@ -245,10 +257,20 @@ window.actualizarInterfazCarrito = function() {
         totalBase += item.precio * item.cantidad;
         const row = document.createElement("div");
         row.className = "bg-slate-900 p-3 rounded-xl border border-slate-700/60 flex justify-between items-center text-sm mb-2";
+
+        // 🌟 NUEVO: Armamos las opciones del select con la lista de sucursales
+        let opcionesSucursales = window.sucursalesParaVentas.map(s => 
+            `<option value="${s.id}" ${s.id === item.sucursalId ? 'selected' : ''}>📍 ${s.nombre}</option>`
+        ).join('');
+
         row.innerHTML = `
-            <div>
-                <p class="font-bold text-white">${item.nombre}</p>
-                <p class="text-xs text-slate-400">Talle ${item.talle} - ${item.color} x $${item.precio}</p>
+            <div class="flex-1 pr-2">
+                <p class="font-bold text-white leading-tight">${item.nombre}</p>
+                <p class="text-[11px] text-slate-400 mb-1.5">Talle ${item.talle} - ${item.color} x $${item.precio}</p>
+                
+                <select onchange="carrito[${index}].sucursalId = parseInt(this.value)" class="w-full max-w-[160px] bg-slate-950/80 border border-slate-700 text-[10px] text-indigo-300 font-bold uppercase tracking-wider rounded p-1 cursor-pointer focus:outline-none focus:border-indigo-500">
+                    ${opcionesSucursales}
+                </select>
             </div>
             <div class="flex items-center space-x-3">
                 <span class="bg-slate-800 text-indigo-400 font-extrabold px-2.5 py-1 rounded border border-slate-700">x${item.cantidad}</span>
@@ -258,7 +280,7 @@ window.actualizarInterfazCarrito = function() {
         contenedor.appendChild(row);
     });
 
-    // 🌟 NUEVA LÓGICA DE DESCUENTOS LIMPIA
+    // LÓGICA DE DESCUENTOS LIMPIA
     const tipoMod = document.getElementById("tipoModificador")?.value || "nada";
     const valorMod = parseFloat(document.getElementById("valorModificador")?.value) || 0;
     
@@ -805,20 +827,17 @@ window.confirmarVenta = async function() {
     const selectPago = document.getElementById("formaPago") || document.getElementById("metodoPago");
     const medioPago  = selectPago ? selectPago.value : "Efectivo";
 
-    // 🌟 BLOQUEO DE SEGURIDAD PARA FIADOS
     if (medioPago === "Cuenta Corriente" && !window.clienteSeleccionado) {
         alert("⚠️ Para anotar un fiado (Cuenta Corriente) DEBÉS buscar y seleccionar un cliente primero.");
         document.getElementById("inputClienteVenta")?.focus();
         return;
     }
 
-    // 🌟 EL FIX: "Despertamos" al usuario local para saber su sucursal
     const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
     const sucursalCajero = usuarioLocal.sucursalId || 1;
 
     const totalBase = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
     
-    // 🌟 LECTURA DEL NUEVO DESCUENTO
     const tipoMod = document.getElementById("tipoModificador")?.value || "nada";
     const valorMod = parseFloat(document.getElementById("valorModificador")?.value) || 0;
     
@@ -834,7 +853,8 @@ window.confirmarVenta = async function() {
     const itemsMapeados = carrito.map(item => ({
         varianteId:     item.id,
         cantidad:       item.cantidad,
-        precio:         Math.round(item.precio * factorDescuento * 100) / 100
+        precio:         Math.round(item.precio * factorDescuento * 100) / 100,
+        sucursalId:     item.sucursalId || sucursalCajero // 🌟 MANDAMOS LA SUCURSAL ELEGIDA DE CADA PRENDA
     }));
 
     const payload = {
@@ -2032,19 +2052,13 @@ window.MercadoPagoIntegration = (function() {
 
 })();
 
-// ── Botón "Cobrar con MP" en el carrito ───────────────────────────────────
 window.cobrarConMercadoPago = async function() {
     if (!carrito || carrito.length === 0) {
-        alert("⚠️ El carrito está vacío.");
+        alert("🛒 El carrito está vacío.");
         return;
     }
 
-    // Primero registrar la venta normalmente
-    const selectPago    = document.getElementById("formaPago");
-    const metodoPagoOrig = selectPago?.value;
-
-    // Forzar método de pago a Transferencia para que quede registrado
-    if (selectPago) selectPago.value = "Transferencia";
+    const quiereFactura = document.getElementById("toggleFacturaARCA")?.checked || false;
 
     // Calcular total con descuento
     const totalBase = carrito.reduce((s, i) => s + (i.precio * i.cantidad), 0);
@@ -2070,47 +2084,58 @@ window.cobrarConMercadoPago = async function() {
         factor = totalBase > 0 ? totalFinal / totalBase : 1;
     }
 
-    // Registrar la venta en la BD
     const token = localStorage.getItem("token");
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const sucursalCajero = usuarioLocal.sucursalId || 1;
+
     const itemsMapeados = carrito.map(item => ({
         varianteId: item.id,
         cantidad:   item.cantidad,
-        precio:     Math.round(item.precio * factor * 100) / 100
+        precio:     Math.round(item.precio * factor * 100) / 100,
+        sucursalId: item.sucursalId || sucursalCajero // 🌟 MANDAMOS LA SUCURSAL ELEGIDA DE CADA PRENDA
     }));
 
     try {
-        const resp = await fetch(`${window.ConfigInventario?.URL?.replace('/api', '') + '/api'}/ventas`, {
+        // 1. Registrar la venta con método Mercado Pago
+        const resp = await fetch(`${API_URL}/ventas`, {
             method: "POST",
             headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-                metodoPago: "Transferencia",
+                metodoPago: "Mercado Pago",
                 clienteId:  window.clienteSeleccionado || null,
+                sucursalId: sucursalCajero,
                 items:      itemsMapeados
             })
         });
 
-        if (!resp.ok) {
-            const err = await resp.text();
-            throw new Error(err);
-        }
+        if (!resp.ok) throw new Error(await resp.text());
 
         const resultado = await resp.json();
         const ventaId   = resultado.ventaId || resultado.id;
 
-        // Abrir modal de MP con el QR y el link
+        // 2. Si quiere factura y ARCA está configurado → facturar también
+        if (quiereFactura) {
+            const configurado = await window.arcaConfigurado?.() || false;
+            if (configurado) {
+                window.toast?.info("Generando factura electrónica...");
+                // flujo ARCA — se implementa cuando el cliente tenga credenciales
+            } else {
+                window.toast?.warning("La venta se registró pero ARCA no está configurado para emitir factura.");
+            }
+        }
+
+        // 3. Abrir modal de MP con QR y link
         await window.MercadoPagoIntegration.abrirPagoMP(ventaId, totalFinal, carrito);
 
-        // Limpiar carrito
+        // 4. Limpiar carrito
         carrito = [];
         actualizarInterfazCarrito();
-        if (selectPago) selectPago.value = metodoPagoOrig;
         await cargarProductos();
         if (typeof cargarHistorialVentas === "function") await cargarHistorialVentas();
 
     } catch (error) {
-        console.error("❌ Error al registrar venta MP:", error);
+        console.error("❌ Error MP:", error);
         alert(`❌ Error al procesar: ${error.message}`);
-        if (selectPago) selectPago.value = metodoPagoOrig;
     }
 };
 
