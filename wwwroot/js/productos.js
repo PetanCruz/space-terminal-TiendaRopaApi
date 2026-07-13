@@ -267,18 +267,16 @@ window.verVariantes = function(id) {
     if (Array.isArray(listaVariantes) && listaVariantes.length > 0) {
         listaVariantes.forEach(v => {
             
-            // 🌟 NUEVO: Armamos los mini-textos por sucursal
             let detalleHtml = "";
             if (v.stockDetalle && v.stockDetalle.length > 0) {
-                // Si hay más de 1 sucursal, dibujamos el desglose
                 if (v.stockDetalle.length > 1) {
-                    detalleHtml = `<div class="mt-1.5 pt-1.5 border-t border-slate-700/50 flex flex-col gap-0.5">`;
+                    detalleHtml = `<div class="mt-3 pt-3 border-t border-slate-700/50 flex flex-col gap-2">`;
                     v.stockDetalle.forEach(d => {
                         const colorNum = d.cantidad > 0 ? "text-emerald-400" : "text-slate-500";
                         detalleHtml += `
-                            <div class="flex justify-between items-center text-[10px]">
-                                <span class="text-slate-400">${d.sucursal}</span>
-                                <span class="font-mono font-bold ${colorNum}">${d.cantidad} u.</span>
+                            <div class="flex justify-between items-center text-sm">
+                                <span class="text-slate-300">${d.sucursal}</span>
+                                <span class="font-mono font-bold text-base ${colorNum}">${d.cantidad} u.</span>
                             </div>
                         `;
                     });
@@ -288,11 +286,11 @@ window.verVariantes = function(id) {
 
             html += `
                 <tr class="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors">
-                    <td class="py-3 font-medium text-white capitalize align-top">${v.talle ?? "-"}</td>
-                    <td class="py-3 text-slate-400 capitalize align-top">${v.color ?? "-"}</td>
-                    <td class="py-3 text-right align-top w-40">
-                        <div class="font-mono text-white font-bold text-xs bg-slate-950/50 px-2 py-1 rounded border border-slate-800 inline-block mb-1">
-                            Local actual: <span class="text-indigo-400">${v.stock ?? 0}</span>
+                    <td class="py-4 font-medium text-white capitalize align-top text-lg">${v.talle ?? "-"}</td>
+                    <td class="py-4 text-slate-400 capitalize align-top text-lg">${v.color ?? "-"}</td>
+                    <td class="py-4 text-right align-top w-64">
+                        <div class="font-mono text-white font-bold text-sm bg-slate-950/80 px-3 py-2 rounded-lg border border-indigo-500/30 inline-block mb-1 shadow-md">
+                            Local actual: <span class="text-indigo-400 text-xl ml-2">${v.stock ?? 0}</span>
                         </div>
                         ${detalleHtml}
                     </td>
@@ -527,6 +525,8 @@ window.abrirModalAgregarVariante = function(productoId) {
         return;
     }
 
+    window.llenarSelectSucursales("varianteSucursal", "contenedorSucursalVariante");
+
     // Guardar el ID en el formulario para usarlo al guardar
     document.getElementById("varianteProductoId").value = productoId;
 
@@ -562,6 +562,10 @@ window.guardarNuevaVariante = async function(event) {
     const stockMin   = parseInt(document.getElementById("varianteStockMinimo")?.value) || 2;
     const divError   = document.getElementById("errorVariante");
 
+    // 🌟 LO QUE FALTABA: Leer el select de la sucursal
+    const sel = document.getElementById("varianteSucursal");
+    const sucursalIdElegida = (sel && sel.value) ? parseInt(sel.value) : (JSON.parse(localStorage.getItem("usuario"))?.sucursalId || 1);
+
     // Validaciones básicas
     if (!talle || !color || !codBarras || isNaN(stock) || isNaN(productoId)) {
         divError.textContent = "Completá todos los campos obligatorios.";
@@ -590,7 +594,7 @@ window.guardarNuevaVariante = async function(event) {
         codigoBarras: codBarras,
         stockActual:  stock,
         stockMinimo:  stockMin,
-        sucursalId:   usuarioLocal.sucursalId || 1
+        sucursalId:   sucursalIdElegida // 🌟 ACÁ MANDAMOS LA SUCURSAL ELEGIDA
     };
 
     console.log("👕 Enviando nueva variante:", payload);
@@ -785,6 +789,7 @@ window.abrirModalReponerStock = function(varianteId, productoNombre, talle, colo
 
     modal.classList.remove("hidden");
     document.getElementById("reponerCantidad")?.focus();
+    window.llenarSelectSucursales("reponerSucursal", "contenedorSucursalReponer");
 };
 
 window.cerrarModalReponerStock = function() {
@@ -822,14 +827,14 @@ window.confirmarReposicion = async function(event) {
 
     const nuevoStock = stockActual + cantidad;
     
-    // 🌟 NUEVO: Obtenemos la sucursal
-    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
-    const sucursalId = usuarioLocal.sucursalId || 1;
+    // 🌟 LO QUE FALTABA: Leer el select de la sucursal para reponer
+    const sel = document.getElementById("reponerSucursal");
+    const sucursalIdElegida = (sel && sel.value) ? parseInt(sel.value) : (JSON.parse(localStorage.getItem("usuario"))?.sucursalId || 1);
 
     try {
-        // 🌟 NUEVO: Llamamos a la ruta exacta de C# pasando cantidad y sucursal por URL
+        // 🌟 USAMOS LA SUCURSAL ELEGIDA EN LA URL
         const resp = await fetch(
-            `${window.ConfigInventario.URL}/productos/reponer-stock/${varianteId}?cantidadAAgregar=${cantidad}&sucursalId=${sucursalId}`,
+            `${window.ConfigInventario.URL}/productos/reponer-stock/${varianteId}?cantidadAAgregar=${cantidad}&sucursalId=${sucursalIdElegida}`,
             {
                 method: "PUT",
                 headers: {
@@ -855,4 +860,26 @@ window.confirmarReposicion = async function(event) {
     } finally {
         restaurar();
     }
+};
+
+window.llenarSelectSucursales = async function(selectId, contenedorId) {
+    try {
+        const select = document.getElementById(selectId);
+        const contenedor = document.getElementById(contenedorId);
+        if (!select || !contenedor) return;
+
+        const respuesta = await fetch(`${window.ConfigInventario.URL}/sucursales`);
+        const sucursales = await respuesta.json();
+
+        select.innerHTML = "";
+        if (sucursales.length <= 1) {
+            contenedor.classList.add("hidden");
+            if (sucursales.length === 1) select.innerHTML = `<option value="${sucursales[0].id}">${sucursales[0].nombre}</option>`;
+        } else {
+            contenedor.classList.remove("hidden");
+            sucursales.forEach(s => select.innerHTML += `<option value="${s.id}">${s.nombre}</option>`);
+            const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+            if(usuarioLocal.sucursalId) select.value = usuarioLocal.sucursalId;
+        }
+    } catch(e) { console.error("Error sucursales:", e); }
 };
