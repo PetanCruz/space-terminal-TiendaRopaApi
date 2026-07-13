@@ -290,8 +290,40 @@ window.cerrarModalVariantes = function() {
 // =========================================================================
 // ✨ 6. MODAL AGREGAR PRODUCTO — Abrir / Cerrar
 // =========================================================================
-window.abrirModalAgregar = function() {
+window.abrirModalAgregar = async function() {
     document.getElementById("modalAgregar")?.classList.remove("hidden");
+    
+    // 🌟 MAGIA: Cargar sucursales de forma inteligente
+    try {
+        const select = document.getElementById("addSucursalStock");
+        if (!select) return;
+        
+        const contenedor = select.parentElement;
+        
+        const respuesta = await fetch(`${window.ConfigInventario.URL}/sucursales`);
+        const sucursales = await respuesta.json();
+        
+        select.innerHTML = "";
+        if (sucursales.length <= 1) {
+            contenedor.classList.add("hidden"); // Ocultamos si hay 1 sola (kiosco)
+            if (sucursales.length === 1) {
+                select.innerHTML = `<option value="${sucursales[0].id}">${sucursales[0].nombre}</option>`;
+            }
+        } else {
+            contenedor.classList.remove("hidden"); // Mostramos si hay varias (Bambino/Amma)
+            sucursales.forEach(s => {
+                select.innerHTML += `<option value="${s.id}">${s.nombre}</option>`;
+            });
+            
+            // Pre-seleccionamos la sucursal del empleado logueado para hacerle la vida más fácil
+            const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+            if(usuarioLocal.sucursalId) {
+                select.value = usuarioLocal.sucursalId;
+            }
+        }
+    } catch(e) {
+        console.error("Error cargando sucursales:", e);
+    }
 };
 
 window.cerrarModalAgregar = function() {
@@ -325,6 +357,13 @@ window.guardarNuevoProducto = async function(event) {
     const stockActual  = parseInt(document.getElementById("addStockActual")?.value);
     const stockMinimo  = parseInt(document.getElementById("addStockMinimo")?.value) || 2;
 
+    // 🌟 NUEVO: Leemos a qué sucursal va el stock (si el select está oculto, igual lee la opción)
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const sucursalSelect = document.getElementById("addSucursalStock");
+    const sucursalFinal = (sucursalSelect && sucursalSelect.value) 
+                            ? parseInt(sucursalSelect.value) 
+                            : (usuarioLocal.sucursalId || 1);
+
     // Validaciones
     if (!nombre || isNaN(precioCosto) || isNaN(precioVenta) || isNaN(categoriaId)) {
         alert("⚠️ Completá todos los campos del producto (nombre, precios y categoría).");
@@ -335,15 +374,13 @@ window.guardarNuevoProducto = async function(event) {
         return;
     }
 
-    // Payload exacto que espera tu Producto.cs
-    // C# guarda el producto y la variante en una sola operación gracias a la relación Variantes = new List<>()
     const payload = {
         categoriaId:  categoriaId,
         nombre:       nombre,
         precioCosto:  precioCosto,
         precioVenta:  precioVenta,
         activo:       true,
-        sucursalId:   usuarioLocal.sucursalId || 1,
+        sucursalId:   sucursalFinal, // 🌟 ACÁ MANDAMOS EL DESTINO DE LA ROPA AL C#
         variantes: [
             {
                 talle:        talle,
