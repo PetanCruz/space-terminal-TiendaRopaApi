@@ -51,7 +51,7 @@ async function cargarProductos() {
 }
 
 // ========================================================
-// 2. DIBUJAR EL CATÁLOGO EN PANTALLA (SOLO STOCK LOCAL)
+// 2. DIBUJAR EL CATÁLOGO EN PANTALLA (CON PRIVILEGIOS)
 // ========================================================
 function renderizarCatalogo(productosAFiltrar) {
     const contenedor = document.getElementById("productosCatalogo");
@@ -59,6 +59,10 @@ function renderizarCatalogo(productosAFiltrar) {
 
     contenedor.innerHTML = "";
     let prendasMostradas = 0;
+
+    // 🌟 MAGIA: Leemos qué rol tiene el que está mirando la pantalla
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const esAdmin = usuarioLocal.rol === "administrador";
 
     if (!productosAFiltrar || productosAFiltrar.length === 0) {
         contenedor.innerHTML = `<div class="p-8 text-center text-slate-500 col-span-full border border-dashed border-slate-800 rounded-2xl">📦 No se encontraron prendas que coincidan con la búsqueda.</div>`;
@@ -75,15 +79,25 @@ function renderizarCatalogo(productosAFiltrar) {
             const varianteId = variante.id ?? variante.Id;
             const talle = variante.talle ?? variante.Talle ?? "N/A";
             const color = variante.color ?? variante.Color ?? "N/A";
-            const stockOriginal = variante.stock ?? variante.Stock ?? 0;
 
-            // 🌟 MAGIA: Si no hay stock físico en la sucursal actual, LO OCULTAMOS DEL PUNTO DE VENTA
-            if (stockOriginal <= 0) return;
+            // Calculamos stock total de todas las sucursales sumadas para el ADMIN
+            let stockGlobal = 0;
+            if (variante.stockDetalle && Array.isArray(variante.stockDetalle)) {
+                stockGlobal = variante.stockDetalle.reduce((acc, suc) => acc + (suc.cantidad || 0), 0);
+            }
 
-            // Buscamos si ya agregó esta prenda de ESTA sucursal al carrito
-            const itemEnCarrito = carrito.find(item => item.id === varianteId && item.sucursalId === (JSON.parse(localStorage.getItem("usuario"))?.sucursalId || 1));
+            // El stock local (solo lo que hay físicamente en la sucursal del empleado)
+            const stockLocal = variante.stock ?? variante.Stock ?? 0;
+
+            // 🌟 Decidimos qué stock mostrar según quién mira
+            const stockAMostrar = esAdmin ? stockGlobal : stockLocal;
+
+            // Si el empleado no tiene stock, se le oculta. Si el admin no tiene stock EN NINGÚN LADO, también.
+            if (stockAMostrar <= 0) return;
+
+            const itemEnCarrito = carrito.find(item => item.id === varianteId && item.sucursalId === (usuarioLocal.sucursalId || 1));
             const cantidadEnCarrito = itemEnCarrito ? itemEnCarrito.cantidad : 0;
-            const stockDinamico = stockOriginal - cantidadEnCarrito;
+            const stockDinamico = stockAMostrar - cantidadEnCarrito;
 
             dibujarTarjetaHtml(contenedor, varianteId, nombreBase, precio, stockDinamico, talle, color, categoriaTexto);
             prendasMostradas++;
@@ -92,8 +106,8 @@ function renderizarCatalogo(productosAFiltrar) {
 
     if (prendasMostradas === 0) {
         contenedor.innerHTML = `<div class="p-8 text-center text-slate-400 col-span-full border border-dashed border-slate-800 rounded-2xl bg-slate-900/50">
-            📦 No hay prendas con stock físico en tu local que coincidan con la búsqueda.<br>
-            <span class="text-xs text-slate-500 mt-2 block">💡 TIP: Buscá en la pestaña de Inventario para vender desde otra sucursal.</span>
+            📦 No hay prendas disponibles físicamente para vender.<br>
+            ${!esAdmin ? '<span class="text-xs text-slate-500 mt-2 block">💡 TIP: Buscá en la pestaña de Inventario para vender desde otra sucursal.</span>' : ''}
         </div>`;
     }
 }
@@ -230,7 +244,7 @@ function agregarAlCarritoPorId(id) {
     }
 }
 
-// Agregar al carrito
+// Agregar al carrito (Con límite para Admin)
 function agregarAlCarrito(index, varianteId) {
     const productoSeleccionado = productos[index];
     const variantes = productoSeleccionado.variantes ?? productoSeleccionado.Variantes ?? [];
@@ -238,18 +252,29 @@ function agregarAlCarrito(index, varianteId) {
     const varianteSeleccionada = variantes.find(v => (v.id ?? v.Id) === varianteId);
     if (!varianteSeleccionada) return;
 
+    // 🌟 Verificamos privilegios
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const esAdmin = usuarioLocal.rol === "administrador";
+
+    let stockGlobal = 0;
+    if (varianteSeleccionada.stockDetalle && Array.isArray(varianteSeleccionada.stockDetalle)) {
+        stockGlobal = varianteSeleccionada.stockDetalle.reduce((acc, suc) => acc + (suc.cantidad || 0), 0);
+    }
+    const stockLocal = varianteSeleccionada.stock ?? varianteSeleccionada.Stock ?? 0;
+    
+    // El límite de clics depende de quién sea
+    const stockDisponible = esAdmin ? stockGlobal : stockLocal;
+
     const itemEnCarrito = carrito.find(item => item.id === varianteId);
-    const stockDisponible = varianteSeleccionada.stock ?? varianteSeleccionada.Stock ?? 0;
 
     if (itemEnCarrito) {
         if (itemEnCarrito.cantidad < stockDisponible) {
             itemEnCarrito.cantidad++;
         } else {
-            alert("No podés agregar más unidades que las disponibles en stock de este talle/color.");
+            alert("No podés agregar más unidades que las disponibles en stock.");
             return;
         }
     } else {
-        const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
         carrito.push({
             id: varianteId, 
             nombre: productoSeleccionado.nombre,
@@ -258,7 +283,7 @@ function agregarAlCarrito(index, varianteId) {
             color: varianteSeleccionada.color ?? varianteSeleccionada.Color ?? "N/A",
             amount: 1, 
             cantidad: 1,
-            sucursalId: usuarioLocal.sucursalId || 1 // 🌟 Asigna la sucursal del cajero por defecto
+            sucursalId: usuarioLocal.sucursalId || 1 // Asigna la sucursal del cajero por defecto
         });
     }
 
