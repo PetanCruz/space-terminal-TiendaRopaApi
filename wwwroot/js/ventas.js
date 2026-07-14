@@ -976,13 +976,17 @@ document.addEventListener("DOMContentLoaded", () => {
 // 🎫 MÓDULO DE REIMPRESIÓN DE TICKETS v2
 // =========================================================================
 
-// ── 1. GENERAR HTML TICKET FISCAL REAL + TICKET DE CAMBIO ──────────────────
+// ── 1. GENERAR HTML TICKET (FISCAL / NO FISCAL) + TICKET DE CAMBIO ──────────────────
 window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
     const dateObj = fecha ? new Date(fecha) : new Date();
     const strFecha = dateObj.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
     const strHora = dateObj.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
-    // 🌟 Leemos la config (Módulo Empresa) o usamos datos por defecto
+    // 🌟 LEER EL NOMBRE DEL CAJERO LOGUEADO
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const nombreCajero = (usuarioLocal.Nombre || usuarioLocal.nombre || "CAJERO 1").toUpperCase();
+
+    // Leemos la config (Módulo Empresa) o usamos datos por defecto
     const config = JSON.parse(localStorage.getItem("configEmpresa")) || {
         nombreFantasia: "SPACE TERMINAL",
         razonSocial: "TU NOMBRE O RAZON SOCIAL",
@@ -998,6 +1002,10 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
         ? `<div style="text-align:center; margin-bottom:10px;"><img src="${config.logo}" style="max-height: 60px; object-fit: contain;"></div>`
         : `<h1 class="center bold" style="font-size: 16px; margin-bottom: 5px;">${config.nombreFantasia.toUpperCase()}</h1>`;
 
+    // 🌟 VERIFICAMOS SI SE PIDIÓ FACTURA ARCA
+    const toggleArca = document.getElementById("toggleFacturaARCA");
+    const esFiscal = toggleArca ? toggleArca.checked : false;
+
     let itemsHTML = "";
     let itemsCambioHTML = ""; 
 
@@ -1010,7 +1018,6 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
             const precio   = item.precioUnitario || item.PrecioUnitario || item.precio || 0;
             const subtotal = item.subtotal || item.Subtotal || (precio * cantidad);
 
-            // Replicamos la línea: [Cantx] ROPA            $10000,00
             itemsHTML += `
                 <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
                     <span style="width: 70%;">${cantidad > 1 ? cantidad + 'x ' : ''}${nombre} (T:${talle})</span>
@@ -1033,12 +1040,67 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
     const mostrarTicketCambio = (id !== "PRESUPUESTO");
     const nroTicketStr = String(id === "PRESUPUESTO" ? "0" : id).padStart(8, '0');
     
-    // Cálculo de IVA (21% del total bruto) para la Transparencia Fiscal
-    const ivaContenido = total - (total / 1.21); 
-    
-    // Generación de un QR dinámico que simula el de AFIP
-    const urlQR = encodeURIComponent(`https://www.afip.gob.ar/fe/qr/?p={"cuit":"${config.cuit.replace(/-/g,'')}","nro":${id},"total":${total}}`);
-    const hashCF = Math.random().toString(36).substring(2, 12).toUpperCase();
+    // 🌟 BLOQUES DINÁMICOS SEGÚN ARCA (FISCAL VS NO FISCAL)
+    let datosEmpresaHtml = "";
+    let pieTicketHtml = "";
+
+    if (esFiscal) {
+        const ivaContenido = total - (total / 1.21); 
+        const urlQR = encodeURIComponent(`https://www.afip.gob.ar/fe/qr/?p={"cuit":"${config.cuit.replace(/-/g,'')}","nro":${id},"total":${total}}`);
+        const hashCF = Math.random().toString(36).substring(2, 12).toUpperCase();
+
+        datosEmpresaHtml = `
+            <p>${config.razonSocial}</p>
+            <p>CUIT Nro.: ${config.cuit}</p>
+            <p>Ing. Brutos: ${config.iibb}</p>
+            <p>Dirección:</p>
+            <p>${config.direccion}</p>
+            <p>Inicio de Actividades: ${config.inicioActividades}</p>
+            <p>${config.condicionIva}</p>
+            <p>A CONSUMIDOR FINAL</p>
+            
+            <div class="center" style="margin: 15px 0;">
+                <p>Cód. 083 - TIQUE</p>
+                <p>P.V. Nro. 00010 - Nro. T. ${nroTicketStr}</p>
+            </div>
+        `;
+
+        pieTicketHtml = `
+            <div class="center bold" style="margin-bottom: 5px;">TRANSPARENCIA FISCAL</div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                <span>IVA contenido:</span>
+                <span>$${Number(ivaContenido).toLocaleString("es-AR", {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            </div>
+            <div style="text-align: right; margin-bottom: 5px;">CAJERO: ${nombreCajero}</div>
+            
+            <div class="qr-container">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${urlQR}" alt="QR AFIP">
+            </div>
+            
+            <div class="info-grid" style="margin-top: 10px; font-weight: bold;">
+                <span>CF ${hashCF}</span>
+                <span>V: 1.02</span>
+            </div>
+        `;
+    } else {
+        // Formato Comprobante Interno (SIN Fiscal)
+        datosEmpresaHtml = `
+            <p>${config.direccion}</p>
+            <p style="margin-top: 8px;">DOCUMENTO NO VÁLIDO COMO FACTURA</p>
+            <p>COMPROBANTE INTERNO</p>
+            
+            <div class="center" style="margin: 15px 0;">
+                <p>NRO. TICKET: ${nroTicketStr}</p>
+            </div>
+        `;
+
+        pieTicketHtml = `
+            <div style="text-align: right; margin-bottom: 5px;">CAJERO: ${nombreCajero}</div>
+            <div class="center" style="margin-top: 15px;">
+                <p>¡GRACIAS POR SU COMPRA!</p>
+            </div>
+        `;
+    }
 
     return `
         <!DOCTYPE html>
@@ -1048,7 +1110,6 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
             <title>Ticket #${id}</title>
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
-                /* Tipografía estricta de ticket fiscal */
                 body { font-family: 'Courier New', Courier, monospace; width: 80mm; max-width: 80mm; margin: 0 auto; padding: 5px; color: #000; background: #fff; font-size: 12px; line-height: 1.2; text-transform: uppercase; }
                 .center { text-align: center; }
                 .bold { font-weight: bold; }
@@ -1068,7 +1129,6 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
                 .qr-container { text-align: center; margin-top: 15px; }
                 .qr-container img { width: 130px; height: 130px; }
                 
-                /* 🌟 MAGIA: Este salto de página obliga a la ticketera a meter el corte automático */
                 .salto-pagina { page-break-before: always; }
                 
                 @media print { 
@@ -1078,27 +1138,16 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
             </style>
         </head>
         <body>
+            <!-- TICKET DE COMPRA -->
             <div class="ticket">
                 ${logoHtml}
                 <div class="datos-empresa">
-                    <p>${config.razonSocial}</p>
-                    <p>CUIT Nro.: ${config.cuit}</p>
-                    <p>Ing. Brutos: ${config.iibb}</p>
-                    <p>Dirección:</p>
-                    <p>${config.direccion}</p>
-                    <p>Inicio de Actividades: ${config.inicioActividades}</p>
-                    <p>${config.condicionIva}</p>
-                    <p>A CONSUMIDOR FINAL</p>
-                </div>
-                
-                <div class="center" style="margin: 15px 0;">
-                    <p>Cód. 083 - TIQUE</p>
-                    <p>P.V. Nro. 00010 - Nro. T. ${nroTicketStr}</p>
+                    ${datosEmpresaHtml}
                 </div>
                 
                 <div class="info-grid">
-                    <span>Fecha ${strFecha}</span>
-                    <span>Hora ${strHora}</span>
+                    <span>FECHA ${strFecha}</span>
+                    <span>HORA ${strHora}</span>
                 </div>
                 
                 <div class="divider"></div>
@@ -1124,43 +1173,33 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
                     </div>
                 </div>
                 
-                <div class="center bold" style="margin-bottom: 5px;">TRANSPARENCIA FISCAL</div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
-                    <span>IVA contenido:</span>
-                    <span>$${Number(ivaContenido).toLocaleString("es-AR", {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-                </div>
-                <div style="text-align: right; margin-bottom: 5px;">CAJERO 1</div>
-                
-                <div class="qr-container">
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${urlQR}" alt="QR AFIP">
-                </div>
-                
-                <div class="info-grid" style="margin-top: 10px; font-weight: bold;">
-                    <span>CF ${hashCF}</span>
-                    <span>V: 1.02</span>
-                </div>
+                ${pieTicketHtml}
             </div>
 
             ${mostrarTicketCambio ? `
+            <!-- 🌟 SALTO DE PÁGINA PARA EL CORTE AUTOMÁTICO DE LA TICKETERA -->
             <div class="salto-pagina"></div>
             
+            <!-- TICKET DE CAMBIO (ESTILO FISCAL MONOSPACE) -->
             <div class="ticket">
                 ${logoHtml}
                 <div class="center bold" style="font-size: 14px; margin: 15px 0;">TICKET DE CAMBIO</div>
                 
                 <div class="info-grid">
-                    <span>Ref. Compra:</span>
+                    <span>REF. COMPRA:</span>
                     <strong>#${nroTicketStr}</strong>
                 </div>
                 <div class="info-grid">
-                    <span>Fecha:</span>
+                    <span>FECHA:</span>
                     <span>${strFecha}</span>
                 </div>
                 
                 <div class="divider-thick"></div>
                 <p class="bold" style="margin-bottom: 5px;">PRENDAS A CAMBIAR:</p>
                 
-                ${itemsCambioHTML}
+                <div style="margin-bottom: 10px;">
+                    ${itemsCambioHTML}
+                </div>
                 
                 <div class="center" style="margin-top: 25px;">
                     <p class="bold" style="font-size: 13px;">VÁLIDO POR 30 DÍAS</p>
