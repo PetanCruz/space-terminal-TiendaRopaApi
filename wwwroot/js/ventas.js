@@ -2823,32 +2823,48 @@ window.exportarCajaPDF = async function() {
 };
 
 // =========================================================================
-// 📝 1. DIBUJAR DISEÑO A4 DEL PRESUPUESTO
+// 📝 1. DIBUJAR DISEÑO A4 DEL PRESUPUESTO (PREMIUM)
 // =========================================================================
 window.generarHTMLPresupuestoA4 = function(total, prendas, fecha) {
-    const fechaFormateada = new Date(fecha).toLocaleDateString("es-AR", {
-        day: "2-digit", month: "2-digit", year: "numeric"
-    });
+    const fechaObj = new Date(fecha);
+    const fechaFormateada = fechaObj.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
     
-    // El presupuesto vence en 7 días automáticamente
     const fechaVencimiento = new Date(fecha);
     fechaVencimiento.setDate(fechaVencimiento.getDate() + 7);
-    const vencimientoFormateada = fechaVencimiento.toLocaleDateString("es-AR", {
-        day: "2-digit", month: "2-digit", year: "numeric"
-    });
+    const vencFormateada = fechaVencimiento.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+    // Generamos un número único para el presupuesto (Ej: PRE-001452)
+    const nroAleatorio = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+    const nroPresupuesto = `PRE-${nroAleatorio}`;
+
+    // 🌟 PREPARACIÓN PARA EL MÓDULO EMPRESA
+    // Lee los datos del negocio si existen, sino usa estos de prueba
+    const config = JSON.parse(localStorage.getItem("configEmpresa")) || {
+        nombreFantasia: "SPACE TERMINAL",
+        razonSocial: "Indumentaria y Calzado",
+        cuit: "CUIT: 30-00000000-0",
+        direccion: "San Miguel de Tucumán",
+        telefono: "Tel: +54 381 000-0000",
+        logo: "" // Acá irá la foto cuando armemos el módulo
+    };
+
+    let logoHtml = config.logo 
+        ? `<img src="${config.logo}" style="max-height: 85px; object-fit: contain; margin-bottom: 10px;">`
+        : `<h1 style="margin: 0 0 5px 0; font-size: 32px; color: #0f172a; font-weight: 900; letter-spacing: -1px;">${config.nombreFantasia}</h1>`;
 
     let itemsHTML = "";
-    prendas.forEach(item => {
+    prendas.forEach((item, index) => {
         const subtotal = item.cantidad * item.precioUnitario;
+        const bg = index % 2 === 0 ? "#ffffff" : "#f8fafc"; // Filas cebra
         itemsHTML += `
-            <tr style="border-bottom: 1px solid #e2e8f0;">
-                <td style="padding: 12px; font-size: 13px; color: #1e293b;">
-                    <strong>${item.productoNombre}</strong><br>
+            <tr style="background-color: ${bg}; border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 14px; font-size: 13px; color: #1e293b;">
+                    <strong style="font-size: 14px;">${item.productoNombre}</strong><br>
                     <span style="font-size: 11px; color: #64748b;">Talle: ${item.talle} | Color: ${item.color}</span>
                 </td>
-                <td style="padding: 12px; font-size: 13px; text-align: center; color: #1e293b;">${item.cantidad}</td>
-                <td style="padding: 12px; font-size: 13px; text-align: right; color: #1e293b;">$${item.precioUnitario.toLocaleString("es-AR")}</td>
-                <td style="padding: 12px; font-size: 13px; text-align: right; font-weight: bold; color: #1e293b;">$${subtotal.toLocaleString("es-AR")}</td>
+                <td style="padding: 14px; font-size: 13px; text-align: center; color: #1e293b; font-weight: bold;">${item.cantidad}</td>
+                <td style="padding: 14px; font-size: 13px; text-align: right; color: #475569;">$${item.precioUnitario.toLocaleString("es-AR", {minimumFractionDigits: 2})}</td>
+                <td style="padding: 14px; font-size: 14px; text-align: right; font-weight: 800; color: #0f172a;">$${subtotal.toLocaleString("es-AR", {minimumFractionDigits: 2})}</td>
             </tr>
         `;
     });
@@ -2858,57 +2874,62 @@ window.generarHTMLPresupuestoA4 = function(total, prendas, fecha) {
         <html lang="es">
         <head>
             <meta charset="UTF-8">
-            <title>Presupuesto - Space Terminal</title>
+            <title>Presupuesto ${nroPresupuesto}</title>
             <style>
                 @page { size: A4; margin: 0; }
-                body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #e2e8f0; margin: 0; padding: 40px; display: flex; justify-content: center; }
-                .hoja { background: #ffffff; width: 100%; max-width: 794px; min-height: 1123px; padding: 50px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); box-sizing: border-box; }
-                .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 4px solid #6366f1; padding-bottom: 25px; margin-bottom: 30px; }
-                .empresa h1 { margin: 0; font-size: 32px; color: #0f172a; letter-spacing: -0.5px; text-transform: uppercase; font-weight: 900;}
-                .empresa p { margin: 4px 0 0 0; color: #64748b; font-size: 14px; font-weight: 500;}
-                .titulo-doc { text-align: right; }
-                .titulo-doc h2 { margin: 0; font-size: 36px; color: #6366f1; letter-spacing: 2px; font-weight: 900; }
-                .titulo-doc p { margin: 4px 0 0 0; color: #64748b; font-size: 12px; font-weight: bold; text-transform: uppercase; }
-                .info-grid { display: flex; justify-content: space-between; margin-bottom: 35px; background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; }
-                .info-box { display: flex; flex-direction: column; }
-                .info-box span { font-size: 10px; text-transform: uppercase; color: #94a3b8; font-weight: 800; letter-spacing: 0.5px; }
-                .info-box strong { font-size: 15px; color: #0f172a; margin-top: 6px; }
+                body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #cbd5e1; margin: 0; padding: 40px; display: flex; justify-content: center; }
+                .hoja { background: #ffffff; width: 100%; max-width: 794px; min-height: 1123px; padding: 60px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); box-sizing: border-box; position: relative; }
+                .ribbon { position: absolute; top: 0; left: 0; right: 0; height: 8px; background: linear-gradient(90deg, #4f46e5 0%, #0ea5e9 100%); }
+                .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 30px; margin-bottom: 35px; margin-top: 10px;}
+                .empresa-info p { margin: 3px 0; color: #64748b; font-size: 13px; }
+                .doc-info { text-align: right; }
+                .doc-info h2 { margin: 0 0 10px 0; font-size: 38px; color: #4f46e5; font-weight: 900; letter-spacing: 1px; }
+                .nro-box { display: inline-block; background: #f1f5f9; padding: 8px 16px; border-radius: 8px; font-size: 16px; font-weight: bold; color: #334155; border: 1px solid #e2e8f0;}
+                .grid-datos { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 40px; }
+                .dato-box { background: #f8fafc; padding: 15px 20px; border-radius: 10px; border-left: 4px solid #4f46e5; }
+                .dato-box span { display: block; font-size: 11px; text-transform: uppercase; color: #94a3b8; font-weight: 800; margin-bottom: 5px; }
+                .dato-box strong { font-size: 15px; color: #0f172a; }
                 table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
-                th { background: #f1f5f9; padding: 14px 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #475569; font-weight: 800; letter-spacing: 0.5px; border-bottom: 2px solid #cbd5e1; }
+                th { background: #0f172a; color: #ffffff; padding: 15px 14px; text-align: left; font-size: 12px; text-transform: uppercase; font-weight: 600; letter-spacing: 1px; }
+                th:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+                th:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; text-align: right; }
                 th:nth-child(2) { text-align: center; }
-                th:nth-child(3), th:nth-child(4) { text-align: right; }
-                .totales { display: flex; justify-content: flex-end; margin-bottom: 40px; }
-                .totales-box { width: 320px; background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;}
-                .total-line { display: flex; justify-content: space-between; font-size: 14px; color: #475569; }
-                .total-line.final { border-top: 2px solid #1e293b; font-size: 22px; font-weight: 900; color: #0f172a; padding-top: 16px; margin-top: 16px; }
-                .footer { text-align: center; padding-top: 25px; border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 13px; line-height: 1.6; }
-                @media print { body { background: white; padding: 0; display: block; } .hoja { box-shadow: none; padding: 20mm; min-height: auto; } }
+                th:nth-child(3) { text-align: right; }
+                .totales { display: flex; justify-content: flex-end; }
+                .totales-box { width: 350px; background: #f8fafc; padding: 25px; border-radius: 12px; border: 1px solid #e2e8f0; }
+                .total-line { display: flex; justify-content: space-between; font-size: 15px; color: #475569; margin-bottom: 10px; }
+                .total-line.final { border-top: 2px dashed #cbd5e1; font-size: 24px; font-weight: 900; color: #4f46e5; padding-top: 15px; margin-top: 5px; margin-bottom: 0; }
+                .footer { margin-top: 60px; padding-top: 30px; border-top: 1px solid #e2e8f0; text-align: center; color: #64748b; font-size: 12px; }
+                @media print { body { background: white; padding: 0; display: block; } .hoja { box-shadow: none; padding: 15mm; } }
             </style>
         </head>
         <body>
             <div class="hoja">
+                <div class="ribbon"></div>
+                
                 <div class="header">
-                    <div class="empresa">
-                        <!-- MÓDULO EMPRESA: Aquí inyectaremos Logo dinámico luego -->
-                        <h1>SPACE TERMINAL</h1>
-                        <p>Gestión de Indumentaria y Calzado</p>
+                    <div class="empresa-info">
+                        ${logoHtml}
+                        <p><strong>${config.razonSocial}</strong></p>
+                        <p>${config.cuit}</p>
+                        <p>${config.direccion} | ${config.telefono}</p>
                     </div>
-                    <div class="titulo-doc">
+                    <div class="doc-info">
                         <h2>PRESUPUESTO</h2>
-                        <p>Documento No Válido como Factura</p>
+                        <div class="nro-box">N° ${nroPresupuesto}</div>
                     </div>
                 </div>
                 
-                <div class="info-grid">
-                    <div class="info-box">
+                <div class="grid-datos">
+                    <div class="dato-box">
                         <span>Fecha de Emisión</span>
                         <strong>${fechaFormateada}</strong>
                     </div>
-                    <div class="info-box">
+                    <div class="dato-box">
                         <span>Válido Hasta</span>
-                        <strong>${vencimientoFormateada}</strong>
+                        <strong>${vencFormateada}</strong>
                     </div>
-                    <div class="info-box">
+                    <div class="dato-box">
                         <span>Cliente</span>
                         <strong>${document.getElementById('inputClienteVenta')?.value || "Consumidor Final"}</strong>
                     </div>
@@ -2917,7 +2938,7 @@ window.generarHTMLPresupuestoA4 = function(total, prendas, fecha) {
                 <table>
                     <thead>
                         <tr>
-                            <th>Descripción de la Prenda</th>
+                            <th>Descripción</th>
                             <th>Cant.</th>
                             <th>Precio Unit.</th>
                             <th>Subtotal</th>
@@ -2930,23 +2951,24 @@ window.generarHTMLPresupuestoA4 = function(total, prendas, fecha) {
 
                 <div class="totales">
                     <div class="totales-box">
+                        <div class="total-line">
+                            <span>Subtotal:</span>
+                            <span>$${total.toLocaleString("es-AR", {minimumFractionDigits: 2})}</span>
+                        </div>
                         <div class="total-line final">
-                            <span>TOTAL FINAL</span>
-                            <span>$${total.toLocaleString("es-AR")}</span>
+                            <span>TOTAL:</span>
+                            <span>$${total.toLocaleString("es-AR", {minimumFractionDigits: 2})}</span>
                         </div>
                     </div>
                 </div>
 
                 <div class="footer">
-                    <p><strong>Nota:</strong> Los precios están sujetos a modificaciones sin previo aviso una vez transcurrida la fecha de vencimiento.</p>
-                    <p>¡Gracias por elegirnos!</p>
+                    <p>Los precios detallados en este documento se mantendrán vigentes únicamente hasta la fecha de validez indicada.</p>
+                    <p><strong>Este documento no es válido como factura ni comprobante de pago.</strong></p>
                 </div>
             </div>
             <script>
-                // Autoejecuta la impresión y cierra si el usuario cancela
-                window.onload = () => { 
-                    setTimeout(() => { window.print(); }, 500); 
-                };
+                window.onload = () => { setTimeout(() => { window.print(); }, 800); };
             </script>
         </body>
         </html>
