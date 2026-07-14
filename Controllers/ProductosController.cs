@@ -46,6 +46,7 @@ namespace TiendaRopaAPI.Controllers
                     
                     // 🌟 NUEVO: Armamos la lista de cuánto hay en cada local para el Modal
                     var stockDesglose = sucursales.Select(suc => new {
+                        sucursalId = suc.Id,
                         sucursal = suc.Nombre,
                         cantidad = todoElStock.FirstOrDefault(s => s.VarianteId == v.Id && s.SucursalId == suc.Id)?.StockActual ?? 0
                     }).ToList();

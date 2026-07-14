@@ -250,7 +250,7 @@ window.eliminarProducto = async function(id, nombre) {
 };
 
 // =========================================================================
-// 👕 5. MODAL VARIANTES (Visibilidad Omnicanal)
+// 👕 5. MODAL VARIANTES (Visibilidad Omnicanal + Botón Venta)
 // =========================================================================
 window.verVariantes = function(id) {
     if (!window.productosMemoria) return;
@@ -273,10 +273,28 @@ window.verVariantes = function(id) {
                     detalleHtml = `<div class="mt-3 pt-3 border-t border-slate-700/50 flex flex-col gap-2">`;
                     v.stockDetalle.forEach(d => {
                         const colorNum = d.cantidad > 0 ? "text-emerald-400" : "text-slate-500";
+                        
+                        // 🌟 MAGIA: Si hay stock y NO es nuestro local, mostramos el botón de vender de allá
+                        const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+                        const esLocalActual = d.sucursalId === (usuarioLocal.sucursalId || 1);
+                        
+                        let btnVender = "";
+                        if (d.cantidad > 0 && !esLocalActual) {
+                            const safeNombre = (prod.nombre || "").replace(/'/g, "\\'");
+                            const safeTalle = (v.talle || "").replace(/'/g, "\\'");
+                            const safeColor = (v.color || "").replace(/'/g, "\\'");
+                            const precio = prod.precio || prod.precioVenta || 0;
+                            
+                            btnVender = `<button onclick="window.venderDesdeInventario(${v.id}, '${safeNombre}', ${precio}, '${safeTalle}', '${safeColor}', ${d.sucursalId})" class="ml-3 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] px-2 py-1 rounded shadow-md transition-colors cursor-pointer">🛒 Vender</button>`;
+                        }
+
                         detalleHtml += `
                             <div class="flex justify-between items-center text-sm">
                                 <span class="text-slate-300">${d.sucursal}</span>
-                                <span class="font-mono font-bold text-base ${colorNum}">${d.cantidad} u.</span>
+                                <div class="flex items-center">
+                                    <span class="font-mono font-bold text-base ${colorNum}">${d.cantidad} u.</span>
+                                    ${btnVender}
+                                </div>
                             </div>
                         `;
                     });

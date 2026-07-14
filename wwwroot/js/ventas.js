@@ -51,19 +51,17 @@ async function cargarProductos() {
 }
 
 // ========================================================
-// 2. DIBUJAR EL CATÁLOGO EN PANTALLA
+// 2. DIBUJAR EL CATÁLOGO EN PANTALLA (SOLO STOCK LOCAL)
 // ========================================================
 function renderizarCatalogo(productosAFiltrar) {
     const contenedor = document.getElementById("productosCatalogo");
     if (!contenedor) return;
 
     contenedor.innerHTML = "";
+    let prendasMostradas = 0;
 
     if (!productosAFiltrar || productosAFiltrar.length === 0) {
-        contenedor.innerHTML = `
-            <div class="p-8 text-center text-slate-500 col-span-full border border-dashed border-slate-800 rounded-2xl">
-                📦 No se encontraron prendas que coincidan con la búsqueda.
-            </div>`;
+        contenedor.innerHTML = `<div class="p-8 text-center text-slate-500 col-span-full border border-dashed border-slate-800 rounded-2xl">📦 No se encontraron prendas que coincidan con la búsqueda.</div>`;
         return;
     }
 
@@ -73,25 +71,64 @@ function renderizarCatalogo(productosAFiltrar) {
         const categoriaTexto = producto.categoria ?? producto.Categoria ?? "JEANS";
         const variantes = producto.variantes ?? producto.Variantes ?? [];
 
-        if (variantes.length === 0) {
-            dibujarTarjetaHtml(contenedor, producto.id ?? producto.Id, nombreBase, precio, 0, "N/A", "N/A", categoriaTexto);
-            return;
-        }
-
         variantes.forEach((variante) => {
             const varianteId = variante.id ?? variante.Id;
             const talle = variante.talle ?? variante.Talle ?? "N/A";
             const color = variante.color ?? variante.Color ?? "N/A";
             const stockOriginal = variante.stock ?? variante.Stock ?? 0;
 
-            const itemEnCarrito = carrito.find(item => item.id === varianteId);
+            // 🌟 MAGIA: Si no hay stock físico en la sucursal actual, LO OCULTAMOS DEL PUNTO DE VENTA
+            if (stockOriginal <= 0) return;
+
+            // Buscamos si ya agregó esta prenda de ESTA sucursal al carrito
+            const itemEnCarrito = carrito.find(item => item.id === varianteId && item.sucursalId === (JSON.parse(localStorage.getItem("usuario"))?.sucursalId || 1));
             const cantidadEnCarrito = itemEnCarrito ? itemEnCarrito.cantidad : 0;
             const stockDinamico = stockOriginal - cantidadEnCarrito;
 
             dibujarTarjetaHtml(contenedor, varianteId, nombreBase, precio, stockDinamico, talle, color, categoriaTexto);
+            prendasMostradas++;
         });
     });
+
+    if (prendasMostradas === 0) {
+        contenedor.innerHTML = `<div class="p-8 text-center text-slate-400 col-span-full border border-dashed border-slate-800 rounded-2xl bg-slate-900/50">
+            📦 No hay prendas con stock físico en tu local que coincidan con la búsqueda.<br>
+            <span class="text-xs text-slate-500 mt-2 block">💡 TIP: Buscá en la pestaña de Inventario para vender desde otra sucursal.</span>
+        </div>`;
+    }
 }
+
+// =========================================================================
+// 🛒 AGREGAR AL CARRITO DESDE INVENTARIO (INTER-SUCURSAL)
+// =========================================================================
+window.venderDesdeInventario = function(varianteId, nombre, precio, talle, color, sucursalId) {
+    const itemEnCarrito = carrito.find(item => item.id === varianteId && item.sucursalId === sucursalId);
+    
+    if (itemEnCarrito) {
+        itemEnCarrito.cantidad++;
+    } else {
+        carrito.push({
+            id: varianteId, 
+            nombre: nombre,
+            precio: precio,
+            talle: talle,
+            color: color,
+            amount: 1, 
+            cantidad: 1,
+            sucursalId: sucursalId // 🌟 LA SUCURSAL DE ORIGEN REMOTA
+        });
+    }
+
+    // Cerramos el modal de variantes
+    if(typeof window.cerrarModalVariantes === 'function') window.cerrarModalVariantes();
+    
+    // Cambiamos a la pestaña de ventas
+    if(typeof window.cambiarPantalla === 'function') window.cambiarPantalla('seccion-ventas');
+    
+    // Actualizamos ticket
+    if(typeof window.actualizarInterfazCarrito === 'function') window.actualizarInterfazCarrito();
+    if(typeof window.filtrarProductos === 'function') window.filtrarProductos();
+};
 
 // ========================================================
 // 🎨 RENDERS: TARJETA CON ALERTA DE STOCK CRÍTICO
