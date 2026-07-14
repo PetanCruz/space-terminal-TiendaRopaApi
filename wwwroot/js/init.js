@@ -305,8 +305,10 @@ window.aplicarRestriccionesRol = function() {
 };
 
 // ── Cerrar sesión ─────────────────────────────────────────────────────────
-window.cerrarSesion = function() {
-    if (!confirm("¿Estás seguro de que querés cerrar la sesión?")) return;
+window.cerrarSesion = async function() {
+    const confirmado = await window.confirmar("¿Estás seguro de que querés cerrar la sesión?", "Salir del Sistema", "rose");
+    if (!confirmado) return;
+    
     localStorage.removeItem("token");
     localStorage.removeItem("usuario");
     window.location.href = "login.html";

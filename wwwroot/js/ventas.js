@@ -855,18 +855,18 @@ window.cerrarSesion = function() {
 };
 
 // 2. VACIAR CARRITO
-window.vaciarCarrito = function() {
+window.vaciarCarrito = async function() {
     if (!carrito || carrito.length === 0) {
-        alert("El carrito ya está vacío.");
+        window.toast?.info("El carrito ya está vacío.");
         return;
     }
 
-    const confirmar = confirm("⚠️ ¿Estás seguro de que querés vaciar todo el carrito actual?");
-    if (confirmar) {
+    const confirmado = await window.confirmar("⚠️ ¿Estás seguro de que querés vaciar todo el carrito actual?", "Vaciar Carrito", "rose");
+    if (confirmado) {
         carrito = []; 
         actualizarInterfazCarrito();
         filtrarProductos();
-        console.log("🛒 Carrito vaciado con éxito.");
+        window.toast?.success("🛒 Carrito vaciado con éxito.");
     }
 };
 
