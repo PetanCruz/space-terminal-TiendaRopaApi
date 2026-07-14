@@ -976,23 +976,17 @@ document.addEventListener("DOMContentLoaded", () => {
 // 🎫 MÓDULO DE REIMPRESIÓN DE TICKETS v2
 // =========================================================================
 
-// ── 1. GENERAR HTML LIMPIO DEL TICKET ────────────────────────────────────
+// ── 1. GENERAR HTML LIMPIO DEL TICKET + TICKET DE CAMBIO ──────────────────
 window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
     const fechaFormateada = fecha
-        ? new Date(fecha).toLocaleString("es-AR", {
-              day: "2-digit", month: "2-digit", year: "numeric",
-              hour: "2-digit", minute: "2-digit"
-          })
-        : new Date().toLocaleString("es-AR", {
-              day: "2-digit", month: "2-digit", year: "numeric",
-              hour: "2-digit", minute: "2-digit"
-          });
+        ? new Date(fecha).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
+        : new Date().toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
     let itemsHTML = "";
+    let itemsCambioHTML = ""; // 🌟 NUEVO: Lista paralela sin precios
+
     if (Array.isArray(prendas) && prendas.length > 0) {
         prendas.forEach(item => {
-            // Mapeo exacto a los campos que devuelve GetVentaDetalle:
-            // { ProductoNombre, Talle, Color, Cantidad, PrecioUnitario, Subtotal }
             const nombre   = item.productoNombre || item.ProductoNombre || item.nombre || "Prenda";
             const talle    = item.talle    || item.Talle    || "N/A";
             const color    = item.color    || item.Color    || "N/A";
@@ -1000,6 +994,7 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
             const precio   = item.precioUnitario || item.PrecioUnitario || item.precio || 0;
             const subtotal = item.subtotal || item.Subtotal || (precio * cantidad);
 
+            // Item para el ticket de cobro normal
             itemsHTML += `
                 <tr>
                     <td style="padding:6px 4px;border-bottom:1px dashed #ccc;font-size:12px;">
@@ -1011,25 +1006,35 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
                     <td style="padding:6px 4px;border-bottom:1px dashed #ccc;text-align:right;font-size:12px;font-weight:bold;">$${Number(subtotal).toLocaleString("es-AR")}</td>
                 </tr>
             `;
+
+            // 🌟 NUEVO: Item para el ticket de cambio (Sin precios)
+            itemsCambioHTML += `
+                <tr>
+                    <td style="padding:6px 4px;border-bottom:1px dashed #ccc;font-size:12px;">
+                        <strong>${nombre}</strong><br>
+                        <span style="color:#666;font-size:11px;">Talle: ${talle} / Color: ${color}</span>
+                    </td>
+                    <td style="padding:6px 4px;border-bottom:1px dashed #ccc;text-align:right;font-size:12px;font-weight:bold;">x${cantidad}</td>
+                </tr>
+            `;
         });
     } else {
-        itemsHTML = `<tr><td colspan="4" style="text-align:center;color:#999;padding:12px;font-size:12px;">Sin detalle de productos</td></tr>`;
+        itemsHTML = `<tr><td colspan="4" style="text-align:center;color:#999;padding:12px;font-size:12px;">Sin detalle</td></tr>`;
+        itemsCambioHTML = itemsHTML;
     }
+
+    // Si es un Presupuesto A4 (que no trae ID numérico), ocultamos la parte del ticket de cambio térmico
+    const mostrarTicketCambio = (id !== "PRESUPUESTO");
 
     return `
         <!DOCTYPE html>
         <html lang="es">
         <head>
             <meta charset="UTF-8">
-            <title>Ticket #${id} - Space Terminal</title>
+            <title>Ticket #${id}</title>
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
-                body {
-                    font-family: 'Courier New', monospace;
-                    width: 80mm; max-width: 80mm;
-                    margin: 0 auto; padding: 8px;
-                    font-size: 12px; color: #000; background: #fff;
-                }
+                body { font-family: 'Courier New', monospace; width: 80mm; max-width: 80mm; margin: 0 auto; padding: 8px; font-size: 12px; color: #000; background: #fff; }
                 .header { text-align: center; margin-bottom: 12px; }
                 .header h1 { font-size: 18px; font-weight: bold; letter-spacing: 2px; }
                 .header p  { font-size: 11px; color: #555; }
@@ -1038,57 +1043,56 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
                 table      { width: 100%; border-collapse: collapse; }
                 thead th   { font-size: 11px; text-align: left; padding: 4px; border-bottom: 2px solid #000; }
                 thead th:nth-child(2) { text-align: center; }
-                thead th:nth-child(3),
-                thead th:nth-child(4) { text-align: right; }
-                .total-row {
-                    display: flex; justify-content: space-between;
-                    font-size: 16px; font-weight: bold;
-                    border-top: 2px solid #000;
-                    padding-top: 6px; margin-top: 6px;
-                }
+                thead th:nth-child(3), thead th:nth-child(4) { text-align: right; }
+                .total-row { display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; border-top: 2px solid #000; padding-top: 6px; margin-top: 6px; }
                 .footer { text-align: center; margin-top: 14px; font-size: 10px; color: #777; }
-                @media print {
-                    html, body { width: 80mm; }
-                    @page { margin: 0; size: 80mm auto; }
-                }
+                
+                /* Estilos para el separador del ticket de cambio */
+                .cut-line { border-top: 1px dashed #000; margin: 25px 0; position: relative; text-align: center; }
+                .cut-line::after { content: '✂️ CORTE AQUÍ ✂️'; background: #fff; padding: 0 5px; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #000; font-weight: bold; }
+                
+                @media print { html, body { width: 80mm; } @page { margin: 0; size: 80mm auto; } }
             </style>
         </head>
         <body>
+            <!-- TICKET ORIGINAL DE COMPRA -->
             <div class="header">
                 <h1>SPACE TERMINAL</h1>
                 <p>Tienda de Ropa</p>
                 <p>${fechaFormateada}</p>
             </div>
             <div class="divider"></div>
-            <div class="info-row">
-                <span>Ticket N°:</span>
-                <strong>#${id}</strong>
-            </div>
-            <div class="info-row">
-                <span>Método de pago:</span>
-                <strong>${metodoPago}</strong>
-            </div>
+            <div class="info-row"><span>Ticket N°:</span><strong>#${id}</strong></div>
+            <div class="info-row"><span>Método de pago:</span><strong>${metodoPago}</strong></div>
             <div class="divider"></div>
             <table>
-                <thead>
-                    <tr>
-                        <th>Producto</th>
-                        <th>Cant</th>
-                        <th>P.Unit</th>
-                        <th>Total</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>Producto</th><th>Cant</th><th>P.Unit</th><th>Total</th></tr></thead>
                 <tbody>${itemsHTML}</tbody>
             </table>
-            <div class="total-row">
-                <span>TOTAL:</span>
-                <span>$${Number(total).toLocaleString("es-AR")}</span>
-            </div>
+            <div class="total-row"><span>TOTAL:</span><span>$${Number(total).toLocaleString("es-AR")}</span></div>
             <div class="divider"></div>
-            <div class="footer">
-                <p>¡Gracias por tu compra!</p>
-                <p>Conservá este ticket</p>
+            <div class="footer"><p>¡Gracias por tu compra!</p><p>Conservá este ticket</p></div>
+
+            ${mostrarTicketCambio ? `
+            <!-- TICKET DE CAMBIO (SIN PRECIOS) -->
+            <div class="cut-line"></div>
+            <div class="header" style="margin-top: 20px;">
+                <h1>SPACE TERMINAL</h1>
+                <p>TICKET DE CAMBIO</p>
+                <p>${fechaFormateada}</p>
             </div>
+            <div class="info-row"><span>Ref. Compra:</span><strong>#${id}</strong></div>
+            <div class="divider"></div>
+            <table>
+                <thead><tr><th>Prenda a Cambiar</th><th style="text-align:right">Cant</th></tr></thead>
+                <tbody>${itemsCambioHTML}</tbody>
+            </table>
+            <div class="divider"></div>
+            <div class="footer" style="margin-top: 15px;">
+                <p style="font-size: 11px; font-weight: bold; color: #000;">Válido por 30 días.</p>
+                <p style="margin-top: 4px;">La prenda debe estar sin uso y con su etiqueta original adherida.</p>
+            </div>
+            ` : ''}
         </body>
         </html>
     `;
