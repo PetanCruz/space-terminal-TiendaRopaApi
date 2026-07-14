@@ -2823,11 +2823,142 @@ window.exportarCajaPDF = async function() {
 };
 
 // =========================================================================
-// 📝 GENERAR PRESUPUESTO (Sin descontar stock)
+// 📝 1. DIBUJAR DISEÑO A4 DEL PRESUPUESTO
+// =========================================================================
+window.generarHTMLPresupuestoA4 = function(total, prendas, fecha) {
+    const fechaFormateada = new Date(fecha).toLocaleDateString("es-AR", {
+        day: "2-digit", month: "2-digit", year: "numeric"
+    });
+    
+    // El presupuesto vence en 7 días automáticamente
+    const fechaVencimiento = new Date(fecha);
+    fechaVencimiento.setDate(fechaVencimiento.getDate() + 7);
+    const vencimientoFormateada = fechaVencimiento.toLocaleDateString("es-AR", {
+        day: "2-digit", month: "2-digit", year: "numeric"
+    });
+
+    let itemsHTML = "";
+    prendas.forEach(item => {
+        const subtotal = item.cantidad * item.precioUnitario;
+        itemsHTML += `
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 12px; font-size: 13px; color: #1e293b;">
+                    <strong>${item.productoNombre}</strong><br>
+                    <span style="font-size: 11px; color: #64748b;">Talle: ${item.talle} | Color: ${item.color}</span>
+                </td>
+                <td style="padding: 12px; font-size: 13px; text-align: center; color: #1e293b;">${item.cantidad}</td>
+                <td style="padding: 12px; font-size: 13px; text-align: right; color: #1e293b;">$${item.precioUnitario.toLocaleString("es-AR")}</td>
+                <td style="padding: 12px; font-size: 13px; text-align: right; font-weight: bold; color: #1e293b;">$${subtotal.toLocaleString("es-AR")}</td>
+            </tr>
+        `;
+    });
+
+    return `
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <title>Presupuesto - Space Terminal</title>
+            <style>
+                @page { size: A4; margin: 0; }
+                body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #e2e8f0; margin: 0; padding: 40px; display: flex; justify-content: center; }
+                .hoja { background: #ffffff; width: 100%; max-width: 794px; min-height: 1123px; padding: 50px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); box-sizing: border-box; }
+                .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 4px solid #6366f1; padding-bottom: 25px; margin-bottom: 30px; }
+                .empresa h1 { margin: 0; font-size: 32px; color: #0f172a; letter-spacing: -0.5px; text-transform: uppercase; font-weight: 900;}
+                .empresa p { margin: 4px 0 0 0; color: #64748b; font-size: 14px; font-weight: 500;}
+                .titulo-doc { text-align: right; }
+                .titulo-doc h2 { margin: 0; font-size: 36px; color: #6366f1; letter-spacing: 2px; font-weight: 900; }
+                .titulo-doc p { margin: 4px 0 0 0; color: #64748b; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+                .info-grid { display: flex; justify-content: space-between; margin-bottom: 35px; background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; }
+                .info-box { display: flex; flex-direction: column; }
+                .info-box span { font-size: 10px; text-transform: uppercase; color: #94a3b8; font-weight: 800; letter-spacing: 0.5px; }
+                .info-box strong { font-size: 15px; color: #0f172a; margin-top: 6px; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+                th { background: #f1f5f9; padding: 14px 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #475569; font-weight: 800; letter-spacing: 0.5px; border-bottom: 2px solid #cbd5e1; }
+                th:nth-child(2) { text-align: center; }
+                th:nth-child(3), th:nth-child(4) { text-align: right; }
+                .totales { display: flex; justify-content: flex-end; margin-bottom: 40px; }
+                .totales-box { width: 320px; background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;}
+                .total-line { display: flex; justify-content: space-between; font-size: 14px; color: #475569; }
+                .total-line.final { border-top: 2px solid #1e293b; font-size: 22px; font-weight: 900; color: #0f172a; padding-top: 16px; margin-top: 16px; }
+                .footer { text-align: center; padding-top: 25px; border-top: 1px dashed #cbd5e1; color: #64748b; font-size: 13px; line-height: 1.6; }
+                @media print { body { background: white; padding: 0; display: block; } .hoja { box-shadow: none; padding: 20mm; min-height: auto; } }
+            </style>
+        </head>
+        <body>
+            <div class="hoja">
+                <div class="header">
+                    <div class="empresa">
+                        <!-- MÓDULO EMPRESA: Aquí inyectaremos Logo dinámico luego -->
+                        <h1>SPACE TERMINAL</h1>
+                        <p>Gestión de Indumentaria y Calzado</p>
+                    </div>
+                    <div class="titulo-doc">
+                        <h2>PRESUPUESTO</h2>
+                        <p>Documento No Válido como Factura</p>
+                    </div>
+                </div>
+                
+                <div class="info-grid">
+                    <div class="info-box">
+                        <span>Fecha de Emisión</span>
+                        <strong>${fechaFormateada}</strong>
+                    </div>
+                    <div class="info-box">
+                        <span>Válido Hasta</span>
+                        <strong>${vencimientoFormateada}</strong>
+                    </div>
+                    <div class="info-box">
+                        <span>Cliente</span>
+                        <strong>${document.getElementById('inputClienteVenta')?.value || "Consumidor Final"}</strong>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Descripción de la Prenda</th>
+                            <th>Cant.</th>
+                            <th>Precio Unit.</th>
+                            <th>Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHTML}
+                    </tbody>
+                </table>
+
+                <div class="totales">
+                    <div class="totales-box">
+                        <div class="total-line final">
+                            <span>TOTAL FINAL</span>
+                            <span>$${total.toLocaleString("es-AR")}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="footer">
+                    <p><strong>Nota:</strong> Los precios están sujetos a modificaciones sin previo aviso una vez transcurrida la fecha de vencimiento.</p>
+                    <p>¡Gracias por elegirnos!</p>
+                </div>
+            </div>
+            <script>
+                // Autoejecuta la impresión y cierra si el usuario cancela
+                window.onload = () => { 
+                    setTimeout(() => { window.print(); }, 500); 
+                };
+            </script>
+        </body>
+        </html>
+    `;
+};
+
+// =========================================================================
+// 📝 2. FUNCIÓN PARA DISPARAR EL PRESUPUESTO
 // =========================================================================
 window.generarPresupuesto = function() {
     if (!carrito || carrito.length === 0) {
-        alert("🛒 El carrito está vacío. Agregá prendas para armar el presupuesto.");
+        window.toast?.warning("El carrito está vacío. Agregá prendas para armar el presupuesto.") || alert("Carrito vacío");
         return;
     }
 
@@ -2852,15 +2983,13 @@ window.generarPresupuesto = function() {
         precioUnitario: Math.round(item.precio * factor * 100) / 100
     }));
 
-    let htmlPresupuesto = window.generarHTMLTicket("PRESUPUESTO", totalFinal, "A Confirmar", prendasMapeadas, new Date().toISOString());
-    htmlPresupuesto = htmlPresupuesto.replace("Ticket N°:", "Documento:");
-    htmlPresupuesto = htmlPresupuesto.replace("¡Gracias por tu compra!", "Presupuesto válido por 7 días");
-    htmlPresupuesto = htmlPresupuesto.replace("Conservá este ticket", "No válido como factura");
+    const htmlPresupuesto = window.generarHTMLPresupuestoA4(totalFinal, prendasMapeadas, new Date().toISOString());
 
-    const ventanaImp = window.open("", "_blank", "width=400,height=600,scrollbars=yes");
+    const ventanaImp = window.open("", "_blank");
     if (ventanaImp) {
         ventanaImp.document.write(htmlPresupuesto);
         ventanaImp.document.close();
-        ventanaImp.onload = () => { ventanaImp.focus(); ventanaImp.print(); };
+    } else {
+        window.toast?.error("El navegador bloqueó la ventana de impresión. Habilitá las ventanas emergentes.");
     }
 };
