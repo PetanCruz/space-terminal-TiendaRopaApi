@@ -60,9 +60,9 @@ function renderizarCatalogo(productosAFiltrar) {
     contenedor.innerHTML = "";
     let prendasMostradas = 0;
 
-    // 🌟 MAGIA: Leemos qué rol tiene el que está mirando la pantalla
+    // 🌟 FIX: Lectura segura de rol
+    const esAdmin = window.esAdmin();
     const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
-    const esAdmin = usuarioLocal.rol === "administrador";
 
     if (!productosAFiltrar || productosAFiltrar.length === 0) {
         contenedor.innerHTML = `<div class="p-8 text-center text-slate-500 col-span-full border border-dashed border-slate-800 rounded-2xl">📦 No se encontraron prendas que coincidan con la búsqueda.</div>`;
@@ -80,19 +80,14 @@ function renderizarCatalogo(productosAFiltrar) {
             const talle = variante.talle ?? variante.Talle ?? "N/A";
             const color = variante.color ?? variante.Color ?? "N/A";
 
-            // Calculamos stock total de todas las sucursales sumadas para el ADMIN
             let stockGlobal = 0;
             if (variante.stockDetalle && Array.isArray(variante.stockDetalle)) {
                 stockGlobal = variante.stockDetalle.reduce((acc, suc) => acc + (suc.cantidad || 0), 0);
             }
 
-            // El stock local (solo lo que hay físicamente en la sucursal del empleado)
             const stockLocal = variante.stock ?? variante.Stock ?? 0;
-
-            // 🌟 Decidimos qué stock mostrar según quién mira
             const stockAMostrar = esAdmin ? stockGlobal : stockLocal;
 
-            // Si el empleado no tiene stock, se le oculta. Si el admin no tiene stock EN NINGÚN LADO, también.
             if (stockAMostrar <= 0) return;
 
             const itemEnCarrito = carrito.find(item => item.id === varianteId && item.sucursalId === (usuarioLocal.sucursalId || 1));
@@ -244,7 +239,7 @@ function agregarAlCarritoPorId(id) {
     }
 }
 
-// Agregar al carrito (Con límite para Admin)
+// Agregar al carrito
 function agregarAlCarrito(index, varianteId) {
     const productoSeleccionado = productos[index];
     const variantes = productoSeleccionado.variantes ?? productoSeleccionado.Variantes ?? [];
@@ -252,9 +247,9 @@ function agregarAlCarrito(index, varianteId) {
     const varianteSeleccionada = variantes.find(v => (v.id ?? v.Id) === varianteId);
     if (!varianteSeleccionada) return;
 
-    // 🌟 Verificamos privilegios
+    // 🌟 FIX: Lectura segura
+    const esAdmin = window.esAdmin();
     const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
-    const esAdmin = usuarioLocal.rol === "administrador";
 
     let stockGlobal = 0;
     if (varianteSeleccionada.stockDetalle && Array.isArray(varianteSeleccionada.stockDetalle)) {
@@ -262,10 +257,8 @@ function agregarAlCarrito(index, varianteId) {
     }
     const stockLocal = varianteSeleccionada.stock ?? varianteSeleccionada.Stock ?? 0;
     
-    // El límite de clics depende de quién sea
     const stockDisponible = esAdmin ? stockGlobal : stockLocal;
-
-    const itemEnCarrito = carrito.find(item => item.id === varianteId);
+    const itemEnCarrito = carrito.find(item => item.id === varianteId && item.sucursalId === (usuarioLocal.sucursalId || 1));
 
     if (itemEnCarrito) {
         if (itemEnCarrito.cantidad < stockDisponible) {
@@ -283,7 +276,7 @@ function agregarAlCarrito(index, varianteId) {
             color: varianteSeleccionada.color ?? varianteSeleccionada.Color ?? "N/A",
             amount: 1, 
             cantidad: 1,
-            sucursalId: usuarioLocal.sucursalId || 1 // Asigna la sucursal del cajero por defecto
+            sucursalId: usuarioLocal.sucursalId || 1 
         });
     }
 

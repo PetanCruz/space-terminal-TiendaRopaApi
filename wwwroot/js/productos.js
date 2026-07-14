@@ -109,43 +109,53 @@ window.cargarProductosInventario = async function() {
 };
 
 // =========================================================================
-// 📊 2. RENDERIZADO DE FILAS
-// FIX: Mapeo directo a los campos que devuelve el C# (camelCase)
+// 📊 2. RENDERIZADO DE FILAS (Stock Global para Admin + Solo Lectura Empleado)
 // =========================================================================
 window.renderizarTablaProductosInventario = function(lista) {
     const tbody = document.getElementById("tablaProductosBody");
     if (!tbody) return;
 
+    // 🌟 FIX: Usamos la función segura que no falla con mayúsculas/minúsculas
+    const esAdmin = window.esAdmin();
+
+    const btnAddProd = document.querySelector("button[onclick='window.abrirModalAgregar()']");
+    const btnAddCat = document.querySelector("button[onclick*='abrirModalAgregarCategoria']");
+    if (!esAdmin) {
+        if(btnAddProd) btnAddProd.style.display = 'none';
+        if(btnAddCat) btnAddCat.style.display = 'none';
+    } else {
+        if(btnAddProd) btnAddProd.style.display = 'block';
+        if(btnAddCat) btnAddCat.style.display = 'block';
+    }
+
     if (!lista || lista.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-500 italic">
-            No se encontraron prendas registradas.
-        </td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-500 italic">No se encontraron prendas registradas.</td></tr>`;
         return;
     }
 
     let html = "";
 
     lista.forEach((p) => {
-        // Mapeo directo a los campos que manda tu C# en el GET
         const pId    = p.id    ?? 0;
         const pNombre = p.nombre ?? "Prenda sin nombre";
-
-        // FIX 1: C# ahora manda precioCosto y precio (venta)
         const pCosto = p.precioCosto ?? 0;
         const pVenta = p.precio      ?? 0;
-
-        // FIX 2: C# manda categoria (nombre) y categoriaId directamente
         const nombreCategoria = p.categoria  ?? "Sin categoría";
-        const catId           = p.categoriaId ?? "";
 
-        // Stock: suma de todas las variantes
         const variantesRaw = p.variantes ?? [];
         let stockTotal = 0;
+
+        // Si es admin suma TODO el país, si es empleado suma SOLO su local
         if (Array.isArray(variantesRaw)) {
-            stockTotal = variantesRaw.reduce((acc, v) => acc + parseInt(v.stock ?? 0), 0);
+            variantesRaw.forEach(v => {
+                if (esAdmin && v.stockDetalle && Array.isArray(v.stockDetalle)) {
+                    stockTotal += v.stockDetalle.reduce((acc, suc) => acc + (suc.cantidad || 0), 0);
+                } else {
+                    stockTotal += parseInt(v.stock ?? 0);
+                }
+            });
         }
 
-        // Badge de stock
         let badgeStock;
         if (stockTotal === 0) {
             badgeStock = `<span class="bg-rose-950/60 text-rose-400 border border-rose-500/20 px-2.5 py-1 rounded-md font-bold font-mono text-xs">SIN STOCK</span>`;
@@ -156,27 +166,27 @@ window.renderizarTablaProductosInventario = function(lista) {
         }
 
         const safeNombre = pNombre.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        let botonesAdmin = "";
+        let precioCostoHtml = `<td class="p-4 text-slate-500 font-mono text-xs italic">***</td>`; 
+        
+        if (esAdmin) {
+            precioCostoHtml = `<td class="p-4 text-slate-400 font-mono text-xs">$${Number(pCosto).toFixed(2)}</td>`;
+            botonesAdmin = `
+                <button onclick="window.abrirModalAgregarVariante(${pId})" class="bg-emerald-950/30 hover:bg-emerald-900/60 text-emerald-400 text-xs px-2 py-1.5 rounded-lg border border-emerald-500/20 cursor-pointer">➕ Variante</button>
+                <button onclick="window.eliminarProducto(${pId}, '${safeNombre}')" class="bg-rose-950/30 hover:bg-rose-900/60 text-rose-400 text-xs px-2 py-1.5 rounded-lg border border-rose-500/20 cursor-pointer">🗑️ Borrar</button>
+            `;
+        }
 
         html += `
             <tr class="hover:bg-slate-900/30 transition-colors border-b border-slate-800/40">
                 <td class="p-4 font-bold text-white text-sm">${pNombre}</td>
                 <td class="p-4 text-slate-400 text-xs capitalize">${nombreCategoria}</td>
-                <td class="p-4 text-slate-400 font-mono text-xs">$${Number(pCosto).toFixed(2)}</td>
+                ${precioCostoHtml}
                 <td class="p-4 text-emerald-400 font-bold font-mono text-sm">$${Number(pVenta).toFixed(2)}</td>
                 <td class="p-4 text-center">${badgeStock}</td>
                 <td class="p-4 text-right space-x-1">
-                    <button onclick="window.verVariantes(${pId})"
-                        class="bg-indigo-950 hover:bg-indigo-900 text-indigo-400 text-xs px-2 py-1.5 rounded-lg border border-indigo-500/20 cursor-pointer">
-                        👕 Variantes
-                    </button>
-                    <button onclick="window.abrirModalAgregarVariante(${pId})" 
-                        class="bg-emerald-950/30 hover:bg-emerald-900/60 text-emerald-400 text-xs px-2 py-1.5 rounded-lg border border-emerald-500/20 cursor-pointer">
-                        ➕ Variante
-                    </button>
-                    <button onclick="window.eliminarProducto(${pId}, '${safeNombre}')"
-                        class="bg-rose-950/30 hover:bg-rose-900/60 text-rose-400 text-xs px-2 py-1.5 rounded-lg border border-rose-500/20 cursor-pointer">
-                        🗑️ Borrar
-                    </button>
+                    <button onclick="window.verVariantes(${pId})" class="bg-indigo-950 hover:bg-indigo-900 text-indigo-400 text-xs px-2 py-1.5 rounded-lg border border-indigo-500/20 cursor-pointer">👕 Variantes</button>
+                    ${botonesAdmin}
                 </td>
             </tr>
         `;

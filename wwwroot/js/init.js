@@ -275,42 +275,33 @@ window.aplicarRestriccionesRol = function() {
     console.log(`🔐 Rol detectado: ${rol}`);
 
     if (rol === "administrador") {
-        // Admin ve todo — no hay nada que ocultar
         console.log("✅ Acceso total — Administrador");
         return;
     }
 
-    // ── Empleado: ocultar todo excepto Punto de Venta ────────────────────
-
-    // 1. Ocultar botones del nav (Inventario, Personal, Estadísticas, Caja)
+    // ── Empleado: Ocultar módulos sensibles, PERO dejar el Inventario ───
     const botonesRestringidos = [
-        "btnNavInventario",
         "btnNavPersonal",
         "btnNavEstadisticas",
         "btnNavCaja"
-    ];
+    ]; // 🌟 FIX: Sacamos "btnNavInventario" de esta lista
+    
     botonesRestringidos.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add("hidden");
     });
 
-    // 2. Ocultar secciones completas
-    ["seccion-productos", "seccion-usuarios", "seccion-estadisticas"].forEach(id => {
+    // Ocultar secciones completas
+    ["seccion-usuarios", "seccion-estadisticas"].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add("hidden");
     });
 
-    // 3. Ocultar el historial de ventas dentro de seccion-ventas
+    // Ocultar el historial de ventas
     const historial = document.getElementById("seccionHistorialVentas");
     if (historial) historial.classList.add("hidden");
 
-    // 4. Ocultar botones de acción dentro del inventario (por si navega directo)
-    ["btnBorrarProducto", "btnAgregarCategoria"].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.classList.add("hidden");
-    });
-
-    console.log("🔒 Modo Empleado — solo Punto de Venta habilitado");
+    console.log("🔒 Modo Empleado — Inventario y POS habilitados");
 };
 
 // ── Cerrar sesión ─────────────────────────────────────────────────────────
