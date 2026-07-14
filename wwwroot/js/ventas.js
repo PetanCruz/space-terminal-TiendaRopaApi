@@ -976,62 +976,69 @@ document.addEventListener("DOMContentLoaded", () => {
 // 🎫 MÓDULO DE REIMPRESIÓN DE TICKETS v2
 // =========================================================================
 
-// ── 1. GENERAR HTML PREMIUM DEL TICKET + TICKET DE CAMBIO ──────────────────
+// ── 1. GENERAR HTML TICKET FISCAL REAL + TICKET DE CAMBIO ──────────────────
 window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
-    const fechaFormateada = fecha
-        ? new Date(fecha).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
-        : new Date().toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    const dateObj = fecha ? new Date(fecha) : new Date();
+    const strFecha = dateObj.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+    const strHora = dateObj.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
-    // 🌟 Leemos la config para el logo (Módulo Empresa a futuro)
+    // 🌟 Leemos la config (Módulo Empresa) o usamos datos por defecto
     const config = JSON.parse(localStorage.getItem("configEmpresa")) || {
         nombreFantasia: "SPACE TERMINAL",
-        razonSocial: "Tienda de Ropa"
+        razonSocial: "TU NOMBRE O RAZON SOCIAL",
+        cuit: "20-00000000-0",
+        iibb: "20-00000000-0",
+        direccion: "San Miguel de Tucumán",
+        inicioActividades: "01/01/2024",
+        condicionIva: "IVA RESPONSABLE INSCRIPTO",
+        logo: ""
     };
 
     let logoHtml = config.logo 
-        ? `<img src="${config.logo}" style="max-height: 50px; object-fit: contain; margin-bottom: 5px;">`
-        : `<h1 class="marca">${config.nombreFantasia}</h1>`;
+        ? `<div style="text-align:center; margin-bottom:10px;"><img src="${config.logo}" style="max-height: 60px; object-fit: contain;"></div>`
+        : `<h1 class="center bold" style="font-size: 16px; margin-bottom: 5px;">${config.nombreFantasia.toUpperCase()}</h1>`;
 
     let itemsHTML = "";
     let itemsCambioHTML = ""; 
 
     if (Array.isArray(prendas) && prendas.length > 0) {
         prendas.forEach(item => {
-            const nombre   = item.productoNombre || item.ProductoNombre || item.nombre || "Prenda";
+            const nombre   = (item.productoNombre || item.ProductoNombre || item.nombre || "ROPA").toUpperCase();
             const talle    = item.talle    || item.Talle    || "N/A";
             const color    = item.color    || item.Color    || "N/A";
             const cantidad = item.cantidad || item.Cantidad || 1;
             const precio   = item.precioUnitario || item.PrecioUnitario || item.precio || 0;
             const subtotal = item.subtotal || item.Subtotal || (precio * cantidad);
 
+            // Replicamos la línea: [Cantx] ROPA            $10000,00
             itemsHTML += `
-                <tr class="item-row">
-                    <td class="col-desc">
-                        <strong>${nombre}</strong><br>
-                        <span class="subtext">T:${talle} | ${color}</span>
-                    </td>
-                    <td class="col-cant">${cantidad}</td>
-                    <td class="col-precio">$${Number(precio).toLocaleString("es-AR")}</td>
-                    <td class="col-total">$${Number(subtotal).toLocaleString("es-AR")}</td>
-                </tr>
+                <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+                    <span style="width: 70%;">${cantidad > 1 ? cantidad + 'x ' : ''}${nombre} (T:${talle})</span>
+                    <span>$${Number(subtotal).toLocaleString("es-AR", {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                </div>
             `;
 
             itemsCambioHTML += `
-                <tr class="item-row">
-                    <td class="col-desc" style="padding-bottom: 8px;">
-                        <strong>${nombre}</strong><br>
-                        <span class="subtext">Talle: ${talle} | Color: ${color}</span>
-                    </td>
-                    <td class="col-cant" style="font-weight: 900; font-size: 14px;">x${cantidad}</td>
-                </tr>
+                <div style="display:flex; justify-content:space-between; margin-bottom:3px; padding-bottom:3px; border-bottom: 1px dashed #ddd;">
+                    <span style="width: 80%;">${nombre}<br><span style="font-size:10px; color:#555;">Talle: ${talle} | Color: ${color}</span></span>
+                    <span style="font-weight:bold; font-size: 13px;">x${cantidad}</span>
+                </div>
             `;
         });
     } else {
-        itemsHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:#666;">Sin detalle</td></tr>`;
+        itemsHTML = `<div class="center" style="padding:10px;">Sin detalle</div>`;
         itemsCambioHTML = itemsHTML;
     }
 
     const mostrarTicketCambio = (id !== "PRESUPUESTO");
+    const nroTicketStr = String(id === "PRESUPUESTO" ? "0" : id).padStart(8, '0');
+    
+    // Cálculo de IVA (21% del total bruto) para la Transparencia Fiscal
+    const ivaContenido = total - (total / 1.21); 
+    
+    // Generación de un QR dinámico que simula el de AFIP
+    const urlQR = encodeURIComponent(`https://www.afip.gob.ar/fe/qr/?p={"cuit":"${config.cuit.replace(/-/g,'')}","nro":${id},"total":${total}}`);
+    const hashCF = Math.random().toString(36).substring(2, 12).toUpperCase();
 
     return `
         <!DOCTYPE html>
@@ -1041,44 +1048,27 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
             <title>Ticket #${id}</title>
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
-                /* Tipografía moderna, nada de Courier New */
-                body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; width: 80mm; max-width: 80mm; margin: 0 auto; padding: 5px; color: #000; background: #fff; }
-                
+                /* Tipografía estricta de ticket fiscal */
+                body { font-family: 'Courier New', Courier, monospace; width: 80mm; max-width: 80mm; margin: 0 auto; padding: 5px; color: #000; background: #fff; font-size: 12px; line-height: 1.2; text-transform: uppercase; }
+                .center { text-align: center; }
+                .bold { font-weight: bold; }
                 .ticket { padding: 10px 5px; }
                 
-                .header { text-align: center; margin-bottom: 15px; }
-                .marca { font-size: 22px; font-weight: 900; letter-spacing: -0.5px; text-transform: uppercase; margin-bottom: 2px; }
-                .rubro { font-size: 11px; color: #444; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
-                .fecha { font-size: 12px; margin-top: 5px; }
+                .datos-empresa { margin-bottom: 15px; }
+                .datos-empresa p { margin-bottom: 2px; }
                 
-                .divider { border-top: 1px solid #000; margin: 10px 0; }
+                .info-grid { display: flex; justify-content: space-between; margin: 4px 0; }
+                
+                .divider { border-top: 1px dashed #000; margin: 10px 0; }
                 .divider-thick { border-top: 2px solid #000; margin: 10px 0; }
                 
-                .info-grid { display: flex; justify-content: space-between; font-size: 12px; margin: 4px 0; }
-                .info-grid span { color: #444; }
-                .info-grid strong { font-size: 13px; font-weight: 800; }
+                .total-box { margin-top: 10px; margin-bottom: 15px; }
+                .total-line { display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; margin-bottom: 5px; }
                 
-                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                thead th { font-size: 10px; text-transform: uppercase; text-align: left; padding-bottom: 6px; border-bottom: 2px solid #000; }
-                .col-cant { text-align: center; }
-                .col-precio, .col-total { text-align: right; }
+                .qr-container { text-align: center; margin-top: 15px; }
+                .qr-container img { width: 130px; height: 130px; }
                 
-                .item-row td { padding: 8px 0; border-bottom: 1px solid #eee; vertical-align: top; }
-                .col-desc { font-size: 12px; line-height: 1.2; }
-                .col-desc strong { font-size: 13px; font-weight: 800; }
-                .subtext { font-size: 10px; color: #666; }
-                .col-cant { font-size: 13px; font-weight: bold; }
-                .col-precio { font-size: 12px; color: #444; }
-                .col-total { font-size: 13px; font-weight: 900; }
-                
-                .total-box { margin-top: 15px; text-align: right; }
-                .total-line { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; }
-                .total-line.final { font-size: 20px; font-weight: 900; border-top: 2px solid #000; padding-top: 5px; margin-top: 5px; }
-                
-                .footer { text-align: center; margin-top: 20px; font-size: 11px; line-height: 1.4; color: #333; }
-                .footer strong { font-size: 12px; }
-                
-                /* 🌟 MAGIA: Este salto de página obliga a la ticketera a meter el corte de guillotina */
+                /* 🌟 MAGIA: Este salto de página obliga a la ticketera a meter el corte automático */
                 .salto-pagina { page-break-before: always; }
                 
                 @media print { 
@@ -1089,39 +1079,65 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
         </head>
         <body>
             <div class="ticket">
-                <div class="header">
-                    ${logoHtml}
-                    <div class="rubro">${config.razonSocial}</div>
-                    <div class="fecha">${fechaFormateada}</div>
+                ${logoHtml}
+                <div class="datos-empresa">
+                    <p>${config.razonSocial}</p>
+                    <p>CUIT Nro.: ${config.cuit}</p>
+                    <p>Ing. Brutos: ${config.iibb}</p>
+                    <p>Dirección:</p>
+                    <p>${config.direccion}</p>
+                    <p>Inicio de Actividades: ${config.inicioActividades}</p>
+                    <p>${config.condicionIva}</p>
+                    <p>A CONSUMIDOR FINAL</p>
+                </div>
+                
+                <div class="center" style="margin: 15px 0;">
+                    <p>Cód. 083 - TIQUE</p>
+                    <p>P.V. Nro. 00010 - Nro. T. ${nroTicketStr}</p>
+                </div>
+                
+                <div class="info-grid">
+                    <span>Fecha ${strFecha}</span>
+                    <span>Hora ${strHora}</span>
                 </div>
                 
                 <div class="divider"></div>
-                <div class="info-grid"><span>Ticket N°:</span><strong>#${id}</strong></div>
-                <div class="info-grid"><span>Pago:</span><strong>${metodoPago}</strong></div>
-                <div class="divider-thick"></div>
                 
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Producto</th>
-                            <th class="col-cant">Cant</th>
-                            <th class="col-precio">P.Unit</th>
-                            <th class="col-total">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>${itemsHTML}</tbody>
-                </table>
+                <div style="margin-bottom: 10px;">
+                    ${itemsHTML}
+                </div>
+                
+                <div class="divider"></div>
                 
                 <div class="total-box">
-                    <div class="total-line final">
+                    <div class="total-line">
                         <span>TOTAL</span>
-                        <span>$${Number(total).toLocaleString("es-AR")}</span>
+                        <span>$${Number(total).toLocaleString("es-AR", {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                     </div>
                 </div>
                 
-                <div class="footer">
-                    <strong>¡Gracias por tu compra!</strong><br>
-                    Conservá este ticket como comprobante.
+                <div style="margin-bottom: 15px;">
+                    <p>RECIBI(MOS)</p>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>${metodoPago}</span>
+                        <span>$${Number(total).toLocaleString("es-AR", {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    </div>
+                </div>
+                
+                <div class="center bold" style="margin-bottom: 5px;">TRANSPARENCIA FISCAL</div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                    <span>IVA contenido:</span>
+                    <span>$${Number(ivaContenido).toLocaleString("es-AR", {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                </div>
+                <div style="text-align: right; margin-bottom: 5px;">CAJERO 1</div>
+                
+                <div class="qr-container">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${urlQR}" alt="QR AFIP">
+                </div>
+                
+                <div class="info-grid" style="margin-top: 10px; font-weight: bold;">
+                    <span>CF ${hashCF}</span>
+                    <span>V: 1.02</span>
                 </div>
             </div>
 
@@ -1129,37 +1145,36 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
             <div class="salto-pagina"></div>
             
             <div class="ticket">
-                <div class="header">
-                    ${logoHtml}
-                    <div class="rubro" style="font-size: 14px; color: #000;">TICKET DE CAMBIO</div>
-                    <div class="fecha">${fechaFormateada}</div>
+                ${logoHtml}
+                <div class="center bold" style="font-size: 14px; margin: 15px 0;">TICKET DE CAMBIO</div>
+                
+                <div class="info-grid">
+                    <span>Ref. Compra:</span>
+                    <strong>#${nroTicketStr}</strong>
+                </div>
+                <div class="info-grid">
+                    <span>Fecha:</span>
+                    <span>${strFecha}</span>
                 </div>
                 
-                <div class="divider"></div>
-                <div class="info-grid"><span>Ref. Compra:</span><strong>#${id}</strong></div>
                 <div class="divider-thick"></div>
+                <p class="bold" style="margin-bottom: 5px;">PRENDAS A CAMBIAR:</p>
                 
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Prenda a Cambiar</th>
-                            <th class="col-cant" style="text-align: right;">Cant</th>
-                        </tr>
-                    </thead>
-                    <tbody>${itemsCambioHTML}</tbody>
-                </table>
+                ${itemsCambioHTML}
                 
-                <div class="footer" style="margin-top: 30px; border-top: 1px solid #000; padding-top: 10px;">
-                    <strong>Válido por 30 días.</strong><br>
-                    La prenda debe estar sin uso y con su etiqueta original adherida.
+                <div class="center" style="margin-top: 25px;">
+                    <p class="bold" style="font-size: 13px;">VÁLIDO POR 30 DÍAS</p>
+                    <p style="margin-top: 8px; font-size: 10px; line-height: 1.4;">
+                        LA PRENDA DEBE ESTAR SIN USO<br>
+                        Y CON SU ETIQUETA ORIGINAL ADHERIDA.
+                    </p>
                 </div>
             </div>
             ` : ''}
             
             <script>
-                // Autoejecuta la impresión
                 window.onload = () => { 
-                    setTimeout(() => { window.print(); }, 500); 
+                    setTimeout(() => { window.print(); }, 800); 
                 };
             </script>
         </body>
