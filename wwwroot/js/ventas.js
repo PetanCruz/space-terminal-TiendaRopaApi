@@ -976,14 +976,24 @@ document.addEventListener("DOMContentLoaded", () => {
 // 🎫 MÓDULO DE REIMPRESIÓN DE TICKETS v2
 // =========================================================================
 
-// ── 1. GENERAR HTML LIMPIO DEL TICKET + TICKET DE CAMBIO ──────────────────
+// ── 1. GENERAR HTML PREMIUM DEL TICKET + TICKET DE CAMBIO ──────────────────
 window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
     const fechaFormateada = fecha
         ? new Date(fecha).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
         : new Date().toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
+    // 🌟 Leemos la config para el logo (Módulo Empresa a futuro)
+    const config = JSON.parse(localStorage.getItem("configEmpresa")) || {
+        nombreFantasia: "SPACE TERMINAL",
+        razonSocial: "Tienda de Ropa"
+    };
+
+    let logoHtml = config.logo 
+        ? `<img src="${config.logo}" style="max-height: 50px; object-fit: contain; margin-bottom: 5px;">`
+        : `<h1 class="marca">${config.nombreFantasia}</h1>`;
+
     let itemsHTML = "";
-    let itemsCambioHTML = ""; // 🌟 NUEVO: Lista paralela sin precios
+    let itemsCambioHTML = ""; 
 
     if (Array.isArray(prendas) && prendas.length > 0) {
         prendas.forEach(item => {
@@ -994,36 +1004,33 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
             const precio   = item.precioUnitario || item.PrecioUnitario || item.precio || 0;
             const subtotal = item.subtotal || item.Subtotal || (precio * cantidad);
 
-            // Item para el ticket de cobro normal
             itemsHTML += `
-                <tr>
-                    <td style="padding:6px 4px;border-bottom:1px dashed #ccc;font-size:12px;">
+                <tr class="item-row">
+                    <td class="col-desc">
                         <strong>${nombre}</strong><br>
-                        <span style="color:#666;font-size:11px;">T:${talle} / ${color}</span>
+                        <span class="subtext">T:${talle} | ${color}</span>
                     </td>
-                    <td style="padding:6px 4px;border-bottom:1px dashed #ccc;text-align:center;font-size:12px;">${cantidad}</td>
-                    <td style="padding:6px 4px;border-bottom:1px dashed #ccc;text-align:right;font-size:12px;">$${Number(precio).toLocaleString("es-AR")}</td>
-                    <td style="padding:6px 4px;border-bottom:1px dashed #ccc;text-align:right;font-size:12px;font-weight:bold;">$${Number(subtotal).toLocaleString("es-AR")}</td>
+                    <td class="col-cant">${cantidad}</td>
+                    <td class="col-precio">$${Number(precio).toLocaleString("es-AR")}</td>
+                    <td class="col-total">$${Number(subtotal).toLocaleString("es-AR")}</td>
                 </tr>
             `;
 
-            // 🌟 NUEVO: Item para el ticket de cambio (Sin precios)
             itemsCambioHTML += `
-                <tr>
-                    <td style="padding:6px 4px;border-bottom:1px dashed #ccc;font-size:12px;">
+                <tr class="item-row">
+                    <td class="col-desc" style="padding-bottom: 8px;">
                         <strong>${nombre}</strong><br>
-                        <span style="color:#666;font-size:11px;">Talle: ${talle} / Color: ${color}</span>
+                        <span class="subtext">Talle: ${talle} | Color: ${color}</span>
                     </td>
-                    <td style="padding:6px 4px;border-bottom:1px dashed #ccc;text-align:right;font-size:12px;font-weight:bold;">x${cantidad}</td>
+                    <td class="col-cant" style="font-weight: 900; font-size: 14px;">x${cantidad}</td>
                 </tr>
             `;
         });
     } else {
-        itemsHTML = `<tr><td colspan="4" style="text-align:center;color:#999;padding:12px;font-size:12px;">Sin detalle</td></tr>`;
+        itemsHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:#666;">Sin detalle</td></tr>`;
         itemsCambioHTML = itemsHTML;
     }
 
-    // Si es un Presupuesto A4 (que no trae ID numérico), ocultamos la parte del ticket de cambio térmico
     const mostrarTicketCambio = (id !== "PRESUPUESTO");
 
     return `
@@ -1034,65 +1041,127 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
             <title>Ticket #${id}</title>
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { font-family: 'Courier New', monospace; width: 80mm; max-width: 80mm; margin: 0 auto; padding: 8px; font-size: 12px; color: #000; background: #fff; }
-                .header { text-align: center; margin-bottom: 12px; }
-                .header h1 { font-size: 18px; font-weight: bold; letter-spacing: 2px; }
-                .header p  { font-size: 11px; color: #555; }
-                .divider   { border-top: 1px dashed #000; margin: 8px 0; }
-                .info-row  { display: flex; justify-content: space-between; font-size: 12px; margin: 3px 0; }
-                table      { width: 100%; border-collapse: collapse; }
-                thead th   { font-size: 11px; text-align: left; padding: 4px; border-bottom: 2px solid #000; }
-                thead th:nth-child(2) { text-align: center; }
-                thead th:nth-child(3), thead th:nth-child(4) { text-align: right; }
-                .total-row { display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; border-top: 2px solid #000; padding-top: 6px; margin-top: 6px; }
-                .footer { text-align: center; margin-top: 14px; font-size: 10px; color: #777; }
+                /* Tipografía moderna, nada de Courier New */
+                body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; width: 80mm; max-width: 80mm; margin: 0 auto; padding: 5px; color: #000; background: #fff; }
                 
-                /* Estilos para el separador del ticket de cambio */
-                .cut-line { border-top: 1px dashed #000; margin: 25px 0; position: relative; text-align: center; }
-                .cut-line::after { content: '✂️ CORTE AQUÍ ✂️'; background: #fff; padding: 0 5px; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); font-size: 10px; color: #000; font-weight: bold; }
+                .ticket { padding: 10px 5px; }
                 
-                @media print { html, body { width: 80mm; } @page { margin: 0; size: 80mm auto; } }
+                .header { text-align: center; margin-bottom: 15px; }
+                .marca { font-size: 22px; font-weight: 900; letter-spacing: -0.5px; text-transform: uppercase; margin-bottom: 2px; }
+                .rubro { font-size: 11px; color: #444; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+                .fecha { font-size: 12px; margin-top: 5px; }
+                
+                .divider { border-top: 1px solid #000; margin: 10px 0; }
+                .divider-thick { border-top: 2px solid #000; margin: 10px 0; }
+                
+                .info-grid { display: flex; justify-content: space-between; font-size: 12px; margin: 4px 0; }
+                .info-grid span { color: #444; }
+                .info-grid strong { font-size: 13px; font-weight: 800; }
+                
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                thead th { font-size: 10px; text-transform: uppercase; text-align: left; padding-bottom: 6px; border-bottom: 2px solid #000; }
+                .col-cant { text-align: center; }
+                .col-precio, .col-total { text-align: right; }
+                
+                .item-row td { padding: 8px 0; border-bottom: 1px solid #eee; vertical-align: top; }
+                .col-desc { font-size: 12px; line-height: 1.2; }
+                .col-desc strong { font-size: 13px; font-weight: 800; }
+                .subtext { font-size: 10px; color: #666; }
+                .col-cant { font-size: 13px; font-weight: bold; }
+                .col-precio { font-size: 12px; color: #444; }
+                .col-total { font-size: 13px; font-weight: 900; }
+                
+                .total-box { margin-top: 15px; text-align: right; }
+                .total-line { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; }
+                .total-line.final { font-size: 20px; font-weight: 900; border-top: 2px solid #000; padding-top: 5px; margin-top: 5px; }
+                
+                .footer { text-align: center; margin-top: 20px; font-size: 11px; line-height: 1.4; color: #333; }
+                .footer strong { font-size: 12px; }
+                
+                /* 🌟 MAGIA: Este salto de página obliga a la ticketera a meter el corte de guillotina */
+                .salto-pagina { page-break-before: always; }
+                
+                @media print { 
+                    html, body { width: 80mm; } 
+                    @page { margin: 0; size: 80mm auto; } 
+                }
             </style>
         </head>
         <body>
-            <!-- TICKET ORIGINAL DE COMPRA -->
-            <div class="header">
-                <h1>SPACE TERMINAL</h1>
-                <p>Tienda de Ropa</p>
-                <p>${fechaFormateada}</p>
+            <div class="ticket">
+                <div class="header">
+                    ${logoHtml}
+                    <div class="rubro">${config.razonSocial}</div>
+                    <div class="fecha">${fechaFormateada}</div>
+                </div>
+                
+                <div class="divider"></div>
+                <div class="info-grid"><span>Ticket N°:</span><strong>#${id}</strong></div>
+                <div class="info-grid"><span>Pago:</span><strong>${metodoPago}</strong></div>
+                <div class="divider-thick"></div>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th class="col-cant">Cant</th>
+                            <th class="col-precio">P.Unit</th>
+                            <th class="col-total">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>${itemsHTML}</tbody>
+                </table>
+                
+                <div class="total-box">
+                    <div class="total-line final">
+                        <span>TOTAL</span>
+                        <span>$${Number(total).toLocaleString("es-AR")}</span>
+                    </div>
+                </div>
+                
+                <div class="footer">
+                    <strong>¡Gracias por tu compra!</strong><br>
+                    Conservá este ticket como comprobante.
+                </div>
             </div>
-            <div class="divider"></div>
-            <div class="info-row"><span>Ticket N°:</span><strong>#${id}</strong></div>
-            <div class="info-row"><span>Método de pago:</span><strong>${metodoPago}</strong></div>
-            <div class="divider"></div>
-            <table>
-                <thead><tr><th>Producto</th><th>Cant</th><th>P.Unit</th><th>Total</th></tr></thead>
-                <tbody>${itemsHTML}</tbody>
-            </table>
-            <div class="total-row"><span>TOTAL:</span><span>$${Number(total).toLocaleString("es-AR")}</span></div>
-            <div class="divider"></div>
-            <div class="footer"><p>¡Gracias por tu compra!</p><p>Conservá este ticket</p></div>
 
             ${mostrarTicketCambio ? `
-            <!-- TICKET DE CAMBIO (SIN PRECIOS) -->
-            <div class="cut-line"></div>
-            <div class="header" style="margin-top: 20px;">
-                <h1>SPACE TERMINAL</h1>
-                <p>TICKET DE CAMBIO</p>
-                <p>${fechaFormateada}</p>
-            </div>
-            <div class="info-row"><span>Ref. Compra:</span><strong>#${id}</strong></div>
-            <div class="divider"></div>
-            <table>
-                <thead><tr><th>Prenda a Cambiar</th><th style="text-align:right">Cant</th></tr></thead>
-                <tbody>${itemsCambioHTML}</tbody>
-            </table>
-            <div class="divider"></div>
-            <div class="footer" style="margin-top: 15px;">
-                <p style="font-size: 11px; font-weight: bold; color: #000;">Válido por 30 días.</p>
-                <p style="margin-top: 4px;">La prenda debe estar sin uso y con su etiqueta original adherida.</p>
+            <div class="salto-pagina"></div>
+            
+            <div class="ticket">
+                <div class="header">
+                    ${logoHtml}
+                    <div class="rubro" style="font-size: 14px; color: #000;">TICKET DE CAMBIO</div>
+                    <div class="fecha">${fechaFormateada}</div>
+                </div>
+                
+                <div class="divider"></div>
+                <div class="info-grid"><span>Ref. Compra:</span><strong>#${id}</strong></div>
+                <div class="divider-thick"></div>
+                
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Prenda a Cambiar</th>
+                            <th class="col-cant" style="text-align: right;">Cant</th>
+                        </tr>
+                    </thead>
+                    <tbody>${itemsCambioHTML}</tbody>
+                </table>
+                
+                <div class="footer" style="margin-top: 30px; border-top: 1px solid #000; padding-top: 10px;">
+                    <strong>Válido por 30 días.</strong><br>
+                    La prenda debe estar sin uso y con su etiqueta original adherida.
+                </div>
             </div>
             ` : ''}
+            
+            <script>
+                // Autoejecuta la impresión
+                window.onload = () => { 
+                    setTimeout(() => { window.print(); }, 500); 
+                };
+            </script>
         </body>
         </html>
     `;
