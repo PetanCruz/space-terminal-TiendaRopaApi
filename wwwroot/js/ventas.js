@@ -81,8 +81,17 @@ function renderizarCatalogo(productosAFiltrar) {
             const color = variante.color ?? variante.Color ?? "N/A";
 
             let stockGlobal = 0;
+            let nombresSucursales = []; // 🌟 NUEVO: Guardamos dónde está la ropa
+
             if (variante.stockDetalle && Array.isArray(variante.stockDetalle)) {
-                stockGlobal = variante.stockDetalle.reduce((acc, suc) => acc + (suc.cantidad || 0), 0);
+                variante.stockDetalle.forEach(suc => {
+                    if (suc.cantidad > 0) {
+                        stockGlobal += suc.cantidad;
+                        if (!nombresSucursales.includes(suc.sucursal)) {
+                            nombresSucursales.push(suc.sucursal);
+                        }
+                    }
+                });
             }
 
             const stockLocal = variante.stock ?? variante.Stock ?? 0;
@@ -94,7 +103,13 @@ function renderizarCatalogo(productosAFiltrar) {
             const cantidadEnCarrito = itemEnCarrito ? itemEnCarrito.cantidad : 0;
             const stockDinamico = stockAMostrar - cantidadEnCarrito;
 
-            dibujarTarjetaHtml(contenedor, varianteId, nombreBase, precio, stockDinamico, talle, color, categoriaTexto);
+            // 🌟 MAGIA: Si es Admin, le inyectamos la ubicación en el talle
+            let talleAMostrar = talle;
+            if (esAdmin && nombresSucursales.length > 0) {
+                talleAMostrar = `${talle} | 📍 ${nombresSucursales.join(", ")}`;
+            }
+
+            dibujarTarjetaHtml(contenedor, varianteId, nombreBase, precio, stockDinamico, talleAMostrar, color, categoriaTexto);
             prendasMostradas++;
         });
     });
