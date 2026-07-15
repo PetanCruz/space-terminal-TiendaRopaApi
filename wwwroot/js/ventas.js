@@ -44,6 +44,11 @@ async function cargarProductos() {
         renderizarCatalogo(productos);
         console.log("✅ Catálogo cargado con éxito para la sucursal:", sucursalId);
 
+        // 🌟 MAGIA: Inicializamos el Teletransportador si es Admin
+        if (typeof window.inicializarSelectorAdmin === "function") {
+            window.inicializarSelectorAdmin();
+        }
+
     } catch (error) {
         console.error("Error al cargar productos:", error);
         contenedor.innerHTML = `<p class="text-rose-400 p-4">Error al cargar productos. Intentá recargar.</p>`;
@@ -3165,5 +3170,64 @@ window.generarPresupuesto = function() {
         ventanaImp.document.close();
     } else {
         window.toast?.error("El navegador bloqueó la ventana de impresión. Habilitá las ventanas emergentes.");
+    }
+};
+
+// 🌟 INYECTOR DEL TELETRANSPORTADOR PARA ADMINISTRADORES (CORREGIDO)
+window.inicializarSelectorAdmin = function() {
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const esAdmin = (usuarioLocal.Rol === "administrador" || usuarioLocal.rol === "administrador");
+
+    if (!esAdmin) return;
+
+    // Buscamos la barra de búsqueda real de tu sistema
+    const cajaBusqueda = document.querySelector("#inputBuscador")?.parentElement;
+    
+    if (cajaBusqueda && !document.getElementById("teletransportadorAdmin")) {
+        cajaBusqueda.style.display = "flex";
+        cajaBusqueda.style.gap = "10px";
+
+        const select = document.createElement("select");
+        select.id = "teletransportadorAdmin";
+        select.className = "form-select bg-dark border-secondary";
+        select.style.maxWidth = "280px";
+        select.style.fontWeight = "bold";
+        select.style.color = "#00ff9d"; 
+        select.style.cursor = "pointer";
+
+        const sucursalActiva = localStorage.getItem("sucursalAdminActiva") || usuarioLocal.sucursalId || 1;
+
+        select.innerHTML = `
+            <option value="1" ${sucursalActiva == 1 ? "selected" : ""}>✈️ Operando en: San Miguel</option>
+            <option value="2" ${sucursalActiva == 2 ? "selected" : ""}>✈️ Operando en: Monteros</option>
+        `;
+
+        cajaBusqueda.appendChild(select);
+
+        select.addEventListener("change", (e) => {
+            const nuevaSucursal = parseInt(e.target.value);
+            
+            localStorage.setItem("sucursalAdminActiva", nuevaSucursal);
+            usuarioLocal.sucursalId = nuevaSucursal;
+            localStorage.setItem("usuario", JSON.stringify(usuarioLocal));
+
+            // Vaciamos el carrito silenciosamente para no cruzar facturas
+            carrito = [];
+            if (typeof actualizarInterfazCarrito === "function") actualizarInterfazCarrito();
+            
+            // Recargamos los productos apuntando a la nueva sucursal
+            if (typeof cargarProductos === "function") cargarProductos();
+
+            if (window.toast) {
+                window.toast.success("🔄 Te teletransportaste a: " + select.options[select.selectedIndex].text.replace("✈️ Operando en: ", ""));
+            } else {
+                alert("🔄 Teletransportado a: " + select.options[select.selectedIndex].text.replace("✈️ Operando en: ", ""));
+            }
+        });
+
+        if (usuarioLocal.sucursalId != sucursalActiva) {
+            usuarioLocal.sucursalId = parseInt(sucursalActiva);
+            localStorage.setItem("usuario", JSON.stringify(usuarioLocal));
+        }
     }
 };
