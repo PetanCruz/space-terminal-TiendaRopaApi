@@ -1367,6 +1367,10 @@ window.confirmarCierreCaja = async function() {
 
     const observaciones = document.getElementById("cajaObservaciones")?.value.trim() || "";
 
+    // 🌟 NUEVO: Extraemos la sucursal del cajero actual
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const sucursalCajero = usuarioLocal.sucursalId || 1;
+
     const payload = {
         totalEfectivo:      parseFloat(modal.dataset.efectivo      || 0),
         totalTransferencia: parseFloat(modal.dataset.transferencia || 0),
@@ -1374,7 +1378,8 @@ window.confirmarCierreCaja = async function() {
         totalCredito:       parseFloat(modal.dataset.credito       || 0),
         totalGeneral:       parseFloat(modal.dataset.total         || 0),
         cantidadVentas:     parseInt(modal.dataset.ventas          || 0),
-        observaciones
+        observaciones:      observaciones,
+        sucursalId:         sucursalCajero // 🌟 Se lo mandamos a C# por las dudas
     };
 
     // Deshabilitar botón mientras guarda
@@ -1390,7 +1395,11 @@ window.confirmarCierreCaja = async function() {
             body: JSON.stringify(payload)
         });
 
-        if (!respuesta.ok) throw new Error(`Error HTTP ${respuesta.status}`);
+        if (!respuesta.ok) {
+            // 🌟 FIX: Atrapamos el error EXACTO que manda C# para no tener que adivinar
+            const errorTexto = await respuesta.text();
+            throw new Error(errorTexto || `Error HTTP ${respuesta.status}`);
+        }
 
         const resultado = await respuesta.json();
         console.log("✅ Cierre guardado:", resultado);
@@ -1400,11 +1409,12 @@ window.confirmarCierreCaja = async function() {
         // Imprimir resumen automáticamente al cerrar
         window.imprimirResumenCaja(payload);
 
-        alert(`✅ Caja cerrada correctamente.\nTotal del día: $${Number(payload.totalGeneral).toLocaleString("es-AR")}\nVentas realizadas: ${payload.cantidadVentas}`);
+        window.toast?.success(`✅ Caja cerrada correctamente.`);
 
     } catch (error) {
         console.error("❌ Error al guardar cierre:", error);
-        alert("No se pudo guardar el cierre. Revisá la consola (F12).");
+        // 🌟 FIX: Te mostramos el motivo exacto en pantalla
+        alert(`❌ Falló el cierre de caja. El servidor dice:\n${error.message}`);
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = "✅ Confirmar Cierre de Caja"; }
     }
