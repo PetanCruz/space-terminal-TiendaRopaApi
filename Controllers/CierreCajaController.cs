@@ -88,30 +88,49 @@ namespace TiendaRopaAPI.Controllers
             return Ok(resumen);
         }
 
-        // 🌟 CABALLO DE TROYA: Parche manual para la base de datos
+        // 🌟 CABALLO DE TROYA V2: Misil Rastreador Inteligente
         [HttpGet("forzar-parche")]
-        [AllowAnonymous] // Permite entrar sin iniciar sesión
+        [AllowAnonymous]
         public IActionResult ForzarParche()
         {
             try
             {
-                // Intento 1: Formato exacto
-                _context.Database.ExecuteSqlRaw("ALTER TABLE CierresCaja ADD COLUMN SucursalId INT NOT NULL DEFAULT 1;");
-                return Ok("✅ ÉXITO: Columna creada en la tabla 'CierresCaja'.");
+                string nombreTablaReal = "";
+                
+                // 1. Buscamos el nombre EXACTO de la tabla en la base de datos
+                using (var command = _context.Database.GetDbConnection().CreateCommand())
+                {
+                    command.CommandText = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND LOWER(TABLE_NAME) LIKE '%cierre%caja%';";
+                    _context.Database.OpenConnection();
+                    using (var result = command.ExecuteReader())
+                    {
+                        if (result.Read())
+                        {
+                            nombreTablaReal = result.GetString(0);
+                        }
+                    }
+                }
+
+                if (string.IsNullOrEmpty(nombreTablaReal))
+                {
+                    return Ok("❌ FRACASO: No se encontró ninguna tabla que se llame parecido a CierreCaja en tu servidor.");
+                }
+
+                // 2. Ahora que sabemos el nombre exacto (ej: 'CierreCajas'), le inyectamos la columna a la fuerza
+                try 
+                {
+                    _context.Database.ExecuteSqlRaw($"ALTER TABLE `{nombreTablaReal}` ADD COLUMN SucursalId INT NOT NULL DEFAULT 1;");
+                    return Ok($"✅ ÉXITO TOTAL: Encontré la tabla oculta (se llamaba '{nombreTablaReal}') y le inyecté la columna SucursalId perfectamente.");
+                } 
+                catch (Exception ex) 
+                {
+                    // Si tira error acá, es porque la tabla existe pero la columna ya se había inyectado antes
+                    return Ok($"⚠️ AVISO: La tabla real es '{nombreTablaReal}'. Intenté inyectarle la columna pero me dijo: {ex.Message} (Probablemente ya la tenía).");
+                }
             }
-            catch (Exception ex1)
+            catch (Exception ex)
             {
-                try
-                {
-                    // Intento 2: Formato Linux (todo minúsculas)
-                    _context.Database.ExecuteSqlRaw("ALTER TABLE cierrescaja ADD COLUMN SucursalId INT NOT NULL DEFAULT 1;");
-                    return Ok("✅ ÉXITO: Columna creada en la tabla 'cierrescaja' (formato Linux).");
-                }
-                catch (Exception ex2)
-                {
-                    // Si todo falla, escupe la verdad
-                    return StatusCode(500, $"❌ FALLO TOTAL. \nError 1: {ex1.Message} \nError 2: {ex2.Message}");
-                }
+                return StatusCode(500, $"❌ ERROR FATAL DEL MISIL: {ex.Message}");
             }
         }
     }
