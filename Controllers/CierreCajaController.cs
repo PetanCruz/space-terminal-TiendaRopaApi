@@ -23,10 +23,19 @@ namespace TiendaRopaAPI.Controllers
         [Authorize(Roles = "administrador")]
         public async Task<IActionResult> RegistrarCierre([FromBody] CierreCaja cierre)
         {
-            cierre.Fecha = DateTime.Now;
-            _context.CierresCaja.Add(cierre);
-            await _context.SaveChangesAsync();
-            return Ok(new { mensaje = "Cierre registrado correctamente.", id = cierre.Id });
+            try
+            {
+                cierre.Fecha = DateTime.Now;
+                _context.CierresCaja.Add(cierre);
+                await _context.SaveChangesAsync();
+                return Ok(new { mensaje = "Cierre registrado correctamente.", id = cierre.Id });
+            }
+            catch (Exception ex)
+            {
+                // 🌟 MAGIA: Si la base de datos choca, le mandamos el texto exacto del error al cartel rojo del frontend
+                string errorReal = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                return StatusCode(500, $"Error en BD: {errorReal}");
+            }
         }
 
         // 2. HISTORIAL DE CIERRES (últimos 30)
