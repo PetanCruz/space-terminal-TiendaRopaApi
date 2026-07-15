@@ -38,51 +38,50 @@ namespace TiendaRopaAPI.Controllers
             }
         }
 
-        // 2. HISTORIAL DE CIERRES (últimos 30)
+        // 2. HISTORIAL DE CIERRES (últimos 30 de la sucursal actual)
         [HttpGet]
         [Authorize(Roles = "administrador")]
-        public async Task<IActionResult> GetCierres()
+        public async Task<IActionResult> GetCierres([FromQuery] int sucursalId = 1)
         {
             var cierres = await _context.CierresCaja
+                .Where(c => c.SucursalId == sucursalId)
                 .OrderByDescending(c => c.Fecha)
                 .Take(30)
                 .ToListAsync();
             return Ok(cierres);
         }
 
-        // 3. RESUMEN DEL DÍA ACTUAL (para calcular antes de cerrar)
+        // 3. RESUMEN DEL TURNO ACTUAL (Calcula desde el último cierre para volver a $0)
         [HttpGet("resumen-hoy")]
         [Authorize(Roles = "administrador")]
-        public async Task<IActionResult> GetResumenHoy()
+        public async Task<IActionResult> GetResumenHoy([FromQuery] int sucursalId = 1)
         {
-            var hoy = DateTime.Today;
-            var manana = hoy.AddDays(1);
+            // 🌟 Buscamos cuándo fue la ÚLTIMA vez que cerraron ESTA caja
+            var ultimoCierre = await _context.CierresCaja
+                .Where(c => c.SucursalId == sucursalId)
+                .OrderByDescending(c => c.Fecha)
+                .FirstOrDefaultAsync();
 
-            // 🌟 NUEVO: Traemos las ventas de hoy, pero EXCLUIMOS las cuentas corrientes/fiados
-            // porque no es dinero físico que haya entrado a la caja.
-            var ventasHoy = await _context.Ventas
-                .Where(v => v.FechaHora >= hoy && v.FechaHora < manana 
+            // Si hay un cierre anterior, contamos desde esa hora. Si es nueva, desde las 00:00 de hoy.
+            DateTime fechaInicio = ultimoCierre != null ? ultimoCierre.Fecha : DateTime.Today;
+
+            // 🌟 Traemos solo las ventas que se hicieron DESPUÉS del último cierre
+            var ventasNuevas = await _context.Ventas
+                .Where(v => v.SucursalId == sucursalId 
+                            && v.FechaHora > fechaInicio 
                             && !v.MetodoPago.ToLower().Contains("cuenta corriente")
                             && !v.MetodoPago.ToLower().Contains("fiado"))
                 .ToListAsync();
 
             var resumen = new
             {
-                TotalEfectivo       = ventasHoy.Where(v => v.MetodoPago.ToLower().Contains("efectivo"))
-                                               .Sum(v => v.Total),
-                TotalTransferencia  = ventasHoy.Where(v => v.MetodoPago.ToLower().Contains("transfer") ||
-                                                           v.MetodoPago.ToLower().Contains("qr"))
-                                               .Sum(v => v.Total),
-                TotalDebito         = ventasHoy.Where(v => v.MetodoPago.ToLower().Contains("débito") ||
-                                                           v.MetodoPago.ToLower().Contains("debito"))
-                                               .Sum(v => v.Total),
-                TotalCredito        = ventasHoy.Where(v => v.MetodoPago.ToLower().Contains("crédito") ||
-                                                           v.MetodoPago.ToLower().Contains("credito") ||
-                                                           v.MetodoPago.ToLower().Contains("tarjeta"))
-                                               .Sum(v => v.Total),
-                TotalGeneral        = ventasHoy.Sum(v => v.Total),
-                CantidadVentas      = ventasHoy.Count,
-                Fecha               = hoy
+                TotalEfectivo       = ventasNuevas.Where(v => v.MetodoPago.ToLower().Contains("efectivo")).Sum(v => v.Total),
+                TotalTransferencia  = ventasNuevas.Where(v => v.MetodoPago.ToLower().Contains("transfer") || v.MetodoPago.ToLower().Contains("qr")).Sum(v => v.Total),
+                TotalDebito         = ventasNuevas.Where(v => v.MetodoPago.ToLower().Contains("débito") || v.MetodoPago.ToLower().Contains("debito")).Sum(v => v.Total),
+                TotalCredito        = ventasNuevas.Where(v => v.MetodoPago.ToLower().Contains("crédito") || v.MetodoPago.ToLower().Contains("credito") || v.MetodoPago.ToLower().Contains("tarjeta")).Sum(v => v.Total),
+                TotalGeneral        = ventasNuevas.Sum(v => v.Total),
+                CantidadVentas      = ventasNuevas.Count,
+                FechaInicioTurno    = fechaInicio
             };
 
             return Ok(resumen);
