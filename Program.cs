@@ -92,6 +92,21 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+// 🌟 ESTO OBLIGA A RAILWAY A ACTUALIZAR LA BASE DE DATOS AUTOMÁTICAMENTE
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<TiendaRopaAPI.Data.ApplicationDbContext>();
+        context.Database.Migrate();
+        Console.WriteLine("✅ Base de datos sincronizada correctamente.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"❌ Error al migrar la BD: {ex.Message}");
+    }
+}
 app.UseStaticFiles(); 
 
 
