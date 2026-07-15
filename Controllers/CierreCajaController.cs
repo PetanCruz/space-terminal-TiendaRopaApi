@@ -87,5 +87,32 @@ namespace TiendaRopaAPI.Controllers
 
             return Ok(resumen);
         }
+
+        // 🌟 CABALLO DE TROYA: Parche manual para la base de datos
+        [HttpGet("forzar-parche")]
+        [AllowAnonymous] // Permite entrar sin iniciar sesión
+        public IActionResult ForzarParche()
+        {
+            try
+            {
+                // Intento 1: Formato exacto
+                _context.Database.ExecuteSqlRaw("ALTER TABLE CierresCaja ADD COLUMN SucursalId INT NOT NULL DEFAULT 1;");
+                return Ok("✅ ÉXITO: Columna creada en la tabla 'CierresCaja'.");
+            }
+            catch (Exception ex1)
+            {
+                try
+                {
+                    // Intento 2: Formato Linux (todo minúsculas)
+                    _context.Database.ExecuteSqlRaw("ALTER TABLE cierrescaja ADD COLUMN SucursalId INT NOT NULL DEFAULT 1;");
+                    return Ok("✅ ÉXITO: Columna creada en la tabla 'cierrescaja' (formato Linux).");
+                }
+                catch (Exception ex2)
+                {
+                    // Si todo falla, escupe la verdad
+                    return StatusCode(500, $"❌ FALLO TOTAL. \nError 1: {ex1.Message} \nError 2: {ex2.Message}");
+                }
+            }
+        }
     }
 }
