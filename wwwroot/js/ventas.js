@@ -3420,8 +3420,12 @@ window.cerrarModalCobro = function() {
 };
 
 // =========================================================================
-// 📋 MÓDULO DE RECUPERACIÓN DE PRESUPUESTOS
+// 📋 MÓDULO DE RECUPERACIÓN Y BÚSQUEDA DE PRESUPUESTOS
 // =========================================================================
+
+// Memoria global para filtrar al instante
+window.presupuestosMemoria = []; 
+
 window.cargarPresupuestos = async function() {
     const tbody = document.getElementById("tablaPresupuestosBody");
     if (!tbody) return;
@@ -3439,45 +3443,71 @@ window.cargarPresupuestos = async function() {
 
         if (!respuesta.ok) throw new Error("Error al cargar presupuestos");
         const presupuestos = await respuesta.json();
-
-        if (presupuestos.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-500 italic text-sm">No hay presupuestos pendientes registrados.</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = presupuestos.map(p => {
-            const fechaEmision = new Date(p.fechaEmision).toLocaleDateString("es-AR");
-            const fechaVenc = new Date(p.fechaVencimiento);
-            const vencimientoStr = fechaVenc.toLocaleDateString("es-AR");
-            
-            // Lógica inteligente de vencimiento
-            const hoy = new Date();
-            const estaVencido = hoy > fechaVenc && p.estado !== "Convertido";
-            
-            let badgeEstado = `<span class="bg-indigo-900/50 text-indigo-400 border border-indigo-700/50 px-2 py-0.5 rounded text-xs ml-2">Pendiente</span>`;
-            if (estaVencido) badgeEstado = `<span class="bg-rose-900/50 text-rose-400 border border-rose-700/50 px-2 py-0.5 rounded text-xs ml-2">Vencido</span>`;
-            if (p.estado === "Convertido") badgeEstado = `<span class="bg-emerald-900/50 text-emerald-400 border border-emerald-700/50 px-2 py-0.5 rounded text-xs ml-2">Vendido</span>`;
-
-            return `
-            <tr class="hover:bg-slate-900/50 transition-colors border-b border-slate-800">
-                <td class="p-4 font-bold text-white">${p.numeroPresupuesto} ${badgeEstado}</td>
-                <td class="p-4 text-slate-400 text-xs">${fechaEmision}</td>
-                <td class="p-4 text-slate-300 font-medium">${p.clienteNombre}</td>
-                <td class="p-4 text-slate-400 text-xs">${vencimientoStr}</td>
-                <td class="p-4 text-emerald-400 font-bold">$${Number(p.total).toLocaleString("es-AR")}</td>
-                <td class="p-4 text-center">
-                    <button onclick="window.retomarPresupuesto(${p.id})" ${estaVencido || p.estado === "Convertido" ? "disabled" : ""} class="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors shadow-md cursor-pointer">
-                        🛒 Volcar al Carrito
-                    </button>
-                </td>
-            </tr>
-            `;
-        }).join("");
+        
+        window.presupuestosMemoria = presupuestos; // 🌟 Guardamos la copia para el buscador
+        window.renderizarTablaPresupuestos(window.presupuestosMemoria);
 
     } catch (error) {
         console.error(error);
         tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-rose-400 text-sm">Error de conexión al cargar presupuestos.</td></tr>`;
     }
+};
+
+// 🌟 NUEVO: Separamos la lógica de dibujar la tabla para poder re-usarla al buscar
+window.renderizarTablaPresupuestos = function(lista) {
+    const tbody = document.getElementById("tablaPresupuestosBody");
+    if (!tbody) return;
+
+    if (!lista || lista.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-500 italic text-sm">No se encontraron presupuestos con ese criterio.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = lista.map(p => {
+        const fechaEmision = new Date(p.fechaEmision).toLocaleDateString("es-AR");
+        const fechaVenc = new Date(p.fechaVencimiento);
+        const vencimientoStr = fechaVenc.toLocaleDateString("es-AR");
+        
+        // Lógica inteligente de vencimiento
+        const hoy = new Date();
+        const estaVencido = hoy > fechaVenc && p.estado !== "Convertido";
+        
+        let badgeEstado = `<span class="bg-indigo-900/50 text-indigo-400 border border-indigo-700/50 px-2 py-0.5 rounded text-xs ml-2">Pendiente</span>`;
+        if (estaVencido) badgeEstado = `<span class="bg-rose-900/50 text-rose-400 border border-rose-700/50 px-2 py-0.5 rounded text-xs ml-2">Vencido</span>`;
+        if (p.estado === "Convertido") badgeEstado = `<span class="bg-emerald-900/50 text-emerald-400 border border-emerald-700/50 px-2 py-0.5 rounded text-xs ml-2">Vendido</span>`;
+
+        return `
+        <tr class="hover:bg-slate-900/50 transition-colors border-b border-slate-800">
+            <td class="p-4 font-bold text-white">${p.numeroPresupuesto} ${badgeEstado}</td>
+            <td class="p-4 text-slate-400 text-xs">${fechaEmision}</td>
+            <td class="p-4 text-slate-300 font-medium">${p.clienteNombre}</td>
+            <td class="p-4 text-slate-400 text-xs">${vencimientoStr}</td>
+            <td class="p-4 text-emerald-400 font-bold">$${Number(p.total).toLocaleString("es-AR")}</td>
+            <td class="p-4 text-center">
+                <button onclick="window.retomarPresupuesto(${p.id})" ${estaVencido || p.estado === "Convertido" ? "disabled" : ""} class="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors shadow-md cursor-pointer">
+                    🛒 Volcar al Carrito
+                </button>
+            </td>
+        </tr>
+        `;
+    }).join("");
+};
+
+// 🌟 NUEVO: El motor de búsqueda que filtra mientras escribís
+window.filtrarPresupuestos = function() {
+    const input = document.getElementById("inputBuscarPresupuesto");
+    if (!input) return;
+    
+    const textoBuscado = input.value.toLowerCase().trim();
+    
+    const presupuestosFiltrados = window.presupuestosMemoria.filter(p => {
+        const numero = (p.numeroPresupuesto || "").toLowerCase();
+        const cliente = (p.clienteNombre || "").toLowerCase();
+        
+        return numero.includes(textoBuscado) || cliente.includes(textoBuscado);
+    });
+    
+    window.renderizarTablaPresupuestos(presupuestosFiltrados);
 };
 
 window.retomarPresupuesto = async function(id) {
@@ -3491,10 +3521,10 @@ window.retomarPresupuesto = async function(id) {
         if(!resp.ok) throw new Error("Error al obtener presupuesto");
         const pres = await resp.json();
         
-        // 1. Vaciamos el carrito por si la cajera tenía otra cosa a medias
+        // 1. Vaciamos el carrito
         carrito = [];
         
-        // 2. Llenamos el carrito con la ropa del presupuesto
+        // 2. Llenamos el carrito
         pres.detalles.forEach(det => {
             carrito.push({
                 id: det.varianteId,
@@ -3507,19 +3537,17 @@ window.retomarPresupuesto = async function(id) {
             });
         });
 
-        // 3. Cargamos el nombre del cliente en el buscador de la caja
+        // 3. Cargamos el cliente
         const inputCliente = document.getElementById("inputClienteVenta");
         if(inputCliente && pres.clienteNombre !== "Consumidor Final") {
             inputCliente.value = pres.clienteNombre;
-            // Podríamos intentar autoseleccionar el ID si lo tuviéramos, 
-            // pero con el nombre alcanza para imprimir el ticket
         }
 
-        // 4. Cambiamos mágicamente a la pantalla de ventas
+        // 4. Cambiamos a ventas
         if (typeof window.cambiarPantalla === "function") window.cambiarPantalla('seccion-ventas');
         window.actualizarInterfazCarrito();
         
-        // 5. Alerta de precaución para el local físico
+        // 5. Alerta
         alert(`⚠️ ¡ATENCIÓN!\nEl presupuesto fue cargado en el ticket con los precios congelados.\n\nPor favor, verificá visualmente que las prendas sigan estando disponibles en el estante antes de cobrarle al cliente.`);
 
     } catch (e) {
