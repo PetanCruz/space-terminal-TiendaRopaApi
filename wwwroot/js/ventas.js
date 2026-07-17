@@ -3555,3 +3555,54 @@ window.retomarPresupuesto = async function(id) {
         alert("❌ Ocurrió un error al intentar volcar el presupuesto al carrito.");
     }
 };
+
+// =========================================================================
+// ⚡ MÓDULO DE ATAJOS DE TECLADO (NINJA POS)
+// =========================================================================
+document.addEventListener("keydown", function(e) {
+    // Verificamos si estamos parados en la pantalla de ventas
+    const modalCobroAbierto = !document.getElementById("modalOpcionesCobro")?.classList.contains("hidden");
+    const enVentas = !document.getElementById("seccion-ventas")?.classList.contains("hidden");
+
+    // 💳 F2: COBRAR (Abre el modal al instante)
+    if (e.key === "F2") {
+        e.preventDefault(); // Evita que el navegador haga otras cosas
+        if (enVentas && !modalCobroAbierto) {
+            window.abrirModalCobro();
+        }
+    }
+    
+    // 🗑️ F4: VACIAR CARRITO
+    else if (e.key === "F4") {
+        e.preventDefault();
+        if (enVentas && !modalCobroAbierto) {
+            window.vaciarCarrito();
+        }
+    }
+
+    // 🔍 F8: FOCO EN BUSCADOR DE PRENDAS
+    else if (e.key === "F8") {
+        e.preventDefault();
+        if (enVentas && !modalCobroAbierto) {
+            const buscador = document.getElementById("inputBuscador");
+            if (buscador) {
+                buscador.focus();
+                buscador.select(); // Si ya había algo escrito, lo pinta para sobreescribir rápido
+            }
+        }
+    }
+
+    // ❌ ESCAPE: BOTÓN DE PÁNICO (Cierra todo)
+    else if (e.key === "Escape") {
+        // Cerramos modal de cobro
+        if (typeof window.cerrarModalCobro === "function") window.cerrarModalCobro();
+        
+        // Escondemos sugerencias del cliente si estaban flotando
+        document.getElementById("sugerenciasCliente")?.classList.add("hidden");
+        
+        // Cerramos cualquier otro modal que esté molestando
+        if (typeof window.cerrarCierreCaja === "function") window.cerrarCierreCaja();
+        if (typeof window.cerrarModalVariantes === "function") window.cerrarModalVariantes();
+        if (typeof window.cerrarModalHistorialCliente === "function") window.cerrarModalHistorialCliente();
+    }
+});
