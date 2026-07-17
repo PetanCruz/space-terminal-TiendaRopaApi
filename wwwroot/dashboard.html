@@ -89,36 +89,21 @@
                     </div>
 
                     <div class="pt-4 border-t border-slate-800 space-y-3 bg-slate-900/50">
-                        <!-- Hidden input invisible para que el sistema interno no se rompa -->
+                        <!-- Hidden input invisible para que C# no se enoje -->
                         <input type="hidden" id="formaPago" value="Efectivo">
 
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Descuento o Recargo</label>
-                            <div class="flex gap-2">
-                                <select id="tipoModificador" onchange="window.actualizarInterfazCarrito()" class="w-1/2 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 cursor-pointer">
-                                    <option value="nada">Sin cambios</option>
-                                    <option value="descuento_pct">Descuento (%)</option>
-                                    <option value="descuento_fijo">Descuento ($)</option>
-                                    <option value="recargo_pct">Recargo (%)</option>
-                                    <option value="recargo_fijo">Recargo ($)</option>
-                                </select>
-                                <input type="number" id="valorModificador" oninput="window.actualizarInterfazCarrito()" placeholder="0" class="w-1/2 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
-                            </div>
+                        <div class="flex justify-between items-center py-4 bg-slate-950 px-5 rounded-xl border border-slate-800 shadow-inner">
+                            <span class="text-sm font-bold text-slate-400 uppercase tracking-wider">Suma Total:</span>
+                            <span id="totalVenta" class="text-4xl font-black text-emerald-400">$0</span>
                         </div>
 
-                        <div class="flex justify-between items-center py-2 bg-slate-950 px-3 rounded-xl border border-slate-800 mt-2">
-                            <span class="text-sm font-bold text-slate-300">Total Final:</span>
-                            <span id="totalVenta" class="text-2xl font-black text-emerald-400">$0</span>
-                        </div>
-
-                        <!-- BOTÓN ÚNICO DE COBRO (ESTILO PREMIUM) -->
-                        <div class="mt-4 pt-4 border-t border-slate-700/60">
-                            <button onclick="window.abrirModalCobro()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xl py-4 rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all flex items-center justify-center gap-2 uppercase tracking-wide cursor-pointer">
+                        <!-- BOTÓN ÚNICO DE COBRO -->
+                        <div class="mt-4">
+                            <button onclick="window.abrirModalCobro()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-2xl py-5 rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all flex items-center justify-center gap-3 uppercase tracking-wider cursor-pointer">
                                 💳 COBRAR
                             </button>
                         </div>
                     </div>
-                </div>
             </div>
 
             <hr class="border-slate-800/60 my-8">
@@ -868,85 +853,106 @@
 
 
     <!-- ================================================================= -->
-    <!-- MODAL DE OPCIONES DE COBRO (DISEÑO CONFITERÍA - COMPACTO)         -->
+    <!-- MODAL DE OPCIONES DE COBRO (TODO EN UNO - DISEÑO CONFITERÍA)      -->
     <!-- ================================================================= -->
-    <div id="modalOpcionesCobro" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center z-[150] p-4 transition-opacity">
-        <!-- Le agregamos max-h-[95vh] para que nunca supere la altura de la pantalla -->
-        <div class="bg-slate-900 border border-slate-800 w-full max-w-lg max-h-[95vh] rounded-2xl shadow-2xl flex flex-col transform transition-all">
+    <div id="modalOpcionesCobro" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center z-[150] p-2 sm:p-4 transition-opacity">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-md h-[95vh] sm:h-auto sm:max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
             
-            <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/40 rounded-t-2xl shrink-0">
-                <h3 class="text-white font-black text-base flex items-center gap-2">💳 COMPLETAR PAGO</h3>
+            <!-- HEADER FIJO -->
+            <div class="p-3 sm:p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/40 shrink-0">
+                <h3 class="text-white font-black text-sm sm:text-base flex items-center gap-2">💳 COMPLETAR PAGO</h3>
                 <button onclick="window.cerrarModalCobro()" class="text-slate-400 hover:text-white transition-colors text-xl cursor-pointer">✕</button>
             </div>
             
-            <!-- Le pusimos overflow-y-auto por si la pantalla es muy pequeña -->
-            <div class="p-4 md:p-5 overflow-y-auto space-y-4">
+            <!-- CUERPO SCROLLEABLE (Para pantallas chicas) -->
+            <div class="p-4 overflow-y-auto flex-1 space-y-4">
                 
+                <!-- TOTAL DINÁMICO -->
+                <div class="flex justify-between items-center bg-slate-950 px-4 py-3 rounded-xl border border-slate-800 shadow-inner">
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">A Cobrar:</span>
+                    <span id="modalTotalVenta" class="text-3xl font-black text-emerald-400">$0</span>
+                </div>
+
+                <!-- DESCUENTOS Y RECARGOS -->
+                <div class="bg-slate-950/50 p-2.5 rounded-xl border border-slate-800">
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Descuento o Recargo</label>
+                    <div class="flex gap-2">
+                        <select id="tipoModificador" onchange="window.actualizarInterfazCarrito()" class="w-1/2 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-indigo-500 cursor-pointer">
+                            <option value="nada">Sin cambios</option>
+                            <option value="descuento_pct">Desc. (%)</option>
+                            <option value="descuento_fijo">Desc. ($)</option>
+                            <option value="recargo_pct">Recargo (%)</option>
+                            <option value="recargo_fijo">Recargo ($)</option>
+                        </select>
+                        <input type="number" id="valorModificador" oninput="window.actualizarInterfazCarrito()" placeholder="Monto..." class="w-1/2 bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+
                 <!-- CLIENTE -->
                 <div class="bg-slate-950/50 p-2.5 rounded-xl border border-slate-800">
-                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">👤 Asignar Cliente (Opcional)</label>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">👤 Asignar Cliente (Opcional)</label>
                     <div class="relative">
                         <input type="text" id="inputClienteVenta" oninput="window.buscarClienteVenta(this.value)"
-                            placeholder="🔍 Buscar por nombre o DNI..."
-                            class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors">
+                            placeholder="Buscar por nombre o DNI..."
+                            class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors">
                         <div id="sugerenciasCliente" class="hidden absolute z-[200] w-full bg-slate-800 border border-slate-600 rounded-lg mt-1 shadow-2xl max-h-40 overflow-y-auto"></div>
                     </div>
                 </div>
 
                 <!-- FACTURA ARCA -->
-                <div class="flex items-center justify-between bg-slate-950/50 border border-slate-800 rounded-xl px-3 py-2.5">
+                <div class="flex items-center justify-between bg-slate-950/50 border border-slate-800 rounded-xl px-3 py-2">
                     <div>
-                        <p class="text-sm font-bold text-slate-300">🧾 Factura Electrónica (ARCA)</p>
-                        <p class="text-[10px] text-slate-500 mt-0.5">Emitir comprobante fiscal válido</p>
+                        <p class="text-[11px] font-bold text-slate-300">🧾 Factura Electrónica (ARCA)</p>
                     </div>
                     <label class="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" id="toggleFacturaARCA" class="sr-only peer">
-                        <div class="w-10 h-5 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                        <div class="w-9 h-5 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
                     </label>
                 </div>
 
                 <div class="flex items-center gap-3 py-0.5">
                     <div class="h-px bg-slate-800 flex-1"></div>
-                    <span class="text-slate-500 text-[10px] font-bold uppercase tracking-wider">MÉTODO DE PAGO</span>
+                    <span class="text-slate-500 text-[9px] font-bold uppercase tracking-wider">MÉTODO DE PAGO</span>
                     <div class="h-px bg-slate-800 flex-1"></div>
                 </div>
 
-                <!-- GRILLA DE CUADRITOS -->
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                    <button onclick="window.ejecutarCobro('Efectivo')" class="flex flex-col items-center justify-center gap-1.5 bg-emerald-900/20 hover:bg-emerald-600 border border-emerald-700/50 rounded-xl p-3 transition-all group cursor-pointer shadow-md">
-                        <span class="text-2xl group-hover:scale-110 transition-transform">💵</span>
-                        <span class="text-emerald-400 group-hover:text-white font-bold text-xs tracking-wide">Efectivo</span>
+                <!-- GRILLA DE CUADRITOS SÚPER COMPACTA -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <button onclick="window.ejecutarCobro('Efectivo')" class="flex flex-col items-center justify-center gap-1 bg-emerald-900/20 hover:bg-emerald-600 border border-emerald-700/50 rounded-xl p-2.5 transition-all group cursor-pointer shadow-sm">
+                        <span class="text-xl group-hover:scale-110 transition-transform">💵</span>
+                        <span class="text-emerald-400 group-hover:text-white font-bold text-[10px] uppercase tracking-wide">Efectivo</span>
                     </button>
-                    <button onclick="window.ejecutarCobro('Transferencia')" class="flex flex-col items-center justify-center gap-1.5 bg-indigo-900/20 hover:bg-indigo-600 border border-indigo-700/50 rounded-xl p-3 transition-all group cursor-pointer shadow-md">
-                        <span class="text-2xl group-hover:scale-110 transition-transform">📲</span>
-                        <span class="text-indigo-400 group-hover:text-white font-bold text-xs tracking-wide">Transfer.</span>
+                    <button onclick="window.ejecutarCobro('Transferencia')" class="flex flex-col items-center justify-center gap-1 bg-indigo-900/20 hover:bg-indigo-600 border border-indigo-700/50 rounded-xl p-2.5 transition-all group cursor-pointer shadow-sm">
+                        <span class="text-xl group-hover:scale-110 transition-transform">📲</span>
+                        <span class="text-indigo-400 group-hover:text-white font-bold text-[10px] uppercase tracking-wide">Transfer.</span>
                     </button>
-                    <button onclick="window.ejecutarCobro('Débito')" class="flex flex-col items-center justify-center gap-1.5 bg-blue-900/20 hover:bg-blue-600 border border-blue-700/50 rounded-xl p-3 transition-all group cursor-pointer shadow-md">
-                        <span class="text-2xl group-hover:scale-110 transition-transform">💳</span>
-                        <span class="text-blue-400 group-hover:text-white font-bold text-xs tracking-wide">Débito</span>
+                    <button onclick="window.ejecutarCobro('Débito')" class="flex flex-col items-center justify-center gap-1 bg-blue-900/20 hover:bg-blue-600 border border-blue-700/50 rounded-xl p-2.5 transition-all group cursor-pointer shadow-sm">
+                        <span class="text-xl group-hover:scale-110 transition-transform">💳</span>
+                        <span class="text-blue-400 group-hover:text-white font-bold text-[10px] uppercase tracking-wide">Débito</span>
                     </button>
-                    <button onclick="window.ejecutarCobro('Crédito')" class="flex flex-col items-center justify-center gap-1.5 bg-purple-900/20 hover:bg-purple-600 border border-purple-700/50 rounded-xl p-3 transition-all group cursor-pointer shadow-md">
-                        <span class="text-2xl group-hover:scale-110 transition-transform">💳</span>
-                        <span class="text-purple-400 group-hover:text-white font-bold text-xs tracking-wide">Crédito</span>
+                    <button onclick="window.ejecutarCobro('Crédito')" class="flex flex-col items-center justify-center gap-1 bg-purple-900/20 hover:bg-purple-600 border border-purple-700/50 rounded-xl p-2.5 transition-all group cursor-pointer shadow-sm">
+                        <span class="text-xl group-hover:scale-110 transition-transform">💳</span>
+                        <span class="text-purple-400 group-hover:text-white font-bold text-[10px] uppercase tracking-wide">Crédito</span>
                     </button>
-                    <button onclick="window.cerrarModalCobro(); window.cobrarConMercadoPago()" class="flex flex-col items-center justify-center gap-1.5 bg-sky-900/20 hover:bg-[#009EE3] border border-sky-700/50 rounded-xl p-3 transition-all group cursor-pointer shadow-md">
-                        <span class="text-2xl group-hover:scale-110 transition-transform">📱</span>
-                        <span class="text-sky-400 group-hover:text-white font-bold text-xs tracking-wide">M. Pago</span>
+                    <button onclick="window.cerrarModalCobro(); window.cobrarConMercadoPago()" class="flex flex-col items-center justify-center gap-1 bg-sky-900/20 hover:bg-[#009EE3] border border-sky-700/50 rounded-xl p-2.5 transition-all group cursor-pointer shadow-sm">
+                        <span class="text-xl group-hover:scale-110 transition-transform">📱</span>
+                        <span class="text-sky-400 group-hover:text-white font-bold text-[10px] uppercase tracking-wide">M. Pago</span>
                     </button>
-                    <button onclick="window.ejecutarCobro('Cuenta Corriente')" class="flex flex-col items-center justify-center gap-1.5 bg-amber-900/20 hover:bg-amber-600 border border-amber-700/50 rounded-xl p-3 transition-all group cursor-pointer shadow-md">
-                        <span class="text-2xl group-hover:scale-110 transition-transform">📒</span>
-                        <span class="text-amber-400 group-hover:text-white font-bold text-xs tracking-wide">Fiado</span>
-                    </button>
-                </div>
-
-                <!-- Botón de Presupuesto separado abajo -->
-                <div class="mt-1 pt-3 border-t border-slate-800">
-                    <button onclick="window.cerrarModalCobro(); window.generarPresupuesto()" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md">
-                        <span class="text-lg">💾</span>
-                        <span class="tracking-wide text-sm">Guardar como Presupuesto</span>
+                    <button onclick="window.ejecutarCobro('Cuenta Corriente')" class="flex flex-col items-center justify-center gap-1 bg-amber-900/20 hover:bg-amber-600 border border-amber-700/50 rounded-xl p-2.5 transition-all group cursor-pointer shadow-sm">
+                        <span class="text-xl group-hover:scale-110 transition-transform">📒</span>
+                        <span class="text-amber-400 group-hover:text-white font-bold text-[10px] uppercase tracking-wide">Fiado</span>
                     </button>
                 </div>
             </div>
+
+            <!-- FOOTER FIJO PARA EL PRESUPUESTO -->
+            <div class="p-3 border-t border-slate-800 bg-slate-950/60 shrink-0">
+                <button onclick="window.cerrarModalCobro(); window.generarPresupuesto()" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md">
+                    <span class="text-base">💾</span>
+                    <span class="text-xs uppercase tracking-wider">Guardar Presupuesto</span>
+                </button>
+            </div>
+            
         </div>
     </div>
 

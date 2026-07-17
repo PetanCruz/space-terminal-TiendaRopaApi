@@ -312,11 +312,13 @@ function eliminarDelCarrito(index) {
 }
 
 // ========================================================
-// 4. ACTUALIZAR EL TICKET VISUAL (DERECHA)
+// 4. ACTUALIZAR EL TICKET VISUAL Y LOS TOTALES EN VIVO
 // ========================================================
 window.actualizarInterfazCarrito = function() {
     const contenedor = document.getElementById("carritoItems");
     const totalText = document.getElementById("totalVenta");
+    const modalTotalText = document.getElementById("modalTotalVenta"); // El total nuevo adentro del cuadrito
+    
     if (!contenedor || !totalText) return;
 
     contenedor.innerHTML = "";
@@ -324,6 +326,7 @@ window.actualizarInterfazCarrito = function() {
     if (carrito.length === 0) {
         contenedor.innerHTML = `<div id="carritoVacio" class="text-slate-500 text-center py-8 text-sm">El ticket está vacío. Seleccioná una prenda.</div>`;
         totalText.textContent = "$0";
+        if (modalTotalText) modalTotalText.textContent = "$0";
         return;
     }
 
@@ -333,7 +336,6 @@ window.actualizarInterfazCarrito = function() {
         const row = document.createElement("div");
         row.className = "bg-slate-900 p-3 rounded-xl border border-slate-700/60 flex justify-between items-center text-sm mb-2";
 
-        // 🌟 NUEVO: Armamos las opciones del select con la lista de sucursales
         let opcionesSucursales = window.sucursalesParaVentas.map(s => 
             `<option value="${s.id}" ${s.id === item.sucursalId ? 'selected' : ''}>📍 ${s.nombre}</option>`
         ).join('');
@@ -349,7 +351,7 @@ window.actualizarInterfazCarrito = function() {
             </div>
             <div class="flex items-center space-x-3">
                 <span class="bg-slate-800 text-indigo-400 font-extrabold px-2.5 py-1 rounded border border-slate-700">x${item.cantidad}</span>
-                <button onclick="eliminarDelCarrito(${index})" class="text-rose-400 hover:text-rose-500 font-bold text-xs p-1">❌</button>
+                <button onclick="eliminarDelCarrito(${index})" class="text-rose-400 hover:text-rose-500 font-bold text-xs p-1 cursor-pointer">❌</button>
             </div>
         `;
         contenedor.appendChild(row);
@@ -367,7 +369,11 @@ window.actualizarInterfazCarrito = function() {
     if (tipoMod === "recargo_fijo") totalFinal += valorMod;
 
     if (totalFinal < 0) totalFinal = 0;
-    totalText.textContent = `$${Math.round(totalFinal)}`;
+    
+    // Actualizamos la pantalla de atrás y el modal al mismo tiempo
+    const valorFormateado = `$${Math.round(totalFinal).toLocaleString('es-AR')}`;
+    totalText.textContent = valorFormateado;
+    if (modalTotalText) modalTotalText.textContent = valorFormateado;
 };
 
 // ========================================================
