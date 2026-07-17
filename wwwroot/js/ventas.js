@@ -3379,3 +3379,27 @@ window.verHistorialCierres = async function() {
         alert("❌ Hubo un error al cargar el historial de cajas.");
     }
 };
+
+// =========================================================================
+// 💳 CONTROLADOR DEL MODAL DE COBRO (UX PREMIUM)
+// =========================================================================
+window.abrirModalCobro = function() {
+    if (!carrito || carrito.length === 0) {
+        if(window.toast) window.toast.warning("El ticket está vacío. Agregá prendas primero.");
+        else alert("El ticket está vacío. Agregá prendas primero.");
+        return;
+    }
+    const modal = document.getElementById("modalOpcionesCobro");
+    if (modal) {
+        modal.classList.remove("hidden");
+        modal.classList.add("flex");
+    }
+};
+
+window.cerrarModalCobro = function() {
+    const modal = document.getElementById("modalOpcionesCobro");
+    if (modal) {
+        modal.classList.add("hidden");
+        modal.classList.remove("flex");
+    }
+};
