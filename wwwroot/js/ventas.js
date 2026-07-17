@@ -2987,7 +2987,7 @@ window.exportarCajaPDF = async function() {
 // =========================================================================
 // 📝 1. DIBUJAR DISEÑO A4 DEL PRESUPUESTO (PREMIUM)
 // =========================================================================
-window.generarHTMLPresupuestoA4 = function(total, prendas, fecha) {
+window.generarHTMLPresupuestoA4 = function(total, prendas, fecha, numeroPresupuestoReal = null) {
     const fechaObj = new Date(fecha);
     const fechaFormateada = fechaObj.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
     
@@ -2995,19 +2995,17 @@ window.generarHTMLPresupuestoA4 = function(total, prendas, fecha) {
     fechaVencimiento.setDate(fechaVencimiento.getDate() + 7);
     const vencFormateada = fechaVencimiento.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-    // Generamos un número único para el presupuesto (Ej: PRE-001452)
-    const nroAleatorio = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-    const nroPresupuesto = `PRE-${nroAleatorio}`;
+    // 🌟 MAGIA: Si el servidor nos dio un número real lo usamos, sino inventamos uno de emergencia
+    const nroPresupuesto = numeroPresupuestoReal || `PRE-${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;
 
     // 🌟 PREPARACIÓN PARA EL MÓDULO EMPRESA
-    // Lee los datos del negocio si existen, sino usa estos de prueba
     const config = JSON.parse(localStorage.getItem("configEmpresa")) || {
         nombreFantasia: "SPACE TERMINAL",
         razonSocial: "Indumentaria y Calzado",
         cuit: "CUIT: 30-00000000-0",
         direccion: "San Miguel de Tucumán",
         telefono: "Tel: +54 381 000-0000",
-        logo: "" // Acá irá la foto cuando armemos el módulo
+        logo: "" 
     };
 
     let logoHtml = config.logo 
@@ -3138,14 +3136,15 @@ window.generarHTMLPresupuestoA4 = function(total, prendas, fecha) {
 };
 
 // =========================================================================
-// 📝 2. FUNCIÓN PARA DISPARAR EL PRESUPUESTO
+// 📝 2. FUNCIÓN PARA GUARDAR E IMPRIMIR EL PRESUPUESTO
 // =========================================================================
-window.generarPresupuesto = function() {
+window.generarPresupuesto = async function() {
     if (!carrito || carrito.length === 0) {
         window.toast?.warning("El carrito está vacío. Agregá prendas para armar el presupuesto.") || alert("Carrito vacío");
         return;
     }
 
+    // 1. Calculamos los totales igual que en la caja
     const totalBase = carrito.reduce((s, i) => s + (i.precio * i.cantidad), 0);
     const tipoMod = document.getElementById("tipoModificador")?.value || "nada";
     const valorMod = parseFloat(document.getElementById("valorModificador")?.value) || 0;
@@ -3159,22 +3158,68 @@ window.generarPresupuesto = function() {
 
     const factor = totalBase > 0 ? totalFinal / totalBase : 1;
 
-    const prendasMapeadas = carrito.map(item => ({
-        productoNombre: item.nombre,
-        talle: item.talle,
-        color: item.color,
-        cantidad: item.cantidad,
-        precioUnitario: Math.round(item.precio * factor * 100) / 100
-    }));
+    // 2. ¿En qué sucursal estamos trabajando?
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const sucursalActiva = localStorage.getItem("sucursalAdminActiva") || usuarioLocal.sucursalId || 1;
+    const clienteNombre = document.getElementById('inputClienteVenta')?.value || "Consumidor Final";
 
-    const htmlPresupuesto = window.generarHTMLPresupuestoA4(totalFinal, prendasMapeadas, new Date().toISOString());
+    // 3. Armamos la caja (payload) idéntica al archivo Presupuesto.cs de C#
+    const payload = {
+        clienteNombre: clienteNombre,
+        total: totalFinal,
+        sucursalId: parseInt(sucursalActiva),
+        detalles: carrito.map(item => {
+            const precioCalculado = Math.round(item.precio * factor * 100) / 100;
+            return {
+                varianteId: item.id,
+                productoNombre: item.nombre,
+                talle: item.talle,
+                color: item.color,
+                cantidad: item.cantidad,
+                precioUnitario: precioCalculado,
+                subtotal: precioCalculado * item.cantidad
+            };
+        })
+    };
 
-    const ventanaImp = window.open("", "_blank");
-    if (ventanaImp) {
-        ventanaImp.document.write(htmlPresupuesto);
-        ventanaImp.document.close();
-    } else {
-        window.toast?.error("El navegador bloqueó la ventana de impresión. Habilitá las ventanas emergentes.");
+    try {
+        if(window.toast) window.toast.info("Guardando presupuesto en el servidor...");
+        const token = localStorage.getItem("token");
+
+        // 4. Mandamos el paquete al puente que creamos recién en C#
+        const respuesta = await fetch(`${API_URL}/presupuestos`, {
+            method: "POST",
+            headers: { 
+                "Authorization": `Bearer ${token}`, 
+                "Content-Type": "application/json" 
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!respuesta.ok) throw new Error("Error del servidor al guardar el presupuesto.");
+
+        const resultado = await respuesta.json(); // Acá C# nos devuelve el "PRE-845124"
+        
+        if(window.toast) window.toast.success(`Presupuesto ${resultado.numero} guardado con éxito!`);
+
+        // 5. Ahora sí, generamos el PDF con el número oficial de la base de datos
+        const htmlPresupuesto = window.generarHTMLPresupuestoA4(totalFinal, payload.detalles, new Date().toISOString(), resultado.numero);
+
+        const ventanaImp = window.open("", "_blank");
+        if (ventanaImp) {
+            ventanaImp.document.write(htmlPresupuesto);
+            ventanaImp.document.close();
+        } else {
+            alert("El navegador bloqueó la ventana de impresión. Habilitá las ventanas emergentes.");
+        }
+
+        // 6. Vaciamos el carrito porque ya terminamos de atender a este cliente
+        carrito = [];
+        if (typeof actualizarInterfazCarrito === "function") actualizarInterfazCarrito();
+        
+    } catch (error) {
+        console.error("❌ Error al generar presupuesto:", error);
+        alert("Ocurrió un error al intentar guardar el presupuesto. Revisá tu conexión.");
     }
 };
 
