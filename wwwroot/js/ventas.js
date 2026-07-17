@@ -3144,7 +3144,7 @@ window.generarPresupuesto = async function() {
         return;
     }
 
-    // 1. Calculamos los totales igual que en la caja
+    // 1. Calculamos los totales
     const totalBase = carrito.reduce((s, i) => s + (i.precio * i.cantidad), 0);
     const tipoMod = document.getElementById("tipoModificador")?.value || "nada";
     const valorMod = parseFloat(document.getElementById("valorModificador")?.value) || 0;
@@ -3158,15 +3158,24 @@ window.generarPresupuesto = async function() {
 
     const factor = totalBase > 0 ? totalFinal / totalBase : 1;
 
-    // 2. ¿En qué sucursal estamos trabajando?
+    // 2. Datos del entorno
     const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
     const sucursalActiva = localStorage.getItem("sucursalAdminActiva") || usuarioLocal.sucursalId || 1;
     const clienteNombre = document.getElementById('inputClienteVenta')?.value || "Consumidor Final";
 
-    // 3. Armamos la caja (payload) idéntica al archivo Presupuesto.cs de C#
+    // 🌟 3. CREAMOS TODOS LOS DATOS ACÁ PARA QUE C# NO RECHACE EL PAQUETE
+    const numeroOficial = `PRE-${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;
+    const fechaEmision = new Date();
+    const fechaVencimiento = new Date();
+    fechaVencimiento.setDate(fechaEmision.getDate() + 7);
+
     const payload = {
+        numeroPresupuesto: numeroOficial,
+        fechaEmision: fechaEmision.toISOString(),
+        fechaVencimiento: fechaVencimiento.toISOString(),
         clienteNombre: clienteNombre,
         total: totalFinal,
+        estado: "Pendiente",
         sucursalId: parseInt(sucursalActiva),
         detalles: carrito.map(item => {
             const precioCalculado = Math.round(item.precio * factor * 100) / 100;
@@ -3186,7 +3195,7 @@ window.generarPresupuesto = async function() {
         if(window.toast) window.toast.info("Guardando presupuesto en el servidor...");
         const token = localStorage.getItem("token");
 
-        // 4. Mandamos el paquete al puente que creamos recién en C#
+        // 4. Mandamos el paquete
         const respuesta = await fetch(`${API_URL}/presupuestos`, {
             method: "POST",
             headers: { 
@@ -3196,14 +3205,16 @@ window.generarPresupuesto = async function() {
             body: JSON.stringify(payload)
         });
 
-        if (!respuesta.ok) throw new Error("Error del servidor al guardar el presupuesto.");
+        // 🌟 5. MICRÓFONO AL ERROR: Si C# dice que no, leemos por qué exactamente
+        if (!respuesta.ok) {
+            const errorTexto = await respuesta.text();
+            throw new Error(errorTexto || "Error desconocido del servidor");
+        }
 
-        const resultado = await respuesta.json(); // Acá C# nos devuelve el "PRE-845124"
-        
-        if(window.toast) window.toast.success(`Presupuesto ${resultado.numero} guardado con éxito!`);
+        if(window.toast) window.toast.success(`Presupuesto ${numeroOficial} guardado con éxito!`);
 
-        // 5. Ahora sí, generamos el PDF con el número oficial de la base de datos
-        const htmlPresupuesto = window.generarHTMLPresupuestoA4(totalFinal, payload.detalles, new Date().toISOString(), resultado.numero);
+        // 6. Generamos el PDF con el número oficial
+        const htmlPresupuesto = window.generarHTMLPresupuestoA4(totalFinal, payload.detalles, fechaEmision.toISOString(), numeroOficial);
 
         const ventanaImp = window.open("", "_blank");
         if (ventanaImp) {
@@ -3213,13 +3224,15 @@ window.generarPresupuesto = async function() {
             alert("El navegador bloqueó la ventana de impresión. Habilitá las ventanas emergentes.");
         }
 
-        // 6. Vaciamos el carrito porque ya terminamos de atender a este cliente
+        // 7. Vaciamos el carrito
         carrito = [];
         if (typeof actualizarInterfazCarrito === "function") actualizarInterfazCarrito();
         
     } catch (error) {
         console.error("❌ Error al generar presupuesto:", error);
-        alert("Ocurrió un error al intentar guardar el presupuesto. Revisá tu conexión.");
+        // 🌟 AHORA EL CARTEL ROJO TE VA A ESCUPIR LA RAZÓN EXACTA DE POR QUÉ FALLÓ
+        if(window.toast) window.toast.error(`❌ Falló la carga: ${error.message}`);
+        else alert(`❌ Falló la carga: ${error.message}`);
     }
 };
 
