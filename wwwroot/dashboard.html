@@ -863,10 +863,107 @@
         </div>
     </div>
 
+
+    <!-- ================================================================= -->
+    <!-- MODAL DE OPCIONES DE COBRO (NUEVO DISEÑO PREMIUM)                 -->
+    <!-- ================================================================= -->
+    <div id="modalOpcionesCobro" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center z-[150] p-4 transition-opacity">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col transform transition-all">
+            
+            <div class="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-950/40">
+                <h3 class="text-white font-black text-lg flex items-center gap-2">💳 SELECCIONAR MÉTODO</h3>
+                <button onclick="window.cerrarModalCobro()" class="text-slate-400 hover:text-white transition-colors text-2xl cursor-pointer">✕</button>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                <!-- Opción 1: Venta Normal (Efectivo/Tarjeta) -->
+                <button onclick="window.cerrarModalCobro(); window.procesarVentaInteligente()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-4 rounded-xl transition-all flex items-center gap-4 shadow-lg shadow-indigo-950/30 cursor-pointer text-left">
+                    <div class="bg-indigo-950/50 p-3 rounded-lg text-2xl">💵</div>
+                    <div>
+                        <span class="block text-base">Cobro Estándar</span>
+                        <span class="block text-xs text-indigo-200 font-normal">Efectivo, Débito, Crédito, Transf.</span>
+                    </div>
+                </button>
+
+                <!-- Opción 2: Mercado Pago -->
+                <button onclick="window.cerrarModalCobro(); window.cobrarConMercadoPago()" class="w-full bg-[#009EE3] hover:bg-[#0089c4] text-white font-bold py-4 px-4 rounded-xl transition-all flex items-center gap-4 shadow-lg shadow-blue-900/20 cursor-pointer text-left">
+                    <div class="bg-white/20 p-3 rounded-lg text-2xl">📱</div>
+                    <div>
+                        <span class="block text-base">Mercado Pago</span>
+                        <span class="block text-xs text-blue-100 font-normal">QR, Link de Pago, Tarjetas</span>
+                    </div>
+                </button>
+
+                <div class="flex items-center gap-3 py-2">
+                    <div class="h-px bg-slate-800 flex-1"></div>
+                    <span class="text-slate-500 text-xs font-bold uppercase tracking-wider">Otras Acciones</span>
+                    <div class="h-px bg-slate-800 flex-1"></div>
+                </div>
+
+                <!-- Opción 3: Guardar Presupuesto -->
+                <button onclick="window.cerrarModalCobro(); window.generarPresupuesto()" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold py-3 px-4 rounded-xl transition-all flex items-center gap-4 cursor-pointer text-left">
+                    <div class="bg-slate-900 p-2 rounded-lg text-xl">💾</div>
+                    <div>
+                        <span class="block text-sm">Guardar como Presupuesto</span>
+                        <span class="block text-xs text-slate-400 font-normal">Congela el precio y guarda cotización</span>
+                    </div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    
     <script src="/js/config.js"></script>
     <script src="/js/productos.js"></script>
     <script src="/js/ventas.js"></script>
     <script src="/js/usuarios.js"></script>
     <script src="/js/init.js"></script>
+
+    <!-- MODAL DE OPCIONES DE COBRO (NUEVO DISEÑO) -->
+<div id="modalOpcionesCobro" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center z-[150] p-4 transition-opacity">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col transform transition-all">
+        
+        <div class="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-950/40">
+            <h3 class="text-white font-black text-lg flex items-center gap-2">💳 SELECCIONAR MÉTODO</h3>
+            <button onclick="window.cerrarModalCobro()" class="text-slate-400 hover:text-white transition-colors text-2xl cursor-pointer">✕</button>
+        </div>
+        
+        <div class="p-6 space-y-4">
+            <!-- Opción 1: Venta Normal (Efectivo/Tarjeta) -->
+            <button onclick="window.cerrarModalCobro(); window.procesarVentaInteligente()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-4 rounded-xl transition-all flex items-center gap-4 shadow-lg shadow-indigo-950/30 cursor-pointer text-left">
+                <div class="bg-indigo-950/50 p-3 rounded-lg text-2xl">💵</div>
+                <div>
+                    <span class="block text-base">Cobro Estándar</span>
+                    <span class="block text-xs text-indigo-200 font-normal">Efectivo, Débito, Crédito, Transferencia</span>
+                </div>
+            </button>
+
+            <!-- Opción 2: Mercado Pago -->
+            <button onclick="window.cerrarModalCobro(); window.cobrarConMercadoPago()" class="w-full bg-[#009EE3] hover:bg-[#0089c4] text-white font-bold py-4 px-4 rounded-xl transition-all flex items-center gap-4 shadow-lg shadow-blue-900/20 cursor-pointer text-left">
+                <div class="bg-white/20 p-3 rounded-lg text-2xl">📱</div>
+                <div>
+                    <span class="block text-base">Mercado Pago</span>
+                    <span class="block text-xs text-blue-100 font-normal">QR, Link de Pago, Tarjetas</span>
+                </div>
+            </button>
+
+            <div class="flex items-center gap-3 py-2">
+                <div class="h-px bg-slate-800 flex-1"></div>
+                <span class="text-slate-500 text-xs font-bold uppercase tracking-wider">Otras Acciones</span>
+                <div class="h-px bg-slate-800 flex-1"></div>
+            </div>
+
+            <!-- Opción 3: Guardar Presupuesto -->
+            <button onclick="window.cerrarModalCobro(); window.generarPresupuesto()" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold py-3 px-4 rounded-xl transition-all flex items-center gap-4 cursor-pointer text-left">
+                <div class="bg-slate-900 p-2 rounded-lg text-xl">💾</div>
+                <div>
+                    <span class="block text-sm">Guardar como Presupuesto</span>
+                    <span class="block text-xs text-slate-400 font-normal">Congela el precio y guarda la cotización</span>
+                </div>
+            </button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
