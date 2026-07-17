@@ -865,54 +865,63 @@
 
 
     <!-- ================================================================= -->
-    <!-- MODAL DE OPCIONES DE COBRO (NUEVO DISEÑO PREMIUM)                 -->
+    <!-- MODAL DE OPCIONES DE COBRO (DISEÑO CUADRITOS TIPO CONFITERÍA)     -->
     <!-- ================================================================= -->
     <div id="modalOpcionesCobro" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center z-[150] p-4 transition-opacity">
-        <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col transform transition-all">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col transform transition-all">
             
             <div class="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-950/40">
                 <h3 class="text-white font-black text-lg flex items-center gap-2">💳 SELECCIONAR MÉTODO</h3>
                 <button onclick="window.cerrarModalCobro()" class="text-slate-400 hover:text-white transition-colors text-2xl cursor-pointer">✕</button>
             </div>
             
-            <div class="p-6 space-y-4">
-                <!-- Opción 1: Venta Normal (Efectivo/Tarjeta) -->
-                <button onclick="window.cerrarModalCobro(); window.procesarVentaInteligente()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-4 rounded-xl transition-all flex items-center gap-4 shadow-lg shadow-indigo-950/30 cursor-pointer text-left">
-                    <div class="bg-indigo-950/50 p-3 rounded-lg text-2xl">💵</div>
-                    <div>
-                        <span class="block text-base">Cobro Estándar</span>
-                        <span class="block text-xs text-indigo-200 font-normal">Efectivo, Débito, Crédito, Transf.</span>
-                    </div>
-                </button>
-
-                <!-- Opción 2: Mercado Pago -->
-                <button onclick="window.cerrarModalCobro(); window.cobrarConMercadoPago()" class="w-full bg-[#009EE3] hover:bg-[#0089c4] text-white font-bold py-4 px-4 rounded-xl transition-all flex items-center gap-4 shadow-lg shadow-blue-900/20 cursor-pointer text-left">
-                    <div class="bg-white/20 p-3 rounded-lg text-2xl">📱</div>
-                    <div>
-                        <span class="block text-base">Mercado Pago</span>
-                        <span class="block text-xs text-blue-100 font-normal">QR, Link de Pago, Tarjetas</span>
-                    </div>
-                </button>
-
-                <div class="flex items-center gap-3 py-2">
-                    <div class="h-px bg-slate-800 flex-1"></div>
-                    <span class="text-slate-500 text-xs font-bold uppercase tracking-wider">Otras Acciones</span>
-                    <div class="h-px bg-slate-800 flex-1"></div>
+            <div class="p-6">
+                <!-- GRILLA DE CUADRITOS -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <!-- Efectivo -->
+                    <button onclick="window.ejecutarCobro('Efectivo')" class="flex flex-col items-center justify-center gap-2 bg-emerald-900/20 hover:bg-emerald-600 border border-emerald-700/50 rounded-xl p-5 transition-all group cursor-pointer shadow-md">
+                        <span class="text-3xl group-hover:scale-110 transition-transform">💵</span>
+                        <span class="text-emerald-400 group-hover:text-white font-bold text-sm tracking-wide">Efectivo</span>
+                    </button>
+                    <!-- Transferencia -->
+                    <button onclick="window.ejecutarCobro('Transferencia')" class="flex flex-col items-center justify-center gap-2 bg-indigo-900/20 hover:bg-indigo-600 border border-indigo-700/50 rounded-xl p-5 transition-all group cursor-pointer shadow-md">
+                        <span class="text-3xl group-hover:scale-110 transition-transform">📲</span>
+                        <span class="text-indigo-400 group-hover:text-white font-bold text-sm tracking-wide">Transfer.</span>
+                    </button>
+                    <!-- Débito -->
+                    <button onclick="window.ejecutarCobro('Débito')" class="flex flex-col items-center justify-center gap-2 bg-blue-900/20 hover:bg-blue-600 border border-blue-700/50 rounded-xl p-5 transition-all group cursor-pointer shadow-md">
+                        <span class="text-3xl group-hover:scale-110 transition-transform">💳</span>
+                        <span class="text-blue-400 group-hover:text-white font-bold text-sm tracking-wide">Débito</span>
+                    </button>
+                    <!-- Crédito -->
+                    <button onclick="window.ejecutarCobro('Crédito')" class="flex flex-col items-center justify-center gap-2 bg-purple-900/20 hover:bg-purple-600 border border-purple-700/50 rounded-xl p-5 transition-all group cursor-pointer shadow-md">
+                        <span class="text-3xl group-hover:scale-110 transition-transform">💳</span>
+                        <span class="text-purple-400 group-hover:text-white font-bold text-sm tracking-wide">Crédito</span>
+                    </button>
+                    <!-- Mercado Pago -->
+                    <button onclick="window.cerrarModalCobro(); window.cobrarConMercadoPago()" class="flex flex-col items-center justify-center gap-2 bg-sky-900/20 hover:bg-[#009EE3] border border-sky-700/50 rounded-xl p-5 transition-all group cursor-pointer shadow-md">
+                        <span class="text-3xl group-hover:scale-110 transition-transform">📱</span>
+                        <span class="text-sky-400 group-hover:text-white font-bold text-sm tracking-wide">M. Pago</span>
+                    </button>
+                    <!-- Fiado (Cuenta Corriente) -->
+                    <button onclick="window.ejecutarCobro('Cuenta Corriente')" class="flex flex-col items-center justify-center gap-2 bg-amber-900/20 hover:bg-amber-600 border border-amber-700/50 rounded-xl p-5 transition-all group cursor-pointer shadow-md">
+                        <span class="text-3xl group-hover:scale-110 transition-transform">📒</span>
+                        <span class="text-amber-400 group-hover:text-white font-bold text-sm tracking-wide">Fiado</span>
+                    </button>
                 </div>
 
-                <!-- Opción 3: Guardar Presupuesto -->
-                <button onclick="window.cerrarModalCobro(); window.generarPresupuesto()" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold py-3 px-4 rounded-xl transition-all flex items-center gap-4 cursor-pointer text-left">
-                    <div class="bg-slate-900 p-2 rounded-lg text-xl">💾</div>
-                    <div>
-                        <span class="block text-sm">Guardar como Presupuesto</span>
-                        <span class="block text-xs text-slate-400 font-normal">Congela el precio y guarda cotización</span>
-                    </div>
-                </button>
+                <!-- Botón de Presupuesto separado abajo -->
+                <div class="mt-5 pt-5 border-t border-slate-800">
+                    <button onclick="window.cerrarModalCobro(); window.generarPresupuesto()" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-center gap-3 cursor-pointer shadow-md">
+                        <span class="text-xl">💾</span>
+                        <span class="tracking-wide">Guardar como Presupuesto</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
-    
+
     <script src="/js/config.js"></script>
     <script src="/js/productos.js"></script>
     <script src="/js/ventas.js"></script>

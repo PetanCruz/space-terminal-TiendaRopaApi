@@ -3394,6 +3394,15 @@ window.abrirModalCobro = function() {
         modal.classList.remove("hidden");
         modal.classList.add("flex");
     }
+
+    
+};
+
+window.ejecutarCobro = function(metodo) {
+    const select = document.getElementById("formaPago");
+    if (select) select.value = metodo; // Elige el cuadrito que tocaste en secreto
+    window.cerrarModalCobro();
+    window.procesarVentaInteligente(); // Dispara la venta
 };
 
 window.cerrarModalCobro = function() {
@@ -3403,3 +3412,4 @@ window.cerrarModalCobro = function() {
         modal.classList.remove("flex");
     }
 };
+
