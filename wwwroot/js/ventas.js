@@ -3557,16 +3557,18 @@ window.retomarPresupuesto = async function(id) {
 };
 
 // =========================================================================
-// ⚡ MÓDULO DE ATAJOS DE TECLADO (NINJA POS)
+// ⚡ MÓDULO DE ATAJOS DE TECLADO AVANZADOS (NINJA POS)
 // =========================================================================
 document.addEventListener("keydown", function(e) {
-    // Verificamos si estamos parados en la pantalla de ventas
     const modalCobroAbierto = !document.getElementById("modalOpcionesCobro")?.classList.contains("hidden");
     const enVentas = !document.getElementById("seccion-ventas")?.classList.contains("hidden");
 
+    // Detectamos si el usuario está escribiendo adentro de un input o textarea
+    const escribiendoEnInput = ["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName);
+
     // 💳 F2: COBRAR (Abre el modal al instante)
     if (e.key === "F2") {
-        e.preventDefault(); // Evita que el navegador haga otras cosas
+        e.preventDefault(); // Evita que el navegador baje el volumen o haga cosas raras
         if (enVentas && !modalCobroAbierto) {
             window.abrirModalCobro();
         }
@@ -3575,9 +3577,7 @@ document.addEventListener("keydown", function(e) {
     // 🗑️ F4: VACIAR CARRITO
     else if (e.key === "F4") {
         e.preventDefault();
-        if (enVentas && !modalCobroAbierto) {
-            window.vaciarCarrito();
-        }
+        if (enVentas && !modalCobroAbierto) window.vaciarCarrito();
     }
 
     // 🔍 F8: FOCO EN BUSCADOR DE PRENDAS
@@ -3585,24 +3585,27 @@ document.addEventListener("keydown", function(e) {
         e.preventDefault();
         if (enVentas && !modalCobroAbierto) {
             const buscador = document.getElementById("inputBuscador");
-            if (buscador) {
-                buscador.focus();
-                buscador.select(); // Si ya había algo escrito, lo pinta para sobreescribir rápido
-            }
+            if (buscador) { buscador.focus(); buscador.select(); }
         }
     }
 
     // ❌ ESCAPE: BOTÓN DE PÁNICO (Cierra todo)
     else if (e.key === "Escape") {
-        // Cerramos modal de cobro
         if (typeof window.cerrarModalCobro === "function") window.cerrarModalCobro();
-        
-        // Escondemos sugerencias del cliente si estaban flotando
         document.getElementById("sugerenciasCliente")?.classList.add("hidden");
-        
-        // Cerramos cualquier otro modal que esté molestando
         if (typeof window.cerrarCierreCaja === "function") window.cerrarCierreCaja();
         if (typeof window.cerrarModalVariantes === "function") window.cerrarModalVariantes();
         if (typeof window.cerrarModalHistorialCliente === "function") window.cerrarModalHistorialCliente();
+    }
+
+    // 🔢 ATAJOS DEL MODAL DE COBRO (Solo si el modal está abierto y no está escribiendo un texto/número)
+    if (modalCobroAbierto && !escribiendoEnInput) {
+        if (e.key === "1") { e.preventDefault(); window.ejecutarCobro('Efectivo'); }
+        else if (e.key === "2") { e.preventDefault(); window.ejecutarCobro('Transferencia'); }
+        else if (e.key === "3") { e.preventDefault(); window.ejecutarCobro('Débito'); }
+        else if (e.key === "4") { e.preventDefault(); window.ejecutarCobro('Crédito'); }
+        else if (e.key === "5") { e.preventDefault(); window.cerrarModalCobro(); window.cobrarConMercadoPago(); }
+        else if (e.key === "6") { e.preventDefault(); window.ejecutarCobro('Cuenta Corriente'); }
+        else if (e.key === "p" || e.key === "P") { e.preventDefault(); window.cerrarModalCobro(); window.generarPresupuesto(); }
     }
 });
