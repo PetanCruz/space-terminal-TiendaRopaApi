@@ -74,5 +74,22 @@ namespace TiendaRopaAPI.Controllers
 
             return Ok(presupuesto);
         }
+
+        // 🌟 BOTÓN INSTALADOR: Fuerza a Railway a crear las tablas pendientes
+        [HttpGet("instalar")]
+        [AllowAnonymous]
+        public IActionResult InstalarTablas()
+        {
+            try
+            {
+                _context.Database.Migrate();
+                return Ok("✅ ÉXITO: Base de datos sincronizada y tablas de Presupuestos creadas.");
+            }
+            catch (Exception ex)
+            {
+                string errorReal = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                return StatusCode(500, $"❌ FALLÓ LA INSTALACIÓN: {errorReal}");
+            }
+        }
     }
 }
