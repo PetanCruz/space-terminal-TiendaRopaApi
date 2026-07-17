@@ -75,20 +75,51 @@ namespace TiendaRopaAPI.Controllers
             return Ok(presupuesto);
         }
 
-        // 🌟 BOTÓN INSTALADOR: Fuerza a Railway a crear las tablas pendientes
+        // 🌟 BOTÓN INSTALADOR V2: Fuerza bruta con inyección SQL directa
         [HttpGet("instalar")]
         [AllowAnonymous]
         public IActionResult InstalarTablas()
         {
             try
             {
-                _context.Database.Migrate();
-                return Ok("✅ ÉXITO: Base de datos sincronizada y tablas de Presupuestos creadas.");
+                // 1. Inyectamos la tabla principal de Presupuestos
+                _context.Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS `Presupuestos` (
+                        `Id` int NOT NULL AUTO_INCREMENT,
+                        `NumeroPresupuesto` longtext NOT NULL,
+                        `FechaEmision` datetime(6) NOT NULL,
+                        `FechaVencimiento` datetime(6) NOT NULL,
+                        `ClienteNombre` longtext NOT NULL,
+                        `Total` decimal(18,2) NOT NULL,
+                        `Estado` longtext NOT NULL,
+                        `SucursalId` int NOT NULL,
+                        PRIMARY KEY (`Id`)
+                    );
+                ");
+
+                // 2. Inyectamos la tabla hija (los detalles de la ropa)
+                _context.Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS `PresupuestoDetalles` (
+                        `Id` int NOT NULL AUTO_INCREMENT,
+                        `PresupuestoId` int NOT NULL,
+                        `VarianteId` int NOT NULL,
+                        `ProductoNombre` longtext NOT NULL,
+                        `Talle` longtext NOT NULL,
+                        `Color` longtext NOT NULL,
+                        `Cantidad` int NOT NULL,
+                        `PrecioUnitario` decimal(18,2) NOT NULL,
+                        `Subtotal` decimal(18,2) NOT NULL,
+                        PRIMARY KEY (`Id`),
+                        CONSTRAINT `FK_PresupuestoDetalles_Presupuestos_PresupuestoId` FOREIGN KEY (`PresupuestoId`) REFERENCES `Presupuestos` (`Id`) ON DELETE CASCADE
+                    );
+                ");
+
+                return Ok("✅ ÉXITO TOTAL: Tablas de Presupuestos creadas a la fuerza ignorando el historial.");
             }
             catch (Exception ex)
             {
                 string errorReal = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
-                return StatusCode(500, $"❌ FALLÓ LA INSTALACIÓN: {errorReal}");
+                return StatusCode(500, $"❌ FALLÓ LA INYECCIÓN SQL: {errorReal}");
             }
         }
     }
