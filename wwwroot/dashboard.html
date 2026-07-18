@@ -917,10 +917,10 @@
                 <!-- SEGUNDA FILA: Cliente y Descuento (Mano a Mano) -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Cliente -->
-                    <div class="bg-slate-950/50 p-3 rounded-xl border border-slate-800 relative">
-                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">👤 Asignar Cliente (Opcional)</label>
-                        <input type="text" id="inputClienteVenta" oninput="window.buscarClienteVenta(this.value)" placeholder="Buscar por nombre o DNI..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors">
-                        <div id="sugerenciasCliente" class="hidden absolute z-[200] w-full bg-slate-800 border border-slate-600 rounded-lg mt-1 shadow-2xl max-h-40 overflow-y-auto left-0"></div>
+                    <div class="relative w-full">
+                      <input type="text" id="inputClienteVenta" placeholder="Buscar por nombre o DNI..." 
+                          class="w-full bg-slate-950/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors pr-10">
+                          <kbd class="absolute top-1/2 -translate-y-1/2 right-2 bg-slate-800 border border-slate-600 text-slate-400 px-1.5 py-0.5 rounded text-[10px] font-mono shadow-sm">F9</kbd>
                     </div>
 
                     <!-- Descuento -->
@@ -950,9 +950,12 @@
                                 <div class="w-9 h-5 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
                             </label>
                         </div>
-                        <button onclick="window.cerrarModalCobro(); window.generarPresupuesto()" class="relative w-full mt-auto bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold py-2 rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md group">
-                            <span>💾</span><span class="text-[11px] uppercase tracking-wider">Presupuesto</span>
-                            <kbd class="absolute top-1/2 -translate-y-1/2 right-3 bg-slate-900 border border-slate-600 text-slate-400 group-hover:text-white px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors">P</kbd>
+                         <button onclick="window.cerrarModalCobro(); window.generarPresupuesto()" class="w-full mt-auto bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold py-2 px-3 rounded-lg transition-all flex items-center justify-between cursor-pointer shadow-md group">
+                          <div class="flex items-center gap-1.5">
+                            <span>💾</span>
+                            <span class="text-[11px] uppercase tracking-wider">Presupuesto</span>
+                         </div>
+                            <kbd class="bg-slate-900 border border-slate-600 text-slate-400 group-hover:text-white px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors shadow-sm">P</kbd>
                         </button>
                     </div>
 

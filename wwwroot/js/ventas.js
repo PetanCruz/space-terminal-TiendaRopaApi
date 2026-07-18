@@ -3589,6 +3589,18 @@ document.addEventListener("keydown", function(e) {
         }
     }
 
+    // 🧍‍♂️ F9: FOCO EN BUSCADOR DE CLIENTE (Dentro del modal de cobro)
+    else if (e.key === "F9") {
+        e.preventDefault();
+        if (modalCobroAbierto) {
+            const inputCliente = document.getElementById("inputClienteVenta"); // ⚠️ Verificá que este ID coincida con tu HTML
+            if (inputCliente) {
+                inputCliente.focus();
+                inputCliente.select();
+            }
+        }
+    }
+
     // ❌ ESCAPE: BOTÓN DE PÁNICO (Cierra todo)
     else if (e.key === "Escape") {
         if (typeof window.cerrarModalCobro === "function") window.cerrarModalCobro();
