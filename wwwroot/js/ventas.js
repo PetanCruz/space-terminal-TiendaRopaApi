@@ -957,6 +957,26 @@ window.confirmarVenta = async function() {
             const resultado = await respuesta.json();
             const ticketId = resultado.ventaId || resultado.id || null;
 
+            // 🌟 NUEVO: MATAMOS EL PRESUPUESTO SI HABÍA UNO EN USO
+            if (window.presupuestoEnUso) {
+                try {
+                    // Le avisamos a C# que este presupuesto ya se convirtió en venta
+                    await fetch(`${API_URL}/presupuestos/${window.presupuestoEnUso}/estado`, {
+                        method: 'PUT',
+                        headers: { 
+                            'Authorization': `Bearer ${token}`, 
+                            'Content-Type': 'application/json' 
+                        },
+                        // Mandamos el string con el nuevo estado (ajustalo si en tu C# se llama distinto)
+                        body: JSON.stringify("Convertido") 
+                    });
+                    // Limpiamos la memoria
+                    window.presupuestoEnUso = null;
+                } catch (err) {
+                    console.error("No se pudo actualizar el estado del presupuesto:", err);
+                }
+            }
+
             if (ticketId && typeof verDetalleFactura === "function") {
                 await verDetalleFactura(ticketId);
             } else {
@@ -3565,9 +3585,14 @@ window.renderizarTablaPresupuestos = function(lista) {
             <td class="p-4 text-slate-400 text-xs">${vencimientoStr}</td>
             <td class="p-4 text-emerald-400 font-bold">$${Number(p.total).toLocaleString("es-AR")}</td>
             <td class="p-4 text-center">
-                <button onclick="window.retomarPresupuesto(${p.id})" ${estaVencido || p.estado === "Convertido" ? "disabled" : ""} class="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors shadow-md cursor-pointer">
+                <div class="flex items-center justify-center gap-2">
+                  <button onclick="window.retomarPresupuesto(${p.id || p.Id})" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1 rounded-md text-sm font-semibold transition-colors shadow-sm flex items-center gap-1">
                     🛒 Volcar al Carrito
-                </button>
+                  </button>
+                  <button onclick="window.reimprimirPresupuesto(${p.id || p.Id})" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded-md text-sm font-semibold transition-colors shadow-sm flex items-center gap-1">
+                   🖨️ PDF
+                 </button>
+                </div>
             </td>
         </tr>
         `;
@@ -3602,35 +3627,38 @@ window.retomarPresupuesto = async function(id) {
         if(!resp.ok) throw new Error("Error al obtener presupuesto");
         const pres = await resp.json();
         
-        // 1. Vaciamos el carrito
+        // 🌟 1. GUARDAMOS EL ID EN MEMORIA PARA MATARLO DESPUÉS
+        window.presupuestoEnUso = id;
+        
+        // 2. Vaciamos el carrito
         carrito = [];
         
-        // 2. Llenamos el carrito
-        pres.detalles.forEach(det => {
+        // 3. Llenamos el carrito atajando todas las variables posibles de C#
+        const detallesReales = pres.detalles || pres.Detalles || pres.items || [];
+        detallesReales.forEach(det => {
             carrito.push({
-                id: det.varianteId,
-                nombre: det.productoNombre,
-                precio: det.precioUnitario, // Congelamos el precio cotizado
-                talle: det.talle,
-                color: det.color,
-                cantidad: det.cantidad,
-                sucursalId: pres.sucursalId
+                id: det.varianteId || det.VarianteId,
+                // 🔥 LA MAGIA: Buscamos el nombre como sea que venga
+                nombre: det.productoNombre || det.ProductoNombre || det.nombre || det.Nombre || "Prenda de Catálogo",
+                precio: det.precioUnitario || det.PrecioUnitario || det.precio, 
+                talle: det.talle || det.Talle || "-",
+                color: det.color || det.Color || "-",
+                cantidad: det.cantidad || det.Cantidad || 1,
+                sucursalId: pres.sucursalId || pres.SucursalId || 1
             });
         });
 
-        // 3. Cargamos el cliente
+        // 4. Cargamos el cliente
         const inputCliente = document.getElementById("inputClienteVenta");
-        if(inputCliente && pres.clienteNombre !== "Consumidor Final") {
+        if(inputCliente && pres.clienteNombre && pres.clienteNombre !== "Consumidor Final") {
             inputCliente.value = pres.clienteNombre;
+            window.clienteSeleccionado = pres.clienteId || null;
         }
 
-        // 4. Cambiamos a ventas
+        // 5. Cambiamos a ventas
         if (typeof window.cambiarPantalla === "function") window.cambiarPantalla('seccion-ventas');
         window.actualizarInterfazCarrito();
         
-        // 5. Alerta
-        alert(`⚠️ ¡ATENCIÓN!\nEl presupuesto fue cargado en el ticket con los precios congelados.\n\nPor favor, verificá visualmente que las prendas sigan estando disponibles en el estante antes de cobrarle al cliente.`);
-
     } catch (e) {
         console.error(e);
         alert("❌ Ocurrió un error al intentar volcar el presupuesto al carrito.");
