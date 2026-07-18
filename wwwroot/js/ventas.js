@@ -3161,16 +3161,21 @@ window.generarPresupuesto = async function() {
     const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
     const sucursalCajero = usuarioLocal.sucursalId || 1;
 
-    // 🌟 2. ARMAMOS EL PAQUETE PARA LA BASE DE DATOS (Hablando en "C#")
+    // 🔥 LA SOLUCIÓN: Generamos el número acá mismo porque tu C# lo exige
+    // Creamos un código de 6 dígitos al azar, ej: PR-048291
+    const numeroPresupuestoReal = "PR-" + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+
+    // 🌟 2. ARMAMOS EL PAQUETE PARA LA BASE DE DATOS
     const payload = {
+        numeroPresupuesto: numeroPresupuestoReal, // 👈 ACÁ ESTÁ EL DATO QUE FALTABA
         clienteId: window.clienteSeleccionado || null,
         clienteNombre: inputCliente,
         sucursalId: sucursalCajero,
         total: totalCarrito,
-        detalles: carrito.map(item => ({       // 👈 C# espera "detalles" para presupuestos
+        detalles: carrito.map(item => ({
             varianteId: item.id,
             cantidad: item.cantidad,
-            precioUnitario: item.precio,       // 👈 C# espera "precioUnitario"
+            precioUnitario: item.precio,
             sucursalId: item.sucursalId || sucursalCajero
         }))
     };
@@ -3188,19 +3193,9 @@ window.generarPresupuesto = async function() {
         });
 
         if (!respuestaBD.ok) {
-            // 🔥 CHIVATO: Leemos el motivo exacto del rechazo del backend
             const errorTexto = await respuestaBD.text();
             throw new Error(errorTexto || `Error HTTP ${respuestaBD.status}`);
         }
-
-        // Recuperamos el ID generado por el backend
-        let numeroPresupuestoReal = "PR-" + Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-        try {
-            const dataBD = await respuestaBD.json();
-            if (dataBD.numeroPresupuesto || dataBD.id) {
-                numeroPresupuestoReal = "PR-" + (dataBD.numeroPresupuesto || dataBD.id).toString().padStart(4, '0');
-            }
-        } catch(e) { console.log("Usando N° temporal para el PDF."); }
 
         // 🌟 4. GENERACIÓN DEL PDF PREMIUM
         const { jsPDF } = window.jspdf;
@@ -3295,7 +3290,6 @@ window.generarPresupuesto = async function() {
     } catch (error) {
         console.error("Error crítico al procesar presupuesto:", error);
         
-        // Disparamos el cartel rojo con el motivo EXACTO de tu servidor
         if (typeof window.toast !== 'undefined') {
             window.toast.error(`❌ Error del servidor: ${error.message}`);
         } else {
