@@ -935,7 +935,7 @@ window.confirmarVenta = async function() {
         varianteId:     item.id,
         cantidad:       item.cantidad,
         precio:         Math.round(item.precio * factorDescuento * 100) / 100,
-        sucursalId:     item.sucursalId || sucursalCajero // 🌟 MANDAMOS LA SUCURSAL ELEGIDA DE CADA PRENDA
+        sucursalId:     item.sucursalId || sucursalCajero
     }));
 
     const payload = {
@@ -957,23 +957,17 @@ window.confirmarVenta = async function() {
             const resultado = await respuesta.json();
             const ticketId = resultado.ventaId || resultado.id || null;
 
-            // 🌟 NUEVO: MATAMOS EL PRESUPUESTO SI HABÍA UNO EN USO
+            // 🌟 ACÁ ESTÁ LA CLAVE 2: Le avisamos a C# que el presupuesto se vendió
             if (window.presupuestoEnUso) {
                 try {
-                    // Le avisamos a C# que este presupuesto ya se convirtió en venta
                     await fetch(`${API_URL}/presupuestos/${window.presupuestoEnUso}/estado`, {
                         method: 'PUT',
-                        headers: { 
-                            'Authorization': `Bearer ${token}`, 
-                            'Content-Type': 'application/json' 
-                        },
-                        // Mandamos el string con el nuevo estado (ajustalo si en tu C# se llama distinto)
-                        body: JSON.stringify("Convertido") 
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify("Convertido") // Convertido = Vendido
                     });
-                    // Limpiamos la memoria
-                    window.presupuestoEnUso = null;
-                } catch (err) {
-                    console.error("No se pudo actualizar el estado del presupuesto:", err);
+                    window.presupuestoEnUso = null; // Lo limpiamos para la próxima venta
+                } catch (e) {
+                    console.error("No se pudo actualizar el presupuesto", e);
                 }
             }
 
@@ -987,6 +981,7 @@ window.confirmarVenta = async function() {
             actualizarInterfazCarrito();
             await cargarProductos();
             if (typeof cargarHistorialVentas === "function") await cargarHistorialVentas();
+            if (typeof cargarPresupuestos === "function") await cargarPresupuestos(); // Refrescamos la tabla
         } else {
             const errorTexto = await respuesta.text();
             alert(`❌ Error al guardar la venta: ${errorTexto}`);
@@ -2303,7 +2298,6 @@ window.cobrarConMercadoPago = async function() {
 
     const quiereFactura = document.getElementById("toggleFacturaARCA")?.checked || false;
 
-    // Calcular total con descuento
     const totalBase = carrito.reduce((s, i) => s + (i.precio * i.cantidad), 0);
     const inputDesc = document.getElementById("inputDescuentoRecargo");
     const modTxt    = inputDesc ? inputDesc.value.trim() : "";
@@ -2335,11 +2329,10 @@ window.cobrarConMercadoPago = async function() {
         varianteId: item.id,
         cantidad:   item.cantidad,
         precio:     Math.round(item.precio * factor * 100) / 100,
-        sucursalId: item.sucursalId || sucursalCajero // 🌟 MANDAMOS LA SUCURSAL ELEGIDA DE CADA PRENDA
+        sucursalId: item.sucursalId || sucursalCajero
     }));
 
     try {
-        // 1. Registrar la venta con método Mercado Pago
         const resp = await fetch(`${API_URL}/ventas`, {
             method: "POST",
             headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
@@ -2356,25 +2349,36 @@ window.cobrarConMercadoPago = async function() {
         const resultado = await resp.json();
         const ventaId   = resultado.ventaId || resultado.id;
 
-        // 2. Si quiere factura y ARCA está configurado → facturar también
+        // 🌟 ACÁ ESTÁ LA CLAVE 3: Matamos el presupuesto si se pagó con MP
+        if (window.presupuestoEnUso) {
+            try {
+                await fetch(`${API_URL}/presupuestos/${window.presupuestoEnUso}/estado`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify("Convertido") 
+                });
+                window.presupuestoEnUso = null; 
+            } catch (e) {
+                console.error("No se pudo actualizar el presupuesto", e);
+            }
+        }
+
         if (quiereFactura) {
             const configurado = await window.arcaConfigurado?.() || false;
             if (configurado) {
                 window.toast?.info("Generando factura electrónica...");
-                // flujo ARCA — se implementa cuando el cliente tenga credenciales
             } else {
                 window.toast?.warning("La venta se registró pero ARCA no está configurado para emitir factura.");
             }
         }
 
-        // 3. Abrir modal de MP con QR y link
         await window.MercadoPagoIntegration.abrirPagoMP(ventaId, totalFinal, carrito);
 
-        // 4. Limpiar carrito
         carrito = [];
         actualizarInterfazCarrito();
         await cargarProductos();
         if (typeof cargarHistorialVentas === "function") await cargarHistorialVentas();
+        if (typeof cargarPresupuestos === "function") await cargarPresupuestos();
 
     } catch (error) {
         console.error("❌ Error MP:", error);
@@ -3627,27 +3631,24 @@ window.retomarPresupuesto = async function(id) {
         if(!resp.ok) throw new Error("Error al obtener presupuesto");
         const pres = await resp.json();
         
-        // 🌟 GUARDAMOS EL ID EN MEMORIA PARA CUANDO COBREMOS
+        // 🌟 ACÁ ESTÁ LA CLAVE 1: Memorizamos qué presupuesto estamos usando
         window.presupuestoEnUso = id;
         
-        // Vaciamos el carrito actual
+        // Vaciamos el carrito
         carrito = [];
         
+        // Llenamos el carrito buscando los nombres reales en el catálogo
         const detallesReales = pres.detalles || pres.Detalles || pres.items || [];
-        
-        // 🌟 MAGIA PURA: Cruzamos los IDs con nuestro catálogo para sacar el Nombre y Talle
         detallesReales.forEach(det => {
             const varId = det.varianteId || det.VarianteId;
-            
             let nombreReal = "Prenda Desconocida";
             let talleReal = "-";
             let colorReal = "-";
             
-            // Buscamos en nuestro array de 'productos' que ya está cargado en pantalla
+            // Buscamos la variante en el catálogo para sacar su nombre y talle real
             for(let prod of productos) {
                 const vars = prod.variantes || prod.Variantes || [];
                 const varianteEncontrada = vars.find(v => (v.id || v.Id) === varId);
-                
                 if(varianteEncontrada) {
                     nombreReal = prod.nombre || prod.Nombre || "Prenda";
                     talleReal = varianteEncontrada.talle || varianteEncontrada.Talle || "-";
@@ -3667,6 +3668,7 @@ window.retomarPresupuesto = async function(id) {
             });
         });
 
+        // Cargamos el cliente si es que lo hay
         const inputCliente = document.getElementById("inputClienteVenta");
         if(inputCliente && pres.clienteNombre && pres.clienteNombre !== "Consumidor Final") {
             inputCliente.value = pres.clienteNombre;
@@ -3676,6 +3678,8 @@ window.retomarPresupuesto = async function(id) {
         if (typeof window.cambiarPantalla === "function") window.cambiarPantalla('seccion-ventas');
         window.actualizarInterfazCarrito();
         
+        alert(`⚠️ ¡ATENCIÓN!\nEl presupuesto fue cargado en el ticket con los precios congelados.\n\nPor favor, verificá visualmente que las prendas sigan estando disponibles en el estante.`);
+
     } catch (e) {
         console.error(e);
         alert("❌ Ocurrió un error al intentar volcar el presupuesto al carrito.");
