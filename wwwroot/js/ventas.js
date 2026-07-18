@@ -3142,104 +3142,174 @@ window.generarHTMLPresupuestoA4 = function(total, prendas, fecha, numeroPresupue
 };
 
 // =========================================================================
-// 📝 2. FUNCIÓN PARA GUARDAR E IMPRIMIR EL PRESUPUESTO
+// 💎 GENERADOR DE PRESUPUESTOS SUPER PREMIUM (A4 Corporativo)
 // =========================================================================
-window.generarPresupuesto = async function() {
-    if (!carrito || carrito.length === 0) {
-        window.toast?.warning("El carrito está vacío. Agregá prendas para armar el presupuesto.") || alert("Carrito vacío");
+window.generarPresupuesto = function() {
+    // 1. Verificación de seguridad
+    if (carrito.length === 0) {
+        Swal.fire({ 
+            icon: 'warning', 
+            title: 'Carrito vacío', 
+            text: 'Agregá productos antes de crear un presupuesto.', 
+            confirmButtonColor: '#3085d6' 
+        });
         return;
     }
 
-    // 1. Calculamos los totales
-    const totalBase = carrito.reduce((s, i) => s + (i.precio * i.cantidad), 0);
-    const tipoMod = document.getElementById("tipoModificador")?.value || "nada";
-    const valorMod = parseFloat(document.getElementById("valorModificador")?.value) || 0;
+    // 2. Inicializar jsPDF
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
     
-    let totalFinal = totalBase;
-    if (tipoMod === "descuento_pct") totalFinal -= totalBase * (valorMod / 100);
-    if (tipoMod === "descuento_fijo") totalFinal -= valorMod;
-    if (tipoMod === "recargo_pct") totalFinal += totalBase * (valorMod / 100);
-    if (tipoMod === "recargo_fijo") totalFinal += valorMod;
-    if (totalFinal < 0) totalFinal = 0;
+    // --- 🎨 PALETA DE COLORES CORPORATIVA ---
+    const colorPrimario = [15, 23, 42];    // Slate 900 (Azul noche muy oscuro)
+    const colorSecundario = [71, 85, 105]; // Slate 600 (Gris azulado para textos secundarios)
+    const colorAcento = [99, 102, 241];    // Indigo 500 (Color de acento para totales y títulos)
+    const colorLinea = [226, 232, 240];    // Slate 200 (Para líneas divisorias)
 
-    const factor = totalBase > 0 ? totalFinal / totalBase : 1;
+    // --- 🏢 ENCABEZADO Izquierdo (Datos de la Empresa) ---
+    // NOTA: En el Punto 3 conectaremos esto a la base de datos. Por ahora, usamos placeholders.
+    doc.setFontSize(22);
+    doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+    doc.setFont("helvetica", "bold");
+    doc.text("SPACE TERMINAL", 14, 25); 
 
-    // 2. Datos del entorno
-    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
-    const sucursalActiva = localStorage.getItem("sucursalAdminActiva") || usuarioLocal.sucursalId || 1;
-    const clienteNombre = document.getElementById('inputClienteVenta')?.value || "Consumidor Final";
+    doc.setFontSize(10);
+    doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]);
+    doc.setFont("helvetica", "normal");
+    doc.text("Indumentaria & Accesorios", 14, 32);
+    doc.text("Av. Principal 123, Ciudad", 14, 37);
+    doc.text("Tel: +54 9 11 1234-5678", 14, 42);
 
-    // 🌟 3. CREAMOS TODOS LOS DATOS ACÁ PARA QUE C# NO RECHACE EL PAQUETE
-    const numeroOficial = `PRE-${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;
-    const fechaEmision = new Date();
-    const fechaVencimiento = new Date();
-    fechaVencimiento.setDate(fechaEmision.getDate() + 7);
+    // --- 📄 ENCABEZADO Derecho (Datos del Documento) ---
+    doc.setFontSize(20);
+    doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
+    doc.setFont("helvetica", "bold");
+    doc.text("PRESUPUESTO", 195, 25, { align: "right" });
 
-    const payload = {
-        numeroPresupuesto: numeroOficial,
-        fechaEmision: fechaEmision.toISOString(),
-        fechaVencimiento: fechaVencimiento.toISOString(),
-        clienteNombre: clienteNombre,
-        total: totalFinal,
-        estado: "Pendiente",
-        sucursalId: parseInt(sucursalActiva),
-        detalles: carrito.map(item => {
-            const precioCalculado = Math.round(item.precio * factor * 100) / 100;
-            return {
-                varianteId: item.id,
-                productoNombre: item.nombre,
-                talle: item.talle,
-                color: item.color,
-                cantidad: item.cantidad,
-                precioUnitario: precioCalculado,
-                subtotal: precioCalculado * item.cantidad
-            };
-        })
-    };
+    const fechaActual = new Date().toLocaleDateString('es-AR');
+    // Generamos un número de presupuesto aleatorio temporal (ej: PR-4092)
+    const numeroPresupuesto = "PR-" + Math.floor(Math.random() * 10000).toString().padStart(4, '0');
 
-    try {
-        if(window.toast) window.toast.info("Guardando presupuesto en el servidor...");
-        const token = localStorage.getItem("token");
+    doc.setFontSize(10);
+    doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Fecha:`, 160, 32);
+    doc.text(`Comprobante Nº:`, 145, 37);
+    doc.text(`Válido por:`, 152, 42);
+    
+    doc.setFont("helvetica", "normal");
+    doc.text(fechaActual, 195, 32, { align: "right" });
+    doc.text(numeroPresupuesto, 195, 37, { align: "right" });
+    doc.text("15 días", 195, 42, { align: "right" });
 
-        // 4. Mandamos el paquete
-        const respuesta = await fetch(`${API_URL}/presupuestos`, {
-            method: "POST",
-            headers: { 
-                "Authorization": `Bearer ${token}`, 
-                "Content-Type": "application/json" 
-            },
-            body: JSON.stringify(payload)
-        });
+    // --- ➖ LÍNEA SEPARADORA ---
+    doc.setDrawColor(colorLinea[0], colorLinea[1], colorLinea[2]);
+    doc.line(14, 48, 195, 48);
 
-        // 🌟 5. MICRÓFONO AL ERROR: Si C# dice que no, leemos por qué exactamente
-        if (!respuesta.ok) {
-            const errorTexto = await respuesta.text();
-            throw new Error(errorTexto || "Error desconocido del servidor");
+    // --- 👤 DATOS DEL CLIENTE ---
+    const inputCliente = document.getElementById("inputClienteVenta")?.value || "Consumidor Final";
+    
+    doc.setFontSize(11);
+    doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+    doc.setFont("helvetica", "bold");
+    doc.text("Preparado para:", 14, 56);
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    doc.text(inputCliente, 14, 63);
+
+    // --- 📊 TABLA DE PRODUCTOS (Con diseño AutoTable Premium) ---
+    const columnas = [["CANT.", "DESCRIPCIÓN DEL ARTÍCULO", "PRECIO UNIT.", "SUBTOTAL"]];
+    const filas = carrito.map(prod => [
+        prod.cantidad.toString(),
+        `${prod.codigo ? prod.codigo + ' - ' : ''}${prod.nombre}`,
+        `$${prod.precio.toLocaleString('es-AR')}`,
+        `$${(prod.precio * prod.cantidad).toLocaleString('es-AR')}`
+    ]);
+
+    doc.autoTable({
+        startY: 72,
+        head: columnas,
+        body: filas,
+        theme: 'grid',
+        headStyles: {
+            fillColor: colorPrimario,
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            halign: 'center'
+        },
+        columnStyles: {
+            0: { halign: 'center', cellWidth: 20 },
+            1: { halign: 'left' },
+            2: { halign: 'right', cellWidth: 35 },
+            3: { halign: 'right', cellWidth: 35 }
+        },
+        styles: {
+            fontSize: 10,
+            cellPadding: 5,
+            textColor: colorPrimario,
+            lineColor: colorLinea,
+            lineWidth: 0.1
+        },
+        alternateRowStyles: {
+            fillColor: [248, 250, 252] // Slate 50 (Gris ultra claro para que sea fácil de leer)
         }
+    });
 
-        if(window.toast) window.toast.success(`Presupuesto ${numeroOficial} guardado con éxito!`);
+    // --- 💰 CAJA DE TOTALES ---
+    const finalY = doc.lastAutoTable.finalY || 70;
+    const totalCarrito = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
 
-        // 6. Generamos el PDF con el número oficial
-        const htmlPresupuesto = window.generarHTMLPresupuestoA4(totalFinal, payload.detalles, fechaEmision.toISOString(), numeroOficial);
+    // Fondo gris para la caja del total
+    doc.setFillColor(241, 245, 249); // Slate 100
+    doc.rect(120, finalY + 10, 75, 22, 'F');
 
-        const ventanaImp = window.open("", "_blank");
-        if (ventanaImp) {
-            ventanaImp.document.write(htmlPresupuesto);
-            ventanaImp.document.close();
-        } else {
-            alert("El navegador bloqueó la ventana de impresión. Habilitá las ventanas emergentes.");
-        }
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+    doc.text("TOTAL:", 125, finalY + 25);
+    
+    doc.setFontSize(16);
+    doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
+    doc.text(`$${totalCarrito.toLocaleString('es-AR')}`, 190, finalY + 25, { align: "right" });
 
-        // 7. Vaciamos el carrito
+    // --- 📝 PIE DE PÁGINA ---
+    const pageHeight = doc.internal.pageSize.height;
+    
+    // Línea superior del footer
+    doc.setDrawColor(colorLinea[0], colorLinea[1], colorLinea[2]);
+    doc.line(14, pageHeight - 25, 195, pageHeight - 25);
+
+    doc.setFontSize(9);
+    doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]);
+    doc.setFont("helvetica", "italic");
+    doc.text("Los precios están sujetos a modificaciones sin previo aviso y sujetos a disponibilidad de stock.", 105, pageHeight - 18, { align: "center" });
+    
+    doc.setFont("helvetica", "bold");
+    doc.text("¡Gracias por elegirnos!", 105, pageHeight - 12, { align: "center" });
+
+    // --- 💾 DESCARGA DEL ARCHIVO ---
+    doc.save(`Cotizacion_${numeroPresupuesto}.pdf`);
+
+    // --- 🧹 LIMPIEZA POST-PRESUPUESTO ---
+    // (Opcional) Si tenés una función para guardarlo en la tabla de presupuestos, iría acá:
+    // if (typeof guardarPresupuestoEnBD === 'function') guardarPresupuestoEnBD(carrito, totalCarrito, inputCliente);
+    
+    // Vaciamos el carrito silenciosamente para la próxima venta
+    if (typeof window.vaciarCarritoSinAlerta === 'function') {
+        window.vaciarCarritoSinAlerta(); 
+    } else {
         carrito = [];
-        if (typeof actualizarInterfazCarrito === "function") actualizarInterfazCarrito();
-        
-    } catch (error) {
-        console.error("❌ Error al generar presupuesto:", error);
-        // 🌟 AHORA EL CARTEL ROJO TE VA A ESCUPIR LA RAZÓN EXACTA DE POR QUÉ FALLÓ
-        if(window.toast) window.toast.error(`❌ Falló la carga: ${error.message}`);
-        else alert(`❌ Falló la carga: ${error.message}`);
+        actualizarCarrito();
     }
+
+    Swal.fire({
+        icon: 'success',
+        title: '¡Presupuesto Generado!',
+        text: 'El PDF Premium se ha descargado correctamente.',
+        timer: 2500,
+        showConfirmButton: false
+    });
 };
 
 // 🌟 INYECTOR DEL TELETRANSPORTADOR PARA ADMINISTRADORES (CORREGIDO)
@@ -3593,7 +3663,7 @@ document.addEventListener("keydown", function(e) {
     else if (e.key === "F9") {
         e.preventDefault();
         if (modalCobroAbierto) {
-            const inputCliente = document.getElementById("inputClienteVenta"); // ⚠️ Verificá que este ID coincida con tu HTML
+            const inputCliente = document.getElementById("inputClienteVenta");
             if (inputCliente) {
                 inputCliente.focus();
                 inputCliente.select();
