@@ -122,5 +122,34 @@ namespace TiendaRopaAPI.Controllers
                 return StatusCode(500, $"❌ FALLÓ LA INYECCIÓN SQL: {errorReal}");
             }
         }
+
+        [HttpPut("{id}/estado")]
+// [Authorize] // Descomentá esta línea si tus otras rutas usan [Authorize]
+public async Task<IActionResult> ActualizarEstadoPresupuesto(int id, [FromBody] string nuevoEstado)
+{
+    try
+    {
+        // 1. Buscamos el presupuesto en la base de datos
+        var presupuesto = await _context.Presupuestos.FindAsync(id);
+        
+        if (presupuesto == null)
+        {
+            return NotFound("No se encontró el presupuesto.");
+        }
+
+        // 2. Actualizamos el estado (el JS le va a mandar "Convertido")
+        presupuesto.Estado = nuevoEstado;
+
+        // 3. Guardamos los cambios
+        _context.Presupuestos.Update(presupuesto);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { mensaje = "Estado actualizado correctamente", estado = nuevoEstado });
+    }
+    catch (Exception ex)
+    {
+        return StatusCode(500, new { mensaje = $"Error interno del servidor: {ex.Message}" });
+    }
+}
     }
 }
