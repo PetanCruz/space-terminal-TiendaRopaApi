@@ -3161,13 +3161,12 @@ window.generarPresupuesto = async function() {
     const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
     const sucursalCajero = usuarioLocal.sucursalId || 1;
 
-    // 🔥 LA SOLUCIÓN: Generamos el número acá mismo porque tu C# lo exige
-    // Creamos un código de 6 dígitos al azar, ej: PR-048291
+    // Generamos el número acá mismo
     const numeroPresupuestoReal = "PR-" + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
 
     // 🌟 2. ARMAMOS EL PAQUETE PARA LA BASE DE DATOS
     const payload = {
-        numeroPresupuesto: numeroPresupuestoReal, // 👈 ACÁ ESTÁ EL DATO QUE FALTABA
+        numeroPresupuesto: numeroPresupuestoReal,
         clienteId: window.clienteSeleccionado || null,
         clienteNombre: inputCliente,
         sucursalId: sucursalCajero,
@@ -3206,6 +3205,7 @@ window.generarPresupuesto = async function() {
         const colorAcento = [99, 102, 241]; 
         const colorLinea = [226, 232, 240];
 
+        // --- ENCABEZADO ---
         doc.setFontSize(22);
         doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
         doc.setFont("helvetica", "bold");
@@ -3234,6 +3234,7 @@ window.generarPresupuesto = async function() {
         doc.setDrawColor(colorLinea[0], colorLinea[1], colorLinea[2]);
         doc.line(14, 48, 195, 48);
 
+        // --- DATOS DEL CLIENTE ---
         doc.setFontSize(11);
         doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
         doc.setFont("helvetica", "bold");
@@ -3242,6 +3243,7 @@ window.generarPresupuesto = async function() {
         doc.setFont("helvetica", "normal");
         doc.text(inputCliente, 14, 63);
 
+        // --- TABLA ---
         const columnas = [["CANT.", "DESCRIPCIÓN", "PRECIO UNIT.", "SUBTOTAL"]];
         const filas = carrito.map(prod => [
             prod.cantidad.toString(),
@@ -3261,6 +3263,7 @@ window.generarPresupuesto = async function() {
             alternateRowStyles: { fillColor: [248, 250, 252] }
         });
 
+        // --- TOTALES ---
         const finalY = doc.lastAutoTable.finalY || 70;
         doc.setFillColor(241, 245, 249); 
         doc.rect(120, finalY + 10, 75, 22, 'F');
@@ -3274,6 +3277,28 @@ window.generarPresupuesto = async function() {
         doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
         doc.text(`$${totalCarrito.toLocaleString('es-AR')}`, 190, finalY + 25, { align: "right" });
 
+        // 🔥 NUEVO: PIE DE PÁGINA (FOOTER) 🔥
+        const pageHeight = doc.internal.pageSize.height || 297;
+        
+        // Línea divisoria inferior
+        doc.setDrawColor(colorLinea[0], colorLinea[1], colorLinea[2]);
+        doc.setLineWidth(0.5);
+        doc.line(14, pageHeight - 35, 195, pageHeight - 35);
+
+        // Textos legales (Itálica, grisesito)
+        doc.setFontSize(9);
+        doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]);
+        doc.setFont("helvetica", "italic");
+        doc.text("Los precios detallados en este documento se mantendrán vigentes por 15 días.", 105, pageHeight - 27, { align: "center" });
+        doc.text("Este documento es de carácter informativo y NO es válido como factura ni comprobante de pago.", 105, pageHeight - 22, { align: "center" });
+        
+        // Agradecimiento (Negrita, oscuro)
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+        doc.text("¡Gracias por elegirnos!", 105, pageHeight - 12, { align: "center" });
+
+        // Guardar archivo
         doc.save(`Cotizacion_${numeroPresupuestoReal}.pdf`);
 
         // 🌟 5. LIMPIEZA FINAL Y ÉXITO
@@ -3282,7 +3307,7 @@ window.generarPresupuesto = async function() {
         if (typeof actualizarInterfazCarrito === 'function') actualizarInterfazCarrito();
         if (typeof filtrarProductos === 'function') filtrarProductos();
         if (typeof window.cerrarModalCobro === 'function') window.cerrarModalCobro();
-        if (typeof cargarPresupuestos === 'function') cargarPresupuestos(); // Refresca la tabla de fondo
+        if (typeof cargarPresupuestos === 'function') cargarPresupuestos(); 
 
         if (typeof window.toast !== 'undefined') window.toast.success("¡Presupuesto guardado y PDF generado!");
         else alert("¡Presupuesto Generado Exitosamente!");
