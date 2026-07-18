@@ -55,6 +55,7 @@
                <button id="btnNavPresupuestos" onclick="cambiarPantalla('seccion-presupuestos'); if(window.cargarPresupuestos) window.cargarPresupuestos();" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-all">📋 Presupuestos</button>
                <button id="btnNavInventario" onclick="cambiarPantalla('seccion-productos'); if(window.cargarProductosInventario) window.cargarProductosInventario();" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-all">📦 Inventario</button>
                <button id="btnNavPersonal" onclick="cambiarPantalla('seccion-usuarios')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-all">👥 Personal</button>
+               <button id="btnNavEmpresa" onclick="cambiarPantalla('seccion-empresa'); window.cargarDatosEmpresa();" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-all">⚙️ Empresa</button>
                <button id="btnNavClientes" onclick="cambiarPantalla('seccion-clientes'); window.cargarClientes();" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-all">🧑‍🤝‍🧑 Clientes</button>
                <button id="btnNavEstadisticas" onclick="cambiarPantalla('seccion-estadisticas'); window.cargarEstadisticas();" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-all">📊 Estadísticas</button>
                <button id="btnNavReportes" onclick="cambiarPantalla('seccion-reportes')" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm transition-all">📋 Reportes</button>
@@ -446,6 +447,48 @@
             </div>
         </div>
         <!-- FIN SECCIÓN REPORTES -->
+
+        <!-- ===================== SECCIÓN EMPRESA ===================== -->
+        <div id="seccion-empresa" class="hidden space-y-6">
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+                <h2 class="text-xl font-bold text-white">⚙️ Configuración del Negocio</h2>
+                <p class="text-xs text-slate-400 mt-0.5">Estos datos aparecerán impresos en todos los tickets y PDFs del sistema</p>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <form id="formEmpresa" onsubmit="window.guardarDatosEmpresa(event)" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-1">Nombre del Local / Marca *</label>
+                            <input type="text" id="empresaNombre" required placeholder="Ej: Nova Indumentaria" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-1">CUIT *</label>
+                            <input type="text" id="empresaCuit" required placeholder="Ej: 20-12345678-9" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-semibold text-slate-400 mb-1">Dirección Comercial</label>
+                            <input type="text" id="empresaDireccion" placeholder="Ej: Av. San Martín 123, Tucumán" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-1">Teléfono de Contacto</label>
+                            <input type="text" id="empresaTelefono" placeholder="Ej: 381 123-4567" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-1">Mensaje de despedida (Tickets)</label>
+                            <input type="text" id="empresaMensaje" placeholder="Ej: ¡Gracias por tu compra!" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors">
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end pt-4 border-t border-slate-800/60 mt-6">
+                        <button type="submit" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-sm font-bold text-white shadow-lg shadow-indigo-950/30 transition-all cursor-pointer">
+                            💾 Guardar Configuración
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <!-- FIN SECCIÓN EMPRESA -->
 
     </main>
 
@@ -1003,6 +1046,7 @@
     <script src="/js/ventas.js"></script>
     <script src="/js/usuarios.js"></script>
     <script src="/js/init.js"></script>
+    <script src="/js/empresa.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 </body>
