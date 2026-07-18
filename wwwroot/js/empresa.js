@@ -87,6 +87,9 @@ window.guardarDatosEmpresa = async function(e) {
                 telefono: `Tel: ${payload.telefono}`,
                 mensajeTicket: payload.mensajeTicket
             }));
+
+            window.aplicarBrandingEmpresa();
+            
         } else {
             if(window.toast) window.toast.error("Error al guardar la configuración.");
         }
@@ -94,5 +97,26 @@ window.guardarDatosEmpresa = async function(e) {
         if(window.toast) window.toast.error("Problema de conexión al guardar.");
     } finally {
         restaurarBtn();
+    }
+};
+
+window.aplicarBrandingEmpresa = function() {
+    const configRaw = localStorage.getItem("configEmpresa");
+    if (configRaw) {
+        const config = JSON.parse(configRaw);
+        // Si el cliente cargó un nombre, lo usamos. Si no, dejamos Space Terminal por defecto.
+        const nombreLocal = config.nombreFantasia || "SPACE TERMINAL";
+        
+        // 1. Cambia el Logo arriba a la izquierda
+        const brandLogo = document.getElementById("brandLogoText");
+        if (brandLogo) {
+            brandLogo.innerHTML = `👕 ${nombreLocal}`;
+        }
+        
+        // 2. Cambia el nombre en la pestaña de Chrome/Edge
+        const brandTitle = document.getElementById("brandTitle");
+        if (brandTitle) {
+            brandTitle.innerText = `${nombreLocal} - Sistema POS`;
+        }
     }
 };

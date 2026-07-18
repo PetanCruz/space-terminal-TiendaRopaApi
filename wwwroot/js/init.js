@@ -238,6 +238,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         if (typeof cargarHistorialVentas === 'function') await cargarHistorialVentas();
         if (typeof cargarUsuarios === 'function') await cargarUsuarios();
         if (typeof window.cargarStockCritico === 'function') await window.cargarStockCritico();
+        if (typeof window.aplicarBrandingEmpresa === 'function') window.aplicarBrandingEmpresa();
         
         // Pantalla inicial por defecto
         window.cambiarPantalla('seccion-ventas');
