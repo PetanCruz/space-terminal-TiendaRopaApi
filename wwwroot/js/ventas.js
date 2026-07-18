@@ -3627,35 +3627,52 @@ window.retomarPresupuesto = async function(id) {
         if(!resp.ok) throw new Error("Error al obtener presupuesto");
         const pres = await resp.json();
         
-        // 🌟 1. GUARDAMOS EL ID EN MEMORIA PARA MATARLO DESPUÉS
+        // 🌟 GUARDAMOS EL ID EN MEMORIA PARA CUANDO COBREMOS
         window.presupuestoEnUso = id;
         
-        // 2. Vaciamos el carrito
+        // Vaciamos el carrito actual
         carrito = [];
         
-        // 3. Llenamos el carrito atajando todas las variables posibles de C#
         const detallesReales = pres.detalles || pres.Detalles || pres.items || [];
+        
+        // 🌟 MAGIA PURA: Cruzamos los IDs con nuestro catálogo para sacar el Nombre y Talle
         detallesReales.forEach(det => {
+            const varId = det.varianteId || det.VarianteId;
+            
+            let nombreReal = "Prenda Desconocida";
+            let talleReal = "-";
+            let colorReal = "-";
+            
+            // Buscamos en nuestro array de 'productos' que ya está cargado en pantalla
+            for(let prod of productos) {
+                const vars = prod.variantes || prod.Variantes || [];
+                const varianteEncontrada = vars.find(v => (v.id || v.Id) === varId);
+                
+                if(varianteEncontrada) {
+                    nombreReal = prod.nombre || prod.Nombre || "Prenda";
+                    talleReal = varianteEncontrada.talle || varianteEncontrada.Talle || "-";
+                    colorReal = varianteEncontrada.color || varianteEncontrada.Color || "-";
+                    break;
+                }
+            }
+
             carrito.push({
-                id: det.varianteId || det.VarianteId,
-                // 🔥 LA MAGIA: Buscamos el nombre como sea que venga
-                nombre: det.productoNombre || det.ProductoNombre || det.nombre || det.Nombre || "Prenda de Catálogo",
+                id: varId,
+                nombre: nombreReal,
                 precio: det.precioUnitario || det.PrecioUnitario || det.precio, 
-                talle: det.talle || det.Talle || "-",
-                color: det.color || det.Color || "-",
+                talle: talleReal,
+                color: colorReal,
                 cantidad: det.cantidad || det.Cantidad || 1,
                 sucursalId: pres.sucursalId || pres.SucursalId || 1
             });
         });
 
-        // 4. Cargamos el cliente
         const inputCliente = document.getElementById("inputClienteVenta");
         if(inputCliente && pres.clienteNombre && pres.clienteNombre !== "Consumidor Final") {
             inputCliente.value = pres.clienteNombre;
             window.clienteSeleccionado = pres.clienteId || null;
         }
 
-        // 5. Cambiamos a ventas
         if (typeof window.cambiarPantalla === "function") window.cambiarPantalla('seccion-ventas');
         window.actualizarInterfazCarrito();
         
@@ -3730,3 +3747,124 @@ document.addEventListener("keydown", function(e) {
         else if (e.key === "p" || e.key === "P") { e.preventDefault(); window.cerrarModalCobro(); window.generarPresupuesto(); }
     }
 });
+
+window.reimprimirPresupuesto = async function(idPresupuesto) {
+    try {
+        const token = localStorage.getItem("token");
+        if(window.toast) window.toast.info("Generando PDF...");
+        
+        const respuesta = await fetch(`${API_URL}/presupuestos/${idPresupuesto}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!respuesta.ok) throw new Error("No se pudo obtener el presupuesto desde el servidor.");
+        const presu = await respuesta.json();
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        const colorPrimario = [15, 23, 42]; 
+        const colorSecundario = [71, 85, 105]; 
+        const colorAcento = [99, 102, 241]; 
+        const colorLinea = [226, 232, 240];
+
+        doc.setFontSize(22);
+        doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+        doc.setFont("helvetica", "bold");
+        doc.text("SPACE TERMINAL", 14, 25); 
+
+        doc.setFontSize(10);
+        doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]);
+        doc.setFont("helvetica", "normal");
+        doc.text("Indumentaria & Accesorios", 14, 32);
+        doc.text("Av. Principal 123, Ciudad", 14, 37);
+
+        doc.setFontSize(20);
+        doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
+        doc.setFont("helvetica", "bold");
+        doc.text("PRESUPUESTO", 195, 25, { align: "right" });
+
+        const fechaC = presu.fechaEmision ? new Date(presu.fechaEmision).toLocaleDateString('es-AR') : new Date().toLocaleDateString('es-AR');
+
+        doc.setFontSize(10);
+        doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]);
+        doc.text(`Fecha:`, 160, 32);
+        doc.text(`Comprobante Nº:`, 145, 37);
+        
+        doc.setFont("helvetica", "normal");
+        doc.text(fechaC, 195, 32, { align: "right" });
+        doc.text(presu.numeroPresupuesto || `PRE-${presu.id}`, 195, 37, { align: "right" });
+
+        doc.setDrawColor(colorLinea[0], colorLinea[1], colorLinea[2]);
+        doc.line(14, 48, 195, 48);
+
+        doc.setFontSize(11);
+        doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+        doc.setFont("helvetica", "bold");
+        doc.text("Preparado para:", 14, 56);
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "normal");
+        doc.text(presu.clienteNombre || "Consumidor Final", 14, 63);
+
+        const detallesReales = presu.detalles || presu.Detalles || presu.items || [];
+        const columnas = [["CANT.", "DESCRIPCIÓN", "PRECIO UNIT.", "SUBTOTAL"]];
+        
+        // Magia para buscar los nombres acá también
+        const filas = detallesReales.map(det => {
+            const varId = det.varianteId || det.VarianteId;
+            let nReal = "Prenda"; let tReal = "-"; let cReal = "-";
+            for(let prod of productos) {
+                const vars = prod.variantes || prod.Variantes || [];
+                const v = vars.find(x => (x.id || x.Id) === varId);
+                if(v) {
+                    nReal = prod.nombre || prod.Nombre;
+                    tReal = v.talle || v.Talle;
+                    cReal = v.color || v.Color;
+                    break;
+                }
+            }
+            const cantidad = det.cantidad || det.Cantidad || 1;
+            const precio = det.precioUnitario || det.PrecioUnitario || det.precio || 0;
+            return [
+                cantidad.toString(),
+                `${nReal} (T:${tReal} - C:${cReal})`,
+                `$${precio.toLocaleString('es-AR')}`,
+                `$${(precio * cantidad).toLocaleString('es-AR')}`
+            ];
+        });
+
+        doc.autoTable({
+            startY: 72, head: columnas, body: filas, theme: 'grid',
+            headStyles: { fillColor: colorPrimario, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+            columnStyles: { 0: { halign: 'center', cellWidth: 20 }, 1: { halign: 'left' }, 2: { halign: 'right', cellWidth: 35 }, 3: { halign: 'right', cellWidth: 35 } },
+            styles: { fontSize: 10, cellPadding: 5, textColor: colorPrimario, lineColor: colorLinea, lineWidth: 0.1 },
+            alternateRowStyles: { fillColor: [248, 250, 252] }
+        });
+
+        const finalY = doc.lastAutoTable.finalY || 70;
+        doc.setFillColor(241, 245, 249); doc.rect(120, finalY + 10, 75, 22, 'F');
+        doc.setFontSize(14); doc.setFont("helvetica", "bold"); doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+        doc.text("TOTAL:", 125, finalY + 25);
+        
+        const totalP = presu.total || presu.Total || 0;
+        doc.setFontSize(16); doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
+        doc.text(`$${totalP.toLocaleString('es-AR')}`, 190, finalY + 25, { align: "right" });
+
+        const pageHeight = doc.internal.pageSize.height || 297;
+        doc.setDrawColor(colorLinea[0], colorLinea[1], colorLinea[2]); doc.setLineWidth(0.5);
+        doc.line(14, pageHeight - 35, 195, pageHeight - 35);
+        doc.setFontSize(9); doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]); doc.setFont("helvetica", "italic");
+        doc.text("Los precios detallados en este documento se mantendrán vigentes por 15 días.", 105, pageHeight - 27, { align: "center" });
+        doc.text("Este documento es de carácter informativo y NO es válido como factura ni comprobante de pago.", 105, pageHeight - 22, { align: "center" });
+        doc.setFontSize(11); doc.setFont("helvetica", "bold"); doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+        doc.text("¡Gracias por elegirnos!", 105, pageHeight - 12, { align: "center" });
+
+        doc.save(`Cotizacion_Reimpresa_${presu.numeroPresupuesto || idPresupuesto}.pdf`);
+        if(window.toast) window.toast.success("¡PDF generado correctamente!");
+
+    } catch (error) {
+        console.error(error);
+        if(window.toast) window.toast.error("Error al intentar generar el PDF.");
+        else alert("Hubo un error al generar el PDF.");
+    }
+};
