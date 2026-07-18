@@ -22,5 +22,6 @@ namespace TiendaRopaAPI.Data
         public DbSet<Sucursal> Sucursales { get; set; }
         public DbSet<Presupuesto> Presupuestos { get; set; }
         public DbSet<PresupuestoDetalle> PresupuestoDetalles { get; set; }
+        public DbSet<Empresa> Empresas { get; set; }
     }
 }
