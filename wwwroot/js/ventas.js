@@ -3142,174 +3142,184 @@ window.generarHTMLPresupuestoA4 = function(total, prendas, fecha, numeroPresupue
 };
 
 // =========================================================================
-// 💎 GENERADOR DE PRESUPUESTOS SUPER PREMIUM (A4 Corporativo)
+// 💎 GENERADOR DE PRESUPUESTOS (Guarda en BD + PDF Premium)
 // =========================================================================
-window.generarPresupuesto = function() {
+window.generarPresupuesto = async function() {
     // 1. Verificación de seguridad
     if (carrito.length === 0) {
-        Swal.fire({ 
-            icon: 'warning', 
-            title: 'Carrito vacío', 
-            text: 'Agregá productos antes de crear un presupuesto.', 
-            confirmButtonColor: '#3085d6' 
-        });
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'warning', title: 'Carrito vacío', text: 'Agregá productos antes de crear un presupuesto.' });
+        } else {
+            alert("Carrito vacío. Agregá productos antes de crear un presupuesto.");
+        }
         return;
     }
 
-    // 2. Inicializar jsPDF
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    
-    // --- 🎨 PALETA DE COLORES CORPORATIVA ---
-    const colorPrimario = [15, 23, 42];    // Slate 900 (Azul noche muy oscuro)
-    const colorSecundario = [71, 85, 105]; // Slate 600 (Gris azulado para textos secundarios)
-    const colorAcento = [99, 102, 241];    // Indigo 500 (Color de acento para totales y títulos)
-    const colorLinea = [226, 232, 240];    // Slate 200 (Para líneas divisorias)
-
-    // --- 🏢 ENCABEZADO Izquierdo (Datos de la Empresa) ---
-    // NOTA: En el Punto 3 conectaremos esto a la base de datos. Por ahora, usamos placeholders.
-    doc.setFontSize(22);
-    doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
-    doc.setFont("helvetica", "bold");
-    doc.text("SPACE TERMINAL", 14, 25); 
-
-    doc.setFontSize(10);
-    doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]);
-    doc.setFont("helvetica", "normal");
-    doc.text("Indumentaria & Accesorios", 14, 32);
-    doc.text("Av. Principal 123, Ciudad", 14, 37);
-    doc.text("Tel: +54 9 11 1234-5678", 14, 42);
-
-    // --- 📄 ENCABEZADO Derecho (Datos del Documento) ---
-    doc.setFontSize(20);
-    doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
-    doc.setFont("helvetica", "bold");
-    doc.text("PRESUPUESTO", 195, 25, { align: "right" });
-
-    const fechaActual = new Date().toLocaleDateString('es-AR');
-    // Generamos un número de presupuesto aleatorio temporal (ej: PR-4092)
-    const numeroPresupuesto = "PR-" + Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-
-    doc.setFontSize(10);
-    doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]);
-    doc.setFont("helvetica", "bold");
-    doc.text(`Fecha:`, 160, 32);
-    doc.text(`Comprobante Nº:`, 145, 37);
-    doc.text(`Válido por:`, 152, 42);
-    
-    doc.setFont("helvetica", "normal");
-    doc.text(fechaActual, 195, 32, { align: "right" });
-    doc.text(numeroPresupuesto, 195, 37, { align: "right" });
-    doc.text("15 días", 195, 42, { align: "right" });
-
-    // --- ➖ LÍNEA SEPARADORA ---
-    doc.setDrawColor(colorLinea[0], colorLinea[1], colorLinea[2]);
-    doc.line(14, 48, 195, 48);
-
-    // --- 👤 DATOS DEL CLIENTE ---
+    // Datos del cliente y totales
     const inputCliente = document.getElementById("inputClienteVenta")?.value || "Consumidor Final";
-    
-    doc.setFontSize(11);
-    doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
-    doc.setFont("helvetica", "bold");
-    doc.text("Preparado para:", 14, 56);
-    
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "normal");
-    doc.text(inputCliente, 14, 63);
-
-    // --- 📊 TABLA DE PRODUCTOS (Con diseño AutoTable Premium) ---
-    const columnas = [["CANT.", "DESCRIPCIÓN DEL ARTÍCULO", "PRECIO UNIT.", "SUBTOTAL"]];
-    const filas = carrito.map(prod => [
-        prod.cantidad.toString(),
-        `${prod.codigo ? prod.codigo + ' - ' : ''}${prod.nombre}`,
-        `$${prod.precio.toLocaleString('es-AR')}`,
-        `$${(prod.precio * prod.cantidad).toLocaleString('es-AR')}`
-    ]);
-
-    doc.autoTable({
-        startY: 72,
-        head: columnas,
-        body: filas,
-        theme: 'grid',
-        headStyles: {
-            fillColor: colorPrimario,
-            textColor: [255, 255, 255],
-            fontStyle: 'bold',
-            halign: 'center'
-        },
-        columnStyles: {
-            0: { halign: 'center', cellWidth: 20 },
-            1: { halign: 'left' },
-            2: { halign: 'right', cellWidth: 35 },
-            3: { halign: 'right', cellWidth: 35 }
-        },
-        styles: {
-            fontSize: 10,
-            cellPadding: 5,
-            textColor: colorPrimario,
-            lineColor: colorLinea,
-            lineWidth: 0.1
-        },
-        alternateRowStyles: {
-            fillColor: [248, 250, 252] // Slate 50 (Gris ultra claro para que sea fácil de leer)
-        }
-    });
-
-    // --- 💰 CAJA DE TOTALES ---
-    const finalY = doc.lastAutoTable.finalY || 70;
     const totalCarrito = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
-
-    // Fondo gris para la caja del total
-    doc.setFillColor(241, 245, 249); // Slate 100
-    doc.rect(120, finalY + 10, 75, 22, 'F');
-
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
-    doc.text("TOTAL:", 125, finalY + 25);
+    const fechaActual = new Date().toLocaleDateString('es-AR');
     
-    doc.setFontSize(16);
-    doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
-    doc.text(`$${totalCarrito.toLocaleString('es-AR')}`, 190, finalY + 25, { align: "right" });
+    // Datos del usuario (Cajero/Sucursal)
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const sucursalCajero = usuarioLocal.sucursalId || 1;
 
-    // --- 📝 PIE DE PÁGINA ---
-    const pageHeight = doc.internal.pageSize.height;
-    
-    // Línea superior del footer
-    doc.setDrawColor(colorLinea[0], colorLinea[1], colorLinea[2]);
-    doc.line(14, pageHeight - 25, 195, pageHeight - 25);
+    // 🌟 2. ARMAMOS EL PAQUETE PARA LA BASE DE DATOS
+    const payload = {
+        clienteId: window.clienteSeleccionado || null,
+        clienteNombre: inputCliente,
+        sucursalId: sucursalCajero,
+        total: totalCarrito,
+        items: carrito.map(item => ({
+            varianteId: item.id,
+            cantidad: item.cantidad,
+            precio: item.precio, 
+            sucursalId: item.sucursalId || sucursalCajero
+        }))
+    };
 
-    doc.setFontSize(9);
-    doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]);
-    doc.setFont("helvetica", "italic");
-    doc.text("Los precios están sujetos a modificaciones sin previo aviso y sujetos a disponibilidad de stock.", 105, pageHeight - 18, { align: "center" });
-    
-    doc.setFont("helvetica", "bold");
-    doc.text("¡Gracias por elegirnos!", 105, pageHeight - 12, { align: "center" });
+    try {
+        // 🌟 3. ENVIAMOS AL BACKEND (API OFICIAL)
+        const token = localStorage.getItem("token");
+        const respuestaBD = await fetch(`${API_URL}/presupuestos`, {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${token}`, 
+                'Content-Type': 'application/json' 
+            },
+            body: JSON.stringify(payload)
+        });
 
-    // --- 💾 DESCARGA DEL ARCHIVO ---
-    doc.save(`Cotizacion_${numeroPresupuesto}.pdf`);
+        if (!respuestaBD.ok) {
+            throw new Error('Fallo al guardar en el servidor');
+        }
 
-    // --- 🧹 LIMPIEZA POST-PRESUPUESTO ---
-    // (Opcional) Si tenés una función para guardarlo en la tabla de presupuestos, iría acá:
-    // if (typeof guardarPresupuestoEnBD === 'function') guardarPresupuestoEnBD(carrito, totalCarrito, inputCliente);
-    
-    // Vaciamos el carrito silenciosamente para la próxima venta
-    if (typeof window.vaciarCarritoSinAlerta === 'function') {
-        window.vaciarCarritoSinAlerta(); 
-    } else {
-        carrito = [];
-        actualizarCarrito();
+        // Si el backend nos devuelve el número real de presupuesto, lo usamos. 
+        // Si no, inventamos uno temporal para el PDF.
+        let numeroPresupuestoReal = "PR-" + Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+        try {
+            const dataBD = await respuestaBD.json();
+            if (dataBD.numeroPresupuesto || dataBD.id) {
+                numeroPresupuestoReal = "PR-" + (dataBD.numeroPresupuesto || dataBD.id).toString().padStart(4, '0');
+            }
+        } catch(e) { console.log("Usando N° de presupuesto temporal para PDF."); }
+
+        // 🌟 4. GENERACIÓN DEL PDF PREMIUM
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        const colorPrimario = [15, 23, 42]; 
+        const colorSecundario = [71, 85, 105]; 
+        const colorAcento = [99, 102, 241]; 
+        const colorLinea = [226, 232, 240];
+
+        doc.setFontSize(22);
+        doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+        doc.setFont("helvetica", "bold");
+        doc.text("SPACE TERMINAL", 14, 25); 
+
+        doc.setFontSize(10);
+        doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]);
+        doc.setFont("helvetica", "normal");
+        doc.text("Indumentaria & Accesorios", 14, 32);
+        doc.text("Av. Principal 123, Ciudad", 14, 37);
+
+        doc.setFontSize(20);
+        doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
+        doc.setFont("helvetica", "bold");
+        doc.text("PRESUPUESTO", 195, 25, { align: "right" });
+
+        doc.setFontSize(10);
+        doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]);
+        doc.text(`Fecha:`, 160, 32);
+        doc.text(`Comprobante Nº:`, 145, 37);
+        
+        doc.setFont("helvetica", "normal");
+        doc.text(fechaActual, 195, 32, { align: "right" });
+        doc.text(numeroPresupuestoReal, 195, 37, { align: "right" });
+
+        doc.setDrawColor(colorLinea[0], colorLinea[1], colorLinea[2]);
+        doc.line(14, 48, 195, 48);
+
+        doc.setFontSize(11);
+        doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+        doc.setFont("helvetica", "bold");
+        doc.text("Preparado para:", 14, 56);
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "normal");
+        doc.text(inputCliente, 14, 63);
+
+        const columnas = [["CANT.", "DESCRIPCIÓN", "PRECIO UNIT.", "SUBTOTAL"]];
+        const filas = carrito.map(prod => [
+            prod.cantidad.toString(),
+            `${prod.nombre} (T:${prod.talle} - C:${prod.color})`,
+            `$${prod.precio.toLocaleString('es-AR')}`,
+            `$${(prod.precio * prod.cantidad).toLocaleString('es-AR')}`
+        ]);
+
+        doc.autoTable({
+            startY: 72,
+            head: columnas,
+            body: filas,
+            theme: 'grid',
+            headStyles: { fillColor: colorPrimario, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+            columnStyles: { 0: { halign: 'center', cellWidth: 20 }, 1: { halign: 'left' }, 2: { halign: 'right', cellWidth: 35 }, 3: { halign: 'right', cellWidth: 35 } },
+            styles: { fontSize: 10, cellPadding: 5, textColor: colorPrimario, lineColor: colorLinea, lineWidth: 0.1 },
+            alternateRowStyles: { fillColor: [248, 250, 252] }
+        });
+
+        const finalY = doc.lastAutoTable.finalY || 70;
+        doc.setFillColor(241, 245, 249); 
+        doc.rect(120, finalY + 10, 75, 22, 'F');
+
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+        doc.text("TOTAL:", 125, finalY + 25);
+        
+        doc.setFontSize(16);
+        doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
+        doc.text(`$${totalCarrito.toLocaleString('es-AR')}`, 190, finalY + 25, { align: "right" });
+
+        doc.save(`Cotizacion_${numeroPresupuestoReal}.pdf`);
+
+        // 🌟 5. LIMPIEZA FINAL Y ÉXITO (LA MAGIA REPARADA)
+        carrito = []; // Vaciamos a la fuerza
+        
+        // Actualizamos tu interfaz gráfica usando las funciones exactas de tu archivo
+        if (typeof actualizarInterfazCarrito === 'function') actualizarInterfazCarrito();
+        if (typeof filtrarProductos === 'function') filtrarProductos();
+        
+        // Cerramos el modal de cobro si quedó abierto
+        if (typeof window.cerrarModalCobro === 'function') window.cerrarModalCobro();
+        
+        // Refrescamos la tabla de presupuestos de fondo (para que aparezca apenas vayas a la pestaña)
+        if (typeof cargarPresupuestos === 'function') cargarPresupuestos();
+
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'success',
+                title: '¡Presupuesto Generado!',
+                text: 'Se guardó en el sistema y se descargó el PDF.',
+                timer: 2500,
+                showConfirmButton: false
+            });
+        } else {
+            alert("¡Presupuesto Generado Exitosamente!");
+        }
+
+    } catch (error) {
+        console.error("Error crítico al procesar presupuesto:", error);
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error al guardar',
+                text: 'Revisá la conexión con tu servidor. El PDF no se generó para evitar problemas.'
+            });
+        } else {
+            alert("Error al guardar en el servidor.");
+        }
     }
-
-    Swal.fire({
-        icon: 'success',
-        title: '¡Presupuesto Generado!',
-        text: 'El PDF Premium se ha descargado correctamente.',
-        timer: 2500,
-        showConfirmButton: false
-    });
 };
 
 // 🌟 INYECTOR DEL TELETRANSPORTADOR PARA ADMINISTRADORES (CORREGIDO)
