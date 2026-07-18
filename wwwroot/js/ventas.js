@@ -3147,11 +3147,8 @@ window.generarHTMLPresupuestoA4 = function(total, prendas, fecha, numeroPresupue
 window.generarPresupuesto = async function() {
     // 1. Verificación de seguridad
     if (carrito.length === 0) {
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({ icon: 'warning', title: 'Carrito vacío', text: 'Agregá productos antes de crear un presupuesto.' });
-        } else {
-            alert("Carrito vacío. Agregá productos antes de crear un presupuesto.");
-        }
+        if (typeof window.toast !== 'undefined') window.toast.warning('El carrito está vacío.');
+        else alert("Carrito vacío. Agregá productos antes de crear un presupuesto.");
         return;
     }
 
@@ -3164,16 +3161,16 @@ window.generarPresupuesto = async function() {
     const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
     const sucursalCajero = usuarioLocal.sucursalId || 1;
 
-    // 🌟 2. ARMAMOS EL PAQUETE PARA LA BASE DE DATOS
+    // 🌟 2. ARMAMOS EL PAQUETE PARA LA BASE DE DATOS (Hablando en "C#")
     const payload = {
         clienteId: window.clienteSeleccionado || null,
         clienteNombre: inputCliente,
         sucursalId: sucursalCajero,
         total: totalCarrito,
-        items: carrito.map(item => ({
+        detalles: carrito.map(item => ({       // 👈 C# espera "detalles" para presupuestos
             varianteId: item.id,
             cantidad: item.cantidad,
-            precio: item.precio, 
+            precioUnitario: item.precio,       // 👈 C# espera "precioUnitario"
             sucursalId: item.sucursalId || sucursalCajero
         }))
     };
@@ -3191,18 +3188,19 @@ window.generarPresupuesto = async function() {
         });
 
         if (!respuestaBD.ok) {
-            throw new Error('Fallo al guardar en el servidor');
+            // 🔥 CHIVATO: Leemos el motivo exacto del rechazo del backend
+            const errorTexto = await respuestaBD.text();
+            throw new Error(errorTexto || `Error HTTP ${respuestaBD.status}`);
         }
 
-        // Si el backend nos devuelve el número real de presupuesto, lo usamos. 
-        // Si no, inventamos uno temporal para el PDF.
+        // Recuperamos el ID generado por el backend
         let numeroPresupuestoReal = "PR-" + Math.floor(Math.random() * 10000).toString().padStart(4, '0');
         try {
             const dataBD = await respuestaBD.json();
             if (dataBD.numeroPresupuesto || dataBD.id) {
                 numeroPresupuestoReal = "PR-" + (dataBD.numeroPresupuesto || dataBD.id).toString().padStart(4, '0');
             }
-        } catch(e) { console.log("Usando N° de presupuesto temporal para PDF."); }
+        } catch(e) { console.log("Usando N° temporal para el PDF."); }
 
         // 🌟 4. GENERACIÓN DEL PDF PREMIUM
         const { jsPDF } = window.jspdf;
@@ -3283,41 +3281,25 @@ window.generarPresupuesto = async function() {
 
         doc.save(`Cotizacion_${numeroPresupuestoReal}.pdf`);
 
-        // 🌟 5. LIMPIEZA FINAL Y ÉXITO (LA MAGIA REPARADA)
-        carrito = []; // Vaciamos a la fuerza
+        // 🌟 5. LIMPIEZA FINAL Y ÉXITO
+        carrito = []; 
         
-        // Actualizamos tu interfaz gráfica usando las funciones exactas de tu archivo
         if (typeof actualizarInterfazCarrito === 'function') actualizarInterfazCarrito();
         if (typeof filtrarProductos === 'function') filtrarProductos();
-        
-        // Cerramos el modal de cobro si quedó abierto
         if (typeof window.cerrarModalCobro === 'function') window.cerrarModalCobro();
-        
-        // Refrescamos la tabla de presupuestos de fondo (para que aparezca apenas vayas a la pestaña)
-        if (typeof cargarPresupuestos === 'function') cargarPresupuestos();
+        if (typeof cargarPresupuestos === 'function') cargarPresupuestos(); // Refresca la tabla de fondo
 
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                icon: 'success',
-                title: '¡Presupuesto Generado!',
-                text: 'Se guardó en el sistema y se descargó el PDF.',
-                timer: 2500,
-                showConfirmButton: false
-            });
-        } else {
-            alert("¡Presupuesto Generado Exitosamente!");
-        }
+        if (typeof window.toast !== 'undefined') window.toast.success("¡Presupuesto guardado y PDF generado!");
+        else alert("¡Presupuesto Generado Exitosamente!");
 
     } catch (error) {
         console.error("Error crítico al procesar presupuesto:", error);
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error al guardar',
-                text: 'Revisá la conexión con tu servidor. El PDF no se generó para evitar problemas.'
-            });
+        
+        // Disparamos el cartel rojo con el motivo EXACTO de tu servidor
+        if (typeof window.toast !== 'undefined') {
+            window.toast.error(`❌ Error del servidor: ${error.message}`);
         } else {
-            alert("Error al guardar en el servidor.");
+            alert(`Error al guardar en el servidor: ${error.message}`);
         }
     }
 };
