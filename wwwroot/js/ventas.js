@@ -315,7 +315,7 @@ function eliminarDelCarrito(index) {
 window.actualizarInterfazCarrito = function() {
     const contenedor = document.getElementById("carritoItems");
     const totalText = document.getElementById("totalVenta");
-    const modalTotalText = document.getElementById("modalTotalVenta"); // El total nuevo adentro del cuadrito
+    const modalTotalText = document.getElementById("modalTotalVenta");
     
     if (!contenedor || !totalText) return;
 
@@ -332,56 +332,55 @@ window.actualizarInterfazCarrito = function() {
     carrito.forEach((item, index) => {
         totalBase += item.precio * item.cantidad;
         const row = document.createElement("div");
-        row.className = "flex justify-between items-center bg-slate-950/50 p-3 rounded-xl border border-slate-800/60 mb-2 hover:border-slate-700 transition-colors";
+        row.className = "bg-slate-950/50 p-3 rounded-xl border border-slate-800/60 mb-2 hover:border-slate-700 transition-colors";
 
+        // 🔥 FIX DEL BUG DE SUCURSAL: Forzamos Number() para evitar que "1" y 1 no coincidan
         let opcionesSucursales = window.sucursalesParaVentas.map(s => 
-            `<option value="${s.id}" ${s.id === item.sucursalId ? 'selected' : ''}>📍 ${s.nombre}</option>`
+            `<option value="${s.id}" ${Number(s.id) === Number(item.sucursalId) ? 'selected' : ''}>📍 ${s.nombre}</option>`
         ).join('');
 
+        // 🔥 FIX RESPONSIVE: Diseño tipo "tarjeta apilada" para que no se rompa en monitores chicos o tablets
         row.innerHTML = `
-            <!-- Info del producto y Selector de Sucursal -->
-            <div class="flex-1 overflow-hidden pr-2 flex flex-col gap-1.5">
-                <h5 class="text-[13px] font-bold text-slate-200 truncate leading-tight">${item.nombre}</h5>
-                <div class="flex items-center gap-2">
-                    <p class="text-[10px] text-slate-500 uppercase font-medium tracking-wide">
-                        T: ${item.talle} <span class="mx-1">•</span> C: ${item.color}
-                    </p>
-                    <select onchange="carrito[${index}].sucursalId = parseInt(this.value)" class="bg-slate-900 border border-slate-700 text-[9px] text-indigo-300 font-bold uppercase tracking-wider rounded px-1 py-0.5 cursor-pointer focus:outline-none focus:border-indigo-500">
+            <div class="w-full flex flex-col gap-2">
+                
+                <!-- Fila 1: Título y Eliminar -->
+                <div class="flex justify-between items-start">
+                    <h5 class="text-[13px] font-bold text-slate-200 leading-tight pr-2">${item.nombre}</h5>
+                    <button onclick="eliminarDelCarrito(${index})" class="text-rose-500 hover:bg-rose-500/10 p-1.5 rounded-lg transition-colors flex-shrink-0" title="Quitar">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                </div>
+                
+                <!-- Fila 2: Tags y Selector de Sucursal (Ahora se adapta al espacio) -->
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700/50 whitespace-nowrap">T: ${item.talle}</span>
+                    <span class="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700/50 whitespace-nowrap">C: ${item.color}</span>
+                    <select onchange="carrito[${index}].sucursalId = parseInt(this.value)" class="flex-1 min-w-[130px] bg-indigo-950/20 border border-indigo-500/30 text-[10px] text-indigo-300 font-bold uppercase rounded px-2 py-1 cursor-pointer focus:outline-none focus:border-indigo-500 truncate transition-colors">
                         ${opcionesSucursales}
                     </select>
                 </div>
-            </div>
-            
-            <!-- Controles y Precio -->
-            <div class="flex items-center gap-3 flex-shrink-0">
-                <div class="flex items-center bg-slate-900 rounded-lg border border-slate-700 p-0.5 shadow-sm px-2">
-                    <span class="text-xs font-bold text-slate-200">x${item.cantidad}</span>
+                
+                <!-- Fila 3: Cantidad y Precio Final -->
+                <div class="flex justify-between items-center mt-1 pt-2 border-t border-slate-800/60">
+                    <span class="text-xs font-bold text-slate-300 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700/50">Cant: x${item.cantidad}</span>
+                    <span class="text-[14px] font-black text-emerald-400">$${item.precio * item.cantidad}</span>
                 </div>
                 
-                <span class="text-[14px] font-black text-emerald-400 w-16 text-right">$${item.precio * item.cantidad}</span>
-                
-                <button onclick="eliminarDelCarrito(${index})" class="text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 p-1.5 rounded-lg transition-colors" title="Quitar">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                </button>
             </div>
         `;
         contenedor.appendChild(row);
     });
 
-    // LÓGICA DE DESCUENTOS LIMPIA
+    // Lógica de descuentos que ya tenías
     const tipoMod = document.getElementById("tipoModificador")?.value || "nada";
     const valorMod = parseFloat(document.getElementById("valorModificador")?.value) || 0;
-    
     let totalFinal = totalBase;
-
     if (tipoMod === "descuento_pct") totalFinal -= totalBase * (valorMod / 100);
     if (tipoMod === "descuento_fijo") totalFinal -= valorMod;
     if (tipoMod === "recargo_pct") totalFinal += totalBase * (valorMod / 100);
     if (tipoMod === "recargo_fijo") totalFinal += valorMod;
-
     if (totalFinal < 0) totalFinal = 0;
     
-    // Actualizamos la pantalla de atrás y el modal al mismo tiempo
     const valorFormateado = `$${Math.round(totalFinal).toLocaleString('es-AR')}`;
     totalText.textContent = valorFormateado;
     if (modalTotalText) modalTotalText.textContent = valorFormateado;
@@ -3358,33 +3357,34 @@ window.generarPresupuesto = async function() {
     }
 };
 
-// 🌟 INYECTOR DEL TELETRANSPORTADOR PARA ADMINISTRADORES (CORREGIDO)
+// 🌟 INYECTOR DEL TELETRANSPORTADOR PARA ADMINISTRADORES (CORREGIDO Y RESPONSIVE)
 window.inicializarSelectorAdmin = function() {
     const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
     const esAdmin = (usuarioLocal.Rol === "administrador" || usuarioLocal.rol === "administrador");
 
     if (!esAdmin) return;
 
-    // Buscamos la barra de búsqueda real de tu sistema
     const cajaBusqueda = document.querySelector("#inputBuscador")?.parentElement;
     
     if (cajaBusqueda && !document.getElementById("teletransportadorAdmin")) {
+        // 🔥 FIX RESPONSIVE: flex-wrap permite que en tablets el botón baje y no aplaste la barra
         cajaBusqueda.style.display = "flex";
+        cajaBusqueda.style.flexWrap = "wrap"; 
         cajaBusqueda.style.gap = "10px";
 
         const select = document.createElement("select");
         select.id = "teletransportadorAdmin";
-        select.className = "form-select bg-dark border-secondary";
-        select.style.maxWidth = "280px";
-        select.style.fontWeight = "bold";
-        select.style.color = "#00ff9d"; 
-        select.style.cursor = "pointer";
+        
+        // 🔥 FIX DISEÑO: 100% Tailwind oscuro, sin blancos brillantes
+        select.className = "bg-slate-900 border border-slate-700 text-indigo-400 text-[11px] font-bold uppercase tracking-wide rounded-xl px-3 py-2.5 cursor-pointer focus:outline-none focus:border-indigo-500 shadow-sm shadow-indigo-900/20";
+        select.style.maxWidth = "240px"; 
 
         const sucursalActiva = localStorage.getItem("sucursalAdminActiva") || usuarioLocal.sucursalId || 1;
 
+        // 🔥 FIX BUG SUCURSAL: Aseguramos el Number()
         select.innerHTML = `
-            <option value="1" ${sucursalActiva == 1 ? "selected" : ""}>✈️ Operando en: San Miguel</option>
-            <option value="2" ${sucursalActiva == 2 ? "selected" : ""}>✈️ Operando en: Monteros</option>
+            <option value="1" ${Number(sucursalActiva) === 1 ? "selected" : ""}>✈️ Operando: San Miguel</option>
+            <option value="2" ${Number(sucursalActiva) === 2 ? "selected" : ""}>✈️ Operando: Monteros</option>
         `;
 
         cajaBusqueda.appendChild(select);
@@ -3396,21 +3396,18 @@ window.inicializarSelectorAdmin = function() {
             usuarioLocal.sucursalId = nuevaSucursal;
             localStorage.setItem("usuario", JSON.stringify(usuarioLocal));
 
-            // Vaciamos el carrito silenciosamente para no cruzar facturas
             carrito = [];
             if (typeof actualizarInterfazCarrito === "function") actualizarInterfazCarrito();
-            
-            // Recargamos los productos apuntando a la nueva sucursal
             if (typeof cargarProductos === "function") cargarProductos();
 
             if (window.toast) {
-                window.toast.success("🔄 Te teletransportaste a: " + select.options[select.selectedIndex].text.replace("✈️ Operando en: ", ""));
+                window.toast.success("🔄 Te teletransportaste a: " + select.options[select.selectedIndex].text.replace("✈️ Operando: ", ""));
             } else {
-                alert("🔄 Teletransportado a: " + select.options[select.selectedIndex].text.replace("✈️ Operando en: ", ""));
+                alert("🔄 Teletransportado a: " + select.options[select.selectedIndex].text.replace("✈️ Operando: ", ""));
             }
         });
 
-        if (usuarioLocal.sucursalId != sucursalActiva) {
+        if (Number(usuarioLocal.sucursalId) !== Number(sucursalActiva)) {
             usuarioLocal.sucursalId = parseInt(sucursalActiva);
             localStorage.setItem("usuario", JSON.stringify(usuarioLocal));
         }
