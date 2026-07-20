@@ -104,16 +104,14 @@ window.aplicarBrandingEmpresa = function() {
     const configRaw = localStorage.getItem("configEmpresa");
     if (configRaw) {
         const config = JSON.parse(configRaw);
-        // Si el cliente cargó un nombre, lo usamos. Si no, dejamos Space Terminal por defecto.
         const nombreLocal = config.nombreFantasia || "SPACE TERMINAL";
         
-        // 1. Cambia el Logo arriba a la izquierda
+        // Solo cambiamos el texto. El icono 👕 queda en su propia caja diseñada.
         const brandLogo = document.getElementById("brandLogoText");
         if (brandLogo) {
-            brandLogo.innerHTML = `👕 ${nombreLocal}`;
+            brandLogo.innerText = nombreLocal; 
         }
         
-        // 2. Cambia el nombre en la pestaña de Chrome/Edge
         const brandTitle = document.getElementById("brandTitle");
         if (brandTitle) {
             brandTitle.innerText = `${nombreLocal} - Sistema POS`;

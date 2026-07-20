@@ -214,14 +214,53 @@ window.confirmar = function(mensaje, textoConfirmar = "Confirmar", textoColor = 
         };
     });
 };
-// js/init.js
+
+// =========================================================================
+// 🎨 MÓDULO DE MARCA BLANCA (NUEVO)
+// =========================================================================
+window.aplicarBrandingEmpresa = function() {
+    const configRaw = localStorage.getItem("configEmpresa");
+    if (configRaw) {
+        const config = JSON.parse(configRaw);
+        const nombreLocal = config.nombreFantasia || "SPACE TERMINAL";
+        
+        // Solo cambiamos el texto. El icono 👕 queda en su propia caja diseñada en el dashboard.
+        const brandLogo = document.getElementById("brandLogoText");
+        if (brandLogo) {
+            brandLogo.innerText = nombreLocal; 
+        }
+        
+        const brandTitle = document.getElementById("brandTitle");
+        if (brandTitle) {
+            brandTitle.innerText = `${nombreLocal} - Sistema POS`;
+        }
+    }
+};
+
+// =========================================================================
+// 🚀 INICIALIZACIÓN PRINCIPAL
+// =========================================================================
 window.addEventListener("DOMContentLoaded", async () => {
     console.log("🚀 Iniciando sistema...");
 
-    // 1. Motor de navegación
-    window.cambiarPantalla = (id) => {
+    // 1. Motor de navegación (ACTUALIZADO CON ESTILOS PARA EL SIDEBAR)
+    window.cambiarPantalla = (id, botonElemento = null) => {
+        // Ocultar todas las pantallas
         document.querySelectorAll('main > div').forEach(div => div.classList.add('hidden'));
         document.getElementById(id).classList.remove('hidden');
+
+        // Si se hizo clic en un botón del menú, actualizamos los colores
+        if (botonElemento) {
+            // Apagamos todos los botones
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-indigo-600/10', 'text-indigo-400', 'border-indigo-500/20', 'shadow-sm');
+                btn.classList.add('text-slate-400', 'border-transparent');
+            });
+
+            // Encendemos el botón que se tocó
+            botonElemento.classList.remove('text-slate-400', 'border-transparent');
+            botonElemento.classList.add('bg-indigo-600/10', 'text-indigo-400', 'border-indigo-500/20', 'shadow-sm');
+        }
     };
 
     // 2. Control de seguridad con TU localStorage
@@ -242,6 +281,14 @@ window.addEventListener("DOMContentLoaded", async () => {
         
         // Pantalla inicial por defecto
         window.cambiarPantalla('seccion-ventas');
+        
+        // Marcar el botón de Punto de Venta como activo al inicio
+        const btnVentas = document.querySelector(`button[onclick*="'seccion-ventas'"]`);
+        if (btnVentas) {
+            btnVentas.classList.remove('text-slate-400', 'border-transparent');
+            btnVentas.classList.add('bg-indigo-600/10', 'text-indigo-400', 'border-indigo-500/20', 'shadow-sm');
+        }
+
         window.inicializarSeguridad();
         console.log("🎉 ¡Todo el sistema sincronizado con éxito!");
     } catch (error) {
