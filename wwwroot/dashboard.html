@@ -32,6 +32,21 @@
     </div>
     <style>
         @keyframes loading { 0% { width: 0%; } 100% { width: 100%; } }
+
+        /* 🔥 NUEVO: Scrollbar Premium para el Carrito */
+    #carritoItems::-webkit-scrollbar {
+        width: 4px; /* Súper finito */
+    }
+    #carritoItems::-webkit-scrollbar-track {
+        background: transparent; /* Fondo invisible */
+    }
+    #carritoItems::-webkit-scrollbar-thumb {
+        background-color: #334155; /* slate-700, combina con tu tema */
+        border-radius: 10px; /* Bordes redondeados */
+    }
+    #carritoItems::-webkit-scrollbar-thumb:hover {
+        background-color: #475569; /* Un toque más claro al pasar el mouse */
+    }
     </style>
     <script>
         // Ocultar la pantalla de carga después de 1.5 segundos

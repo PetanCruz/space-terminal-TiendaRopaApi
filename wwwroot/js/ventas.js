@@ -350,35 +350,35 @@ window.actualizarInterfazCarrito = function() {
             `<option value="${s.id}" ${Number(s.id) === Number(item.sucursalId) ? 'selected' : ''}>📍 ${s.nombre}</option>`
         ).join('');
 
-        // 🔥 FIX RESPONSIVE: Diseño tipo "tarjeta apilada" para que no se rompa en monitores chicos o tablets
-        row.innerHTML = `
-            <div class="w-full flex flex-col gap-2">
-                
-                <!-- Fila 1: Título y Eliminar -->
-                <div class="flex justify-between items-start">
-                    <h5 class="text-[13px] font-bold text-slate-200 leading-tight pr-2">${item.nombre}</h5>
-                    <button onclick="eliminarDelCarrito(${index})" class="text-rose-500 hover:bg-rose-500/10 p-1.5 rounded-lg transition-colors flex-shrink-0" title="Quitar">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                    </button>
-                </div>
-                
-                <!-- Fila 2: Tags y Selector de Sucursal (Ahora se adapta al espacio) -->
-                <div class="flex flex-wrap items-center gap-1.5">
-                    <span class="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700/50 whitespace-nowrap">T: ${item.talle}</span>
-                    <span class="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700/50 whitespace-nowrap">C: ${item.color}</span>
-                    <select onchange="carrito[${index}].sucursalId = parseInt(this.value)" class="flex-1 min-w-[130px] bg-indigo-950/20 border border-indigo-500/30 text-[10px] text-indigo-300 font-bold uppercase rounded px-2 py-1 cursor-pointer focus:outline-none focus:border-indigo-500 truncate transition-colors">
-                        ${opcionesSucursales}
-                    </select>
-                </div>
-                
-                <!-- Fila 3: Cantidad y Precio Final -->
-                <div class="flex justify-between items-center mt-1 pt-2 border-t border-slate-800/60">
-                    <span class="text-xs font-bold text-slate-300 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700/50">Cant: x${item.cantidad}</span>
-                    <span class="text-[14px] font-black text-emerald-400">$${item.precio * item.cantidad}</span>
-                </div>
-                
+        // Diseño compacto y premium para cada prenda en el carrito
+            const div = document.createElement('div');
+            div.className = "group bg-slate-950/40 hover:bg-slate-900 border-b border-slate-800/60 p-3 transition-colors flex flex-col gap-2 rounded-lg";
+            div.innerHTML = `
+            <div class="flex justify-between items-start gap-2">
+            <div class="flex-1 min-w-0">
+            <h4 class="text-[13px] font-bold text-slate-200 truncate leading-tight">${item.nombre}</h4>
+            <div class="flex flex-wrap items-center gap-1.5 mt-1">
+                <span class="text-[9px] font-medium bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded shadow-sm">T: ${item.talle}</span>
+                <span class="text-[9px] font-medium bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded shadow-sm">C: ${item.color}</span>
+                <span class="text-[9px] font-medium ${item.sucursalId === 1 ? 'bg-indigo-900/30 text-indigo-400' : 'bg-emerald-900/30 text-emerald-400'} border border-slate-700/50 px-1.5 py-0.5 rounded shadow-sm truncate max-w-[100px]">
+                    📍 ${item.sucursalId === 1 ? 'Monteros' : 'San Miguel'}
+                </span>
             </div>
-        `;
+        </div>
+        <button onclick="window.eliminarDelCarrito(${index})" class="text-slate-500 hover:text-rose-400 transition-colors cursor-pointer p-1 rounded-md hover:bg-rose-950/30 flex-shrink-0" title="Quitar">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+        </button>
+        </div>
+    
+        <div class="flex justify-between items-center mt-1">
+        <div class="flex items-center bg-slate-900 border border-slate-700 rounded-lg overflow-hidden h-7 shadow-inner">
+            <button onclick="window.modificarCantidad(${index}, -1)" class="w-7 h-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">-</button>
+            <input type="number" value="${item.cantidad}" onchange="window.cambiarCantidadManual(${index}, this.value)" class="w-8 h-full bg-transparent text-center text-xs font-mono text-white focus:outline-none hide-arrows">
+            <button onclick="window.modificarCantidad(${index}, 1)" class="w-7 h-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">+</button>
+        </div>
+        <span class="text-sm font-black text-emerald-400 font-mono">$${(item.precio * item.cantidad).toLocaleString()}</span>
+        </div>
+`;
         contenedor.appendChild(row);
     });
 
