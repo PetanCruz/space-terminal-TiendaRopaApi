@@ -258,6 +258,7 @@ function agregarAlCarritoPorId(id) {
 }
 
 // Agregar al carrito
+// Agregar al carrito
 function agregarAlCarrito(index, varianteId) {
     const productoSeleccionado = productos[index];
     const variantes = productoSeleccionado.variantes ?? productoSeleccionado.Variantes ?? [];
@@ -265,12 +266,17 @@ function agregarAlCarrito(index, varianteId) {
     const varianteSeleccionada = variantes.find(v => (v.id ?? v.Id) === varianteId);
     if (!varianteSeleccionada) return;
 
+    // 🔥 FIX DEFINITIVO: Leemos el ID REAL de la sucursal de ESA prenda desde la Base de Datos
+    let idSucursalReal = varianteSeleccionada.sucursalId ?? varianteSeleccionada.SucursalId;
+    
+    // Si por algún motivo la prenda no tiene sucursal asociada, caemos en la del administrador
+    if (!idSucursalReal) {
+        const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+        idSucursalReal = parseInt(localStorage.getItem("sucursalAdminActiva")) || parseInt(usuarioLocal.sucursalId) || 1;
+    }
+
     const esAdmin = typeof window.esAdmin === 'function' ? window.esAdmin() : false;
-    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
-
-    // 🔥 FIX CRÍTICO: Leemos en vivo la sucursal activa del teletransportador o del cajero
-    const sucursalActiva = parseInt(localStorage.getItem("sucursalAdminActiva")) || parseInt(usuarioLocal.sucursalId) || 1;
-
+    
     let stockGlobal = 0;
     if (varianteSeleccionada.stockDetalle && Array.isArray(varianteSeleccionada.stockDetalle)) {
         stockGlobal = varianteSeleccionada.stockDetalle.reduce((acc, suc) => acc + (suc.cantidad || 0), 0);
@@ -279,8 +285,8 @@ function agregarAlCarrito(index, varianteId) {
     
     const stockDisponible = esAdmin ? stockGlobal : stockLocal;
     
-    // Buscamos si existe ESE producto en ESA sucursal específica
-    const itemEnCarrito = carrito.find(item => item.id === varianteId && Number(item.sucursalId) === sucursalActiva);
+    // Buscamos si existe ESE producto exactamente en ESA sucursal real
+    const itemEnCarrito = carrito.find(item => item.id === varianteId && Number(item.sucursalId) === Number(idSucursalReal));
 
     if (itemEnCarrito) {
         if (itemEnCarrito.cantidad < stockDisponible) {
@@ -299,7 +305,7 @@ function agregarAlCarrito(index, varianteId) {
             color: varianteSeleccionada.color ?? varianteSeleccionada.Color ?? "N/A",
             amount: 1, 
             cantidad: 1,
-            sucursalId: sucursalActiva // 🔥 SE ASIGNA LA SUCURSAL CORRECTA ACÁ
+            sucursalId: parseInt(idSucursalReal) // 🔥 SE GUARDA LA SUCURSAL EXACTA DE LA PRENDA
         });
     }
 
@@ -3372,24 +3378,21 @@ window.inicializarSelectorAdmin = function() {
     const cajaBusqueda = document.querySelector("#inputBuscador")?.parentElement;
     
     if (cajaBusqueda && !document.getElementById("teletransportadorAdmin")) {
-        // 🔥 FIX RESPONSIVE: flex-wrap permite que en tablets el botón baje y no aplaste la barra
         cajaBusqueda.style.display = "flex";
         cajaBusqueda.style.flexWrap = "wrap"; 
         cajaBusqueda.style.gap = "10px";
 
         const select = document.createElement("select");
         select.id = "teletransportadorAdmin";
-        
-        // 🔥 FIX DISEÑO: 100% Tailwind oscuro, sin blancos brillantes
         select.className = "bg-slate-900 border border-slate-700 text-indigo-400 text-[11px] font-bold uppercase tracking-wide rounded-xl px-3 py-2.5 cursor-pointer focus:outline-none focus:border-indigo-500 shadow-sm shadow-indigo-900/20";
         select.style.maxWidth = "240px"; 
 
         const sucursalActiva = localStorage.getItem("sucursalAdminActiva") || usuarioLocal.sucursalId || 1;
 
-        // 🔥 FIX BUG SUCURSAL: Aseguramos el Number()
+        // 🔥 FIX: Acomodamos los IDs. Monteros es 1 (Casa Central) y San Miguel es 2.
         select.innerHTML = `
-            <option value="1" ${Number(sucursalActiva) === 1 ? "selected" : ""}>✈️ Operando: San Miguel</option>
-            <option value="2" ${Number(sucursalActiva) === 2 ? "selected" : ""}>✈️ Operando: Monteros</option>
+            <option value="1" ${Number(sucursalActiva) === 1 ? "selected" : ""}>✈️ Operando: Monteros</option>
+            <option value="2" ${Number(sucursalActiva) === 2 ? "selected" : ""}>✈️ Operando: San Miguel</option>
         `;
 
         cajaBusqueda.appendChild(select);
