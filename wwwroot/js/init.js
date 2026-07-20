@@ -373,15 +373,10 @@ window.mostrarUsuarioActual = function() {
 
         const contenedor = document.getElementById("usuarioActualHeader");
         if (contenedor) {
+            // Diseño ultra limpio: Nombre arriba, Rol abajo.
             contenedor.innerHTML = `
-                <span class="text-xs text-slate-400">
-                    👤 <strong class="text-slate-200">${nombre}</strong>
-                    <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                        rol.toLowerCase() === "administrador"
-                            ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                            : "bg-slate-700 text-slate-300"
-                    }">${rol}</span>
-                </span>
+                <span class="text-[13px] font-bold text-slate-200 truncate leading-tight">${nombre}</span>
+                <span class="text-[9px] text-indigo-400 font-semibold uppercase tracking-wider">${rol}</span>
             `;
         }
     } catch (e) {
@@ -527,12 +522,14 @@ window.addEventListener("load", () => {
     }
 });
 
+// ── Evento DOMContentLoaded para la Sucursal ─────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
     const usuarioLocal = JSON.parse(localStorage.getItem("usuario"));
     if(usuarioLocal && usuarioLocal.sucursalNombre) {
         const headerDiv = document.getElementById("usuarioActualHeader");
         if(headerDiv) {
-            headerDiv.innerHTML = `<span class="text-indigo-300 font-bold text-xs ml-2">📍 ${usuarioLocal.sucursalNombre}</span>`;
+            // Se agrega suavemente abajo del rol
+            headerDiv.innerHTML += `<span class="text-[9px] text-slate-500 truncate mt-0.5">📍 ${usuarioLocal.sucursalNombre}</span>`;
         }
     }
 });
