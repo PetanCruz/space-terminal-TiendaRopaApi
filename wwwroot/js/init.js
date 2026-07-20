@@ -261,6 +261,10 @@ window.addEventListener("DOMContentLoaded", async () => {
             botonElemento.classList.remove('text-slate-400', 'border-transparent');
             botonElemento.classList.add('bg-indigo-600/10', 'text-indigo-400', 'border-indigo-500/20', 'shadow-sm');
         }
+
+        if (id === 'seccion-historial' && typeof window.filtrarVentas === 'function') {
+            window.filtrarVentas('hoy'); 
+        }
     };
 
     // 2. Control de seguridad con TU localStorage

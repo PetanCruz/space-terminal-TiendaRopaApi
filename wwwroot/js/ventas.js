@@ -168,7 +168,7 @@ function dibujarTarjetaHtml(contenedor, id, nombre, precio, stock, talle, color,
 
     // Configuramos dinámicamente los estilos según el nivel de stock
     let claseStock = "text-slate-400";
-    let textoStock = `Stock: ${stock} u.`;
+    let textoStock = `📦 Stock: ${stock} u.`;
     let badgeCritico = "";
 
     if (!tieneStock) {
@@ -185,36 +185,34 @@ function dibujarTarjetaHtml(contenedor, id, nombre, precio, stock, talle, color,
     }
 
     const tarjeta = document.createElement("div");
-    // Si es crítico, le ponemos un borde ámbar sutil y una leve sombra para destacar
-    tarjeta.className = `bg-slate-900 p-4 rounded-2xl border ${esCritico ? 'border-amber-500/40 shadow-lg shadow-amber-950/20' : 'border-slate-800'} flex flex-col justify-between transition-all duration-300`;
+    // Estructura nueva (Rounded 2xl, hover effects, group)
+    tarjeta.className = `bg-slate-900 border ${esCritico ? 'border-amber-500/40 shadow-lg shadow-amber-950/20' : 'border-slate-800'} rounded-2xl p-4 flex flex-col justify-between hover:border-indigo-500/50 transition-all shadow-sm hover:shadow-indigo-500/10 group`;
 
     tarjeta.innerHTML = `
         <div>
-            <div class="flex justify-between items-center">
-                <span class="bg-indigo-950 text-indigo-400 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border border-indigo-500/20">
+            <div class="flex justify-between items-start mb-3">
+                <span class="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-1 rounded-md uppercase tracking-wider">
                     ${categoria}
                 </span>
-                ${badgeCritico}
+                ${badgeCritico ? badgeCritico : `<span class="text-[11px] font-semibold ${claseStock} bg-slate-950 px-2 py-1 rounded-md border border-slate-800">${textoStock}</span>`}
             </div>
             
-            <h3 class="text-white font-bold mt-2 text-base">${nombre}</h3>
+            <h4 class="text-slate-100 font-bold text-base leading-tight mb-2 group-hover:text-indigo-300 transition-colors">
+                ${nombre}
+            </h4>
             
-            <div class="flex gap-2 mt-1">
-                <span class="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded">Talle: ${talle}</span>
-                <span class="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded">Color: ${color}</span>
+            <div class="flex flex-wrap gap-1.5 text-[10px] text-slate-400 mb-4">
+                <span class="bg-slate-800 px-2 py-1 rounded-md">Talle: <b class="text-slate-200">${talle}</b></span>
+                <span class="bg-slate-800 px-2 py-1 rounded-md">Color: <b class="text-slate-200">${color}</b></span>
             </div>
-            
-            <p class="text-xs ${claseStock} mt-3 flex items-center gap-1">
-                ${textoStock}
-            </p>
         </div>
-        
-        <div class="flex justify-between items-center mt-4">
-            <span class="text-emerald-400 font-extrabold text-lg">$${precio}</span>
+
+        <div class="flex items-center justify-between mt-1 pt-3 border-t border-slate-800/60">
+            <span class="text-xl font-black text-emerald-400">$${precio}</span>
             <button 
                 onclick="agregarAlCarritoPorId(${id})" 
                 ${tieneStock ? '' : 'disabled'} 
-                class="${tieneStock ? 'bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer' : 'bg-slate-800 text-slate-500 cursor-not-allowed'} font-bold text-xs px-4 py-2 rounded-xl transition-all">
+                class="${tieneStock ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-900/20 hover:shadow-indigo-500/30' : 'bg-slate-800 text-slate-500 cursor-not-allowed'} text-[13px] font-bold py-2 px-5 rounded-xl transition-all active:scale-95">
                 ${tieneStock ? 'Agregar' : 'Sin Stock'}
             </button>
         </div>
@@ -334,24 +332,37 @@ window.actualizarInterfazCarrito = function() {
     carrito.forEach((item, index) => {
         totalBase += item.precio * item.cantidad;
         const row = document.createElement("div");
-        row.className = "bg-slate-900 p-3 rounded-xl border border-slate-700/60 flex justify-between items-center text-sm mb-2";
+        row.className = "flex justify-between items-center bg-slate-950/50 p-3 rounded-xl border border-slate-800/60 mb-2 hover:border-slate-700 transition-colors";
 
         let opcionesSucursales = window.sucursalesParaVentas.map(s => 
             `<option value="${s.id}" ${s.id === item.sucursalId ? 'selected' : ''}>📍 ${s.nombre}</option>`
         ).join('');
 
         row.innerHTML = `
-            <div class="flex-1 pr-2">
-                <p class="font-bold text-white leading-tight">${item.nombre}</p>
-                <p class="text-[11px] text-slate-400 mb-1.5">Talle ${item.talle} - ${item.color} x $${item.precio}</p>
-                
-                <select onchange="carrito[${index}].sucursalId = parseInt(this.value)" class="w-full max-w-[160px] bg-slate-950/80 border border-slate-700 text-[10px] text-indigo-300 font-bold uppercase tracking-wider rounded p-1 cursor-pointer focus:outline-none focus:border-indigo-500">
-                    ${opcionesSucursales}
-                </select>
+            <!-- Info del producto y Selector de Sucursal -->
+            <div class="flex-1 overflow-hidden pr-2 flex flex-col gap-1.5">
+                <h5 class="text-[13px] font-bold text-slate-200 truncate leading-tight">${item.nombre}</h5>
+                <div class="flex items-center gap-2">
+                    <p class="text-[10px] text-slate-500 uppercase font-medium tracking-wide">
+                        T: ${item.talle} <span class="mx-1">•</span> C: ${item.color}
+                    </p>
+                    <select onchange="carrito[${index}].sucursalId = parseInt(this.value)" class="bg-slate-900 border border-slate-700 text-[9px] text-indigo-300 font-bold uppercase tracking-wider rounded px-1 py-0.5 cursor-pointer focus:outline-none focus:border-indigo-500">
+                        ${opcionesSucursales}
+                    </select>
+                </div>
             </div>
-            <div class="flex items-center space-x-3">
-                <span class="bg-slate-800 text-indigo-400 font-extrabold px-2.5 py-1 rounded border border-slate-700">x${item.cantidad}</span>
-                <button onclick="eliminarDelCarrito(${index})" class="text-rose-400 hover:text-rose-500 font-bold text-xs p-1 cursor-pointer">❌</button>
+            
+            <!-- Controles y Precio -->
+            <div class="flex items-center gap-3 flex-shrink-0">
+                <div class="flex items-center bg-slate-900 rounded-lg border border-slate-700 p-0.5 shadow-sm px-2">
+                    <span class="text-xs font-bold text-slate-200">x${item.cantidad}</span>
+                </div>
+                
+                <span class="text-[14px] font-black text-emerald-400 w-16 text-right">$${item.precio * item.cantidad}</span>
+                
+                <button onclick="eliminarDelCarrito(${index})" class="text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 p-1.5 rounded-lg transition-colors" title="Quitar">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
             </div>
         `;
         contenedor.appendChild(row);
