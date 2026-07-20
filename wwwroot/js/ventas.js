@@ -265,9 +265,11 @@ function agregarAlCarrito(index, varianteId) {
     const varianteSeleccionada = variantes.find(v => (v.id ?? v.Id) === varianteId);
     if (!varianteSeleccionada) return;
 
-    // 🌟 FIX: Lectura segura
-    const esAdmin = window.esAdmin();
+    const esAdmin = typeof window.esAdmin === 'function' ? window.esAdmin() : false;
     const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+
+    // 🔥 FIX CRÍTICO: Leemos en vivo la sucursal activa del teletransportador o del cajero
+    const sucursalActiva = parseInt(localStorage.getItem("sucursalAdminActiva")) || parseInt(usuarioLocal.sucursalId) || 1;
 
     let stockGlobal = 0;
     if (varianteSeleccionada.stockDetalle && Array.isArray(varianteSeleccionada.stockDetalle)) {
@@ -276,30 +278,33 @@ function agregarAlCarrito(index, varianteId) {
     const stockLocal = varianteSeleccionada.stock ?? varianteSeleccionada.Stock ?? 0;
     
     const stockDisponible = esAdmin ? stockGlobal : stockLocal;
-    const itemEnCarrito = carrito.find(item => item.id === varianteId && item.sucursalId === (usuarioLocal.sucursalId || 1));
+    
+    // Buscamos si existe ESE producto en ESA sucursal específica
+    const itemEnCarrito = carrito.find(item => item.id === varianteId && Number(item.sucursalId) === sucursalActiva);
 
     if (itemEnCarrito) {
         if (itemEnCarrito.cantidad < stockDisponible) {
             itemEnCarrito.cantidad++;
         } else {
-            alert("No podés agregar más unidades que las disponibles en stock.");
+            if(window.toast) window.toast.warning("Stock máximo alcanzado para esta prenda.");
+            else alert("No podés agregar más unidades que las disponibles en stock.");
             return;
         }
     } else {
         carrito.push({
             id: varianteId, 
-            nombre: productoSeleccionado.nombre,
-            precio: productoSeleccionado.precio,
+            nombre: productoSeleccionado.nombre || productoSeleccionado.Nombre,
+            precio: productoSeleccionado.precio || productoSeleccionado.PrecioVenta,
             talle: varianteSeleccionada.talle ?? varianteSeleccionada.Talle ?? "N/A",
             color: varianteSeleccionada.color ?? varianteSeleccionada.Color ?? "N/A",
             amount: 1, 
             cantidad: 1,
-            sucursalId: usuarioLocal.sucursalId || 1 
+            sucursalId: sucursalActiva // 🔥 SE ASIGNA LA SUCURSAL CORRECTA ACÁ
         });
     }
 
-    actualizarInterfazCarrito();
-    filtrarProductos();
+    if(typeof actualizarInterfazCarrito === "function") actualizarInterfazCarrito();
+    if(typeof filtrarProductos === "function") filtrarProductos();
 }
 
 // Eliminar del Carrito

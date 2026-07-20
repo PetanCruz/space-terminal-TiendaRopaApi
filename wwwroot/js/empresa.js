@@ -1,12 +1,10 @@
 // =========================================================================
-// ⚙️ MÓDULO EMPRESA (CONFIGURACIÓN)
+// ⚙️ MÓDULO EMPRESA (CONFIGURACIÓN CON LOGO DINÁMICO)
 // =========================================================================
 
 window.cargarDatosEmpresa = async function() {
     try {
         // 1. EL TRUCO INVISIBLE: Llamamos a la instalación en segundo plano.
-        // Si la tabla no existe en la base de datos de Railway, se crea sola.
-        // Si ya existe, falla en silencio y no molesta a nadie.
         await fetch(`${API_URL}/empresa/instalar`).catch(() => {});
 
         // 2. Traer los datos reales
@@ -15,10 +13,12 @@ window.cargarDatosEmpresa = async function() {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
+        // 🌟 Recuperamos el config viejo por si la base de datos de C# aún no tiene la columna "logo"
+        const configLocal = JSON.parse(localStorage.getItem("configEmpresa")) || {};
+
         if (response.ok) {
             const data = await response.json();
             
-            // Si la base de datos nos devolvió información, llenamos los inputs
             if (data && data.nombre) {
                 document.getElementById('empresaNombre').value = data.nombre || '';
                 document.getElementById('empresaCuit').value = data.cuit || '';
@@ -26,16 +26,24 @@ window.cargarDatosEmpresa = async function() {
                 document.getElementById('empresaTelefono').value = data.telefono || '';
                 document.getElementById('empresaMensaje').value = data.mensajeTicket || '';
                 
-                // 3. LA MAGIA: Alimentamos tu código existente de PDFs
-                // Guardamos en localStorage usando la misma estructura que espera tu archivo ventas.js
+                // 🌟 Buscamos el logo en la API, y si no está, usamos el que quedó en memoria
+                const logoGuardado = data.logo || configLocal.logo || '';
+                if(document.getElementById('empresaLogo')) {
+                    document.getElementById('empresaLogo').value = logoGuardado;
+                }
+                
+                // 3. Guardamos todo en memoria para que Ventas y PDFs lo puedan leer
                 localStorage.setItem("configEmpresa", JSON.stringify({
                     nombreFantasia: data.nombre,
-                    razonSocial: data.nombre, // Usamos el mismo para simplificar
+                    razonSocial: data.nombre, 
                     cuit: `CUIT: ${data.cuit}`,
                     direccion: data.direccion,
                     telefono: `Tel: ${data.telefono}`,
-                    mensajeTicket: data.mensajeTicket || "¡Gracias por su compra!"
+                    mensajeTicket: data.mensajeTicket || "¡Gracias por su compra!",
+                    logo: logoGuardado // 🔥 Guardamos el logo
                 }));
+
+                window.aplicarBrandingEmpresa(); // Disparamos el cambio visual
             }
         }
     } catch (error) {
@@ -47,17 +55,20 @@ window.guardarDatosEmpresa = async function(e) {
     e.preventDefault();
     const token = localStorage.getItem('token');
     
-    // Usamos tu función de carga elegante del init.js
     const btn = e.submitter;
     const restaurarBtn = window.btnLoading ? window.btnLoading(btn, "Guardando...") : () => {};
+
+    // 🌟 Leemos el nuevo input del logo
+    const logoInput = document.getElementById('empresaLogo') ? document.getElementById('empresaLogo').value.trim() : '';
 
     const payload = {
         nombre: document.getElementById('empresaNombre').value,
         cuit: document.getElementById('empresaCuit').value,
         direccion: document.getElementById('empresaDireccion').value,
         telefono: document.getElementById('empresaTelefono').value,
-        email: "sin-email@local.com", // Por ahora lo dejamos fijo si no se usa
-        mensajeTicket: document.getElementById('empresaMensaje').value || "¡Gracias por su compra!"
+        email: "sin-email@local.com", 
+        mensajeTicket: document.getElementById('empresaMensaje').value || "¡Gracias por su compra!",
+        logo: logoInput // 🔥 Lo mandamos a la API (si C# lo ignora, no pasa nada)
     };
 
     try {
@@ -71,21 +82,21 @@ window.guardarDatosEmpresa = async function(e) {
         });
 
         if (response.ok) {
-            // Usamos tu sistema de Toasts del init.js
             if(window.toast) {
                 window.toast.success("Datos del negocio actualizados correctamente.");
             } else {
                 alert("✅ Datos guardados con éxito.");
             }
 
-            // Actualizamos la memoria local al instante para que el próximo ticket salga con estos datos
+            // Actualizamos la memoria local al instante
             localStorage.setItem("configEmpresa", JSON.stringify({
                 nombreFantasia: payload.nombre,
                 razonSocial: payload.nombre,
                 cuit: `CUIT: ${payload.cuit}`,
                 direccion: payload.direccion,
                 telefono: `Tel: ${payload.telefono}`,
-                mensajeTicket: payload.mensajeTicket
+                mensajeTicket: payload.mensajeTicket,
+                logo: payload.logo // 🔥 Refrescamos el logo en memoria
             }));
 
             window.aplicarBrandingEmpresa();
@@ -106,7 +117,6 @@ window.aplicarBrandingEmpresa = function() {
         const config = JSON.parse(configRaw);
         const nombreLocal = config.nombreFantasia || "SPACE TERMINAL";
         
-        // Solo cambiamos el texto. El icono 👕 queda en su propia caja diseñada.
         const brandLogo = document.getElementById("brandLogoText");
         if (brandLogo) {
             brandLogo.innerText = nombreLocal; 
@@ -116,5 +126,23 @@ window.aplicarBrandingEmpresa = function() {
         if (brandTitle) {
             brandTitle.innerText = `${nombreLocal} - Sistema POS`;
         }
+
+        // 🌟 LA MAGIA DEL LOGO EN EL MENÚ LATERAL
+        const brandIconContainer = document.getElementById("brandLogoIcon")?.parentElement;
+        if (brandIconContainer && config.logo) {
+            brandIconContainer.innerHTML = `<img src="${config.logo}" alt="Logo" class="w-full h-full object-cover rounded-lg">`;
+            brandIconContainer.classList.remove("bg-gradient-to-br", "from-indigo-500", "to-purple-600");
+            brandIconContainer.classList.add("bg-transparent", "border-transparent");
+        } else if (brandIconContainer && !config.logo) {
+            // Si borran el logo, vuelve la remera original
+            brandIconContainer.innerHTML = `<span id="brandLogoIcon">👕</span>`;
+            brandIconContainer.classList.add("bg-gradient-to-br", "from-indigo-500", "to-purple-600");
+            brandIconContainer.classList.remove("bg-transparent", "border-transparent");
+        }
     }
 };
+
+// Que se ejecute apenas arranca el sistema para pintar el menú
+document.addEventListener("DOMContentLoaded", () => {
+    window.aplicarBrandingEmpresa();
+});
