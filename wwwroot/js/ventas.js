@@ -320,6 +320,13 @@ function eliminarDelCarrito(index) {
     filtrarProductos();
 }
 
+window.cambiarSucursalItem = function(index, nuevoId) {
+    if (carrito[index]) {
+        carrito[index].sucursalId = parseInt(nuevoId);
+        window.actualizarInterfazCarrito(); // Refrescamos el ticket
+    }
+};
+
 // ========================================================
 // 4. ACTUALIZAR EL TICKET VISUAL Y LOS TOTALES EN VIVO
 // ========================================================
@@ -341,7 +348,6 @@ window.actualizarInterfazCarrito = function() {
 
     let totalBase = 0;
     carrito.forEach((item, index) => {
-        // 1. Cálculos seguros
         const nombre = item.nombre || item.Nombre || "Prenda sin nombre";
         const talle = item.talle || item.Talle || "-";
         const color = item.color || item.Color || "-";
@@ -351,7 +357,11 @@ window.actualizarInterfazCarrito = function() {
 
         totalBase += precio * cantidad;
 
-        // 2. Creación del diseño premium
+        // RECUPERAMOS TU LÓGICA: Creamos las opciones del select dinámicamente
+        let opcionesSucursales = (window.sucursalesParaVentas && window.sucursalesParaVentas.length > 0) 
+            ? window.sucursalesParaVentas.map(s => `<option value="${s.id}" ${Number(s.id) === sucursalId ? 'selected' : ''}>📍 ${s.nombre}</option>`).join('')
+            : `<option value="1" ${sucursalId === 1 ? 'selected' : ''}>📍 Monteros</option><option value="2" ${sucursalId === 2 ? 'selected' : ''}>📍 San Miguel</option>`;
+
         const div = document.createElement("div");
         div.className = "group bg-slate-950/40 hover:bg-slate-900 border-b border-slate-800/60 p-3 transition-colors flex flex-col gap-2 rounded-lg mb-2";
 
@@ -362,9 +372,12 @@ window.actualizarInterfazCarrito = function() {
                     <div class="flex flex-wrap items-center gap-1.5 mt-1">
                         <span class="text-[9px] font-medium bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded shadow-sm">T: ${talle}</span>
                         <span class="text-[9px] font-medium bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded shadow-sm">C: ${color}</span>
-                        <span class="text-[9px] font-medium ${sucursalId === 1 ? 'bg-indigo-900/30 text-indigo-400' : 'bg-emerald-900/30 text-emerald-400'} border border-slate-700/50 px-1.5 py-0.5 rounded shadow-sm truncate max-w-[100px]">
-                            📍 ${sucursalId === 1 ? 'Monteros' : 'San Miguel'}
-                        </span>
+                        
+                        <!-- SELECTOR DE SUCURSAL DIRECTO EN EL CARRITO -->
+                        <select onchange="window.cambiarSucursalItem(${index}, this.value)" class="text-[9px] font-bold bg-indigo-950/50 text-indigo-300 border border-indigo-500/30 px-1 py-0.5 rounded shadow-sm focus:outline-none cursor-pointer hover:bg-indigo-900/50 transition-colors">
+                            ${opcionesSucursales}
+                        </select>
+                        
                     </div>
                 </div>
                 <button onclick="window.eliminarDelCarrito(${index})" class="text-slate-500 hover:text-rose-400 transition-colors cursor-pointer p-1 rounded-md hover:bg-rose-950/30 flex-shrink-0" title="Quitar">
@@ -382,11 +395,10 @@ window.actualizarInterfazCarrito = function() {
             </div>
         `;
         
-        // 🔥 ACÁ ESTABA EL ERROR: Agregamos el div correcto
         contenedor.appendChild(div);
     });
 
-    // 3. Tu lógica ORIGINAL de descuentos queda intacta
+    // Descuentos intactos
     const tipoMod = document.getElementById("tipoModificador")?.value || "nada";
     const valorMod = parseFloat(document.getElementById("valorModificador")?.value) || 0;
     let totalFinal = totalBase;
