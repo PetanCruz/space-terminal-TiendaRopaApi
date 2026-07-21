@@ -537,3 +537,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 });
+
+window.toggleMenuMovil = function() {
+    const sidebar = document.getElementById('sidebarMenu');
+    if (sidebar) {
+        sidebar.classList.toggle('hidden');
+        sidebar.classList.toggle('absolute');
+        sidebar.classList.toggle('z-[100]'); // Lo pone por encima de todo
+        sidebar.classList.toggle('h-full');
+        sidebar.classList.toggle('shadow-2xl');
+    }
+};

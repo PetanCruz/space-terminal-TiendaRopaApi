@@ -341,51 +341,56 @@ window.actualizarInterfazCarrito = function() {
 
     let totalBase = 0;
     carrito.forEach((item, index) => {
-        totalBase += item.precio * item.cantidad;
-        const row = document.createElement("div");
-        row.className = "bg-slate-950/50 p-3 rounded-xl border border-slate-800/60 mb-2 hover:border-slate-700 transition-colors";
+        // 1. Cálculos seguros
+        const nombre = item.nombre || item.Nombre || "Prenda sin nombre";
+        const talle = item.talle || item.Talle || "-";
+        const color = item.color || item.Color || "-";
+        const precio = item.precio || item.PrecioVenta || 0;
+        const cantidad = item.cantidad || item.amount || 1;
+        const sucursalId = parseInt(item.sucursalId || 1);
 
-        // 🔥 FIX DEL BUG DE SUCURSAL: Forzamos Number() para evitar que "1" y 1 no coincidan
-        let opcionesSucursales = window.sucursalesParaVentas.map(s => 
-            `<option value="${s.id}" ${Number(s.id) === Number(item.sucursalId) ? 'selected' : ''}>📍 ${s.nombre}</option>`
-        ).join('');
+        totalBase += precio * cantidad;
 
-        // Diseño compacto y premium para cada prenda en el carrito
-            const div = document.createElement('div');
-            div.className = "group bg-slate-950/40 hover:bg-slate-900 border-b border-slate-800/60 p-3 transition-colors flex flex-col gap-2 rounded-lg";
-            div.innerHTML = `
+        // 2. Creación del diseño premium
+        const div = document.createElement("div");
+        div.className = "group bg-slate-950/40 hover:bg-slate-900 border-b border-slate-800/60 p-3 transition-colors flex flex-col gap-2 rounded-lg mb-2";
+
+        div.innerHTML = `
             <div class="flex justify-between items-start gap-2">
-            <div class="flex-1 min-w-0">
-            <h4 class="text-[13px] font-bold text-slate-200 truncate leading-tight">${item.nombre}</h4>
-            <div class="flex flex-wrap items-center gap-1.5 mt-1">
-                <span class="text-[9px] font-medium bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded shadow-sm">T: ${item.talle}</span>
-                <span class="text-[9px] font-medium bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded shadow-sm">C: ${item.color}</span>
-                <span class="text-[9px] font-medium ${item.sucursalId === 1 ? 'bg-indigo-900/30 text-indigo-400' : 'bg-emerald-900/30 text-emerald-400'} border border-slate-700/50 px-1.5 py-0.5 rounded shadow-sm truncate max-w-[100px]">
-                    📍 ${item.sucursalId === 1 ? 'Monteros' : 'San Miguel'}
-                </span>
+                <div class="flex-1 min-w-0">
+                    <h4 class="text-[13px] font-bold text-slate-200 truncate leading-tight">${nombre}</h4>
+                    <div class="flex flex-wrap items-center gap-1.5 mt-1">
+                        <span class="text-[9px] font-medium bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded shadow-sm">T: ${talle}</span>
+                        <span class="text-[9px] font-medium bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded shadow-sm">C: ${color}</span>
+                        <span class="text-[9px] font-medium ${sucursalId === 1 ? 'bg-indigo-900/30 text-indigo-400' : 'bg-emerald-900/30 text-emerald-400'} border border-slate-700/50 px-1.5 py-0.5 rounded shadow-sm truncate max-w-[100px]">
+                            📍 ${sucursalId === 1 ? 'Monteros' : 'San Miguel'}
+                        </span>
+                    </div>
+                </div>
+                <button onclick="window.eliminarDelCarrito(${index})" class="text-slate-500 hover:text-rose-400 transition-colors cursor-pointer p-1 rounded-md hover:bg-rose-950/30 flex-shrink-0" title="Quitar">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
             </div>
-        </div>
-        <button onclick="window.eliminarDelCarrito(${index})" class="text-slate-500 hover:text-rose-400 transition-colors cursor-pointer p-1 rounded-md hover:bg-rose-950/30 flex-shrink-0" title="Quitar">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-        </button>
-        </div>
-    
-        <div class="flex justify-between items-center mt-1">
-        <div class="flex items-center bg-slate-900 border border-slate-700 rounded-lg overflow-hidden h-7 shadow-inner">
-            <button onclick="window.modificarCantidad(${index}, -1)" class="w-7 h-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">-</button>
-            <input type="number" value="${item.cantidad}" onchange="window.cambiarCantidadManual(${index}, this.value)" class="w-8 h-full bg-transparent text-center text-xs font-mono text-white focus:outline-none hide-arrows">
-            <button onclick="window.modificarCantidad(${index}, 1)" class="w-7 h-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">+</button>
-        </div>
-        <span class="text-sm font-black text-emerald-400 font-mono">$${(item.precio * item.cantidad).toLocaleString()}</span>
-        </div>
-`;
-        contenedor.appendChild(row);
+        
+            <div class="flex justify-between items-center mt-1">
+                <div class="flex items-center bg-slate-900 border border-slate-700 rounded-lg overflow-hidden h-7 shadow-inner">
+                    <button onclick="window.modificarCantidad(${index}, -1)" class="w-7 h-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">-</button>
+                    <input type="number" value="${cantidad}" onchange="window.cambiarCantidadManual(${index}, this.value)" class="w-8 h-full bg-transparent text-center text-xs font-mono text-white focus:outline-none hide-arrows" style="appearance: none; -moz-appearance: textfield;">
+                    <button onclick="window.modificarCantidad(${index}, 1)" class="w-7 h-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">+</button>
+                </div>
+                <span class="text-sm font-black text-emerald-400 font-mono">$${(precio * cantidad).toLocaleString('es-AR')}</span>
+            </div>
+        `;
+        
+        // 🔥 ACÁ ESTABA EL ERROR: Agregamos el div correcto
+        contenedor.appendChild(div);
     });
 
-    // Lógica de descuentos que ya tenías
+    // 3. Tu lógica ORIGINAL de descuentos queda intacta
     const tipoMod = document.getElementById("tipoModificador")?.value || "nada";
     const valorMod = parseFloat(document.getElementById("valorModificador")?.value) || 0;
     let totalFinal = totalBase;
+    
     if (tipoMod === "descuento_pct") totalFinal -= totalBase * (valorMod / 100);
     if (tipoMod === "descuento_fijo") totalFinal -= valorMod;
     if (tipoMod === "recargo_pct") totalFinal += totalBase * (valorMod / 100);
