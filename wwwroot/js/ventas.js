@@ -258,7 +258,6 @@ function agregarAlCarritoPorId(id) {
 }
 
 // Agregar al carrito
-// Agregar al carrito
 function agregarAlCarrito(index, varianteId) {
     const productoSeleccionado = productos[index];
     const variantes = productoSeleccionado.variantes ?? productoSeleccionado.Variantes ?? [];
@@ -266,10 +265,23 @@ function agregarAlCarrito(index, varianteId) {
     const varianteSeleccionada = variantes.find(v => (v.id ?? v.Id) === varianteId);
     if (!varianteSeleccionada) return;
 
-    // 🔥 FIX DEFINITIVO: Leemos el ID REAL de la sucursal de ESA prenda desde la Base de Datos
-    let idSucursalReal = varianteSeleccionada.sucursalId ?? varianteSeleccionada.SucursalId;
+    // 🔥 LA MAGIA: Buscamos DÓNDE ESTÁ REALMENTE el stock de esta variante
+    let idSucursalReal = null;
+    if (varianteSeleccionada.stockDetalle && Array.isArray(varianteSeleccionada.stockDetalle)) {
+        // Buscamos la primera sucursal que tenga stock
+        const sucursalConStock = varianteSeleccionada.stockDetalle.find(s => s.cantidad > 0);
+        if (sucursalConStock) {
+            // Emparejamos el nombre con tu base de datos global de sucursales para sacar el ID exacto
+            const match = window.sucursalesParaVentas.find(s => s.nombre === sucursalConStock.sucursal);
+            if (match) {
+                idSucursalReal = match.id;
+            } else if (sucursalConStock.sucursalId || sucursalConStock.SucursalId) {
+                idSucursalReal = sucursalConStock.sucursalId || sucursalConStock.SucursalId;
+            }
+        }
+    }
     
-    // Si por algún motivo la prenda no tiene sucursal asociada, caemos en la del administrador
+    // Si la prenda no tiene sucursal definida, recién ahí caemos en la del cajero
     if (!idSucursalReal) {
         const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
         idSucursalReal = parseInt(localStorage.getItem("sucursalAdminActiva")) || parseInt(usuarioLocal.sucursalId) || 1;
@@ -285,7 +297,6 @@ function agregarAlCarrito(index, varianteId) {
     
     const stockDisponible = esAdmin ? stockGlobal : stockLocal;
     
-    // Buscamos si existe ESE producto exactamente en ESA sucursal real
     const itemEnCarrito = carrito.find(item => item.id === varianteId && Number(item.sucursalId) === Number(idSucursalReal));
 
     if (itemEnCarrito) {
@@ -305,7 +316,7 @@ function agregarAlCarrito(index, varianteId) {
             color: varianteSeleccionada.color ?? varianteSeleccionada.Color ?? "N/A",
             amount: 1, 
             cantidad: 1,
-            sucursalId: parseInt(idSucursalReal) // 🔥 SE GUARDA LA SUCURSAL EXACTA DE LA PRENDA
+            sucursalId: parseInt(idSucursalReal) // 🔥 AHORA SÍ GUARDA LA SUCURSAL REAL DONDE ESTÁ LA PRENDA
         });
     }
 
@@ -340,15 +351,27 @@ window.actualizarInterfazCarrito = function() {
     contenedor.innerHTML = "";
     
     if (carrito.length === 0) {
-        contenedor.innerHTML = `<div id="carritoVacio" class="text-slate-500 text-center py-8 text-sm">El ticket está vacío. Seleccioná una prenda.</div>`;
+        contenedor.innerHTML = `<div id="carritoVacio" class="text-slate-500 text-center py-8 text-sm">El ticket está vacío. Seleccioná prendas.</div>`;
         totalText.textContent = "$0";
         if (modalTotalText) modalTotalText.textContent = "$0";
         return;
     }
 
     let totalBase = 0;
+
+    // 🔥 ENCABEZADO DE TABLA (Ultra Compacto)
+    const header = document.createElement("div");
+    header.className = "flex justify-between items-center px-1 pb-2 mb-1 border-b border-slate-800 text-[9px] font-bold text-slate-500 uppercase tracking-wider";
+    header.innerHTML = `
+        <div class="flex-1">Producto</div>
+        <div class="w-[70px] text-center">Cant.</div>
+        <div class="w-[80px] text-right">Subtotal</div>
+        <div class="w-6"></div>
+    `;
+    contenedor.appendChild(header);
+
     carrito.forEach((item, index) => {
-        const nombre = item.nombre || item.Nombre || "Prenda sin nombre";
+        const nombre = item.nombre || item.Nombre || "Prenda";
         const talle = item.talle || item.Talle || "-";
         const color = item.color || item.Color || "-";
         const precio = item.precio || item.PrecioVenta || 0;
@@ -357,48 +380,47 @@ window.actualizarInterfazCarrito = function() {
 
         totalBase += precio * cantidad;
 
-        // RECUPERAMOS TU LÓGICA: Creamos las opciones del select dinámicamente
-        let opcionesSucursales = (window.sucursalesParaVentas && window.sucursalesParaVentas.length > 0) 
-            ? window.sucursalesParaVentas.map(s => `<option value="${s.id}" ${Number(s.id) === sucursalId ? 'selected' : ''}>📍 ${s.nombre}</option>`).join('')
-            : `<option value="1" ${sucursalId === 1 ? 'selected' : ''}>📍 Monteros</option><option value="2" ${sucursalId === 2 ? 'selected' : ''}>📍 San Miguel</option>`;
+        // Buscamos el nombre correcto de la sucursal
+        let nombreSucursal = sucursalId === 1 ? 'Monteros' : 'San Miguel';
+        if (window.sucursalesParaVentas) {
+            const sucMatch = window.sucursalesParaVentas.find(s => Number(s.id) === sucursalId);
+            if (sucMatch) nombreSucursal = sucMatch.nombre;
+        }
 
         const div = document.createElement("div");
-        div.className = "group bg-slate-950/40 hover:bg-slate-900 border-b border-slate-800/60 p-3 transition-colors flex flex-col gap-2 rounded-lg mb-2";
+        // 🔥 DISEÑO FILA DE EXCEL / TICKET (Sin bordes gruesos, todo compacto)
+        div.className = "flex justify-between items-center py-2 px-1 border-b border-slate-800/40 hover:bg-slate-900/50 transition-colors group";
 
         div.innerHTML = `
-            <div class="flex justify-between items-start gap-2">
-                <div class="flex-1 min-w-0">
-                    <h4 class="text-[13px] font-bold text-slate-200 truncate leading-tight">${nombre}</h4>
-                    <div class="flex flex-wrap items-center gap-1.5 mt-1">
-                        <span class="text-[9px] font-medium bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded shadow-sm">T: ${talle}</span>
-                        <span class="text-[9px] font-medium bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded shadow-sm">C: ${color}</span>
-                        
-                        <!-- SELECTOR DE SUCURSAL DIRECTO EN EL CARRITO -->
-                        <select onchange="window.cambiarSucursalItem(${index}, this.value)" class="text-[9px] font-bold bg-indigo-950/50 text-indigo-300 border border-indigo-500/30 px-1 py-0.5 rounded shadow-sm focus:outline-none cursor-pointer hover:bg-indigo-900/50 transition-colors">
-                            ${opcionesSucursales}
-                        </select>
-                        
-                    </div>
-                </div>
-                <button onclick="window.eliminarDelCarrito(${index})" class="text-slate-500 hover:text-rose-400 transition-colors cursor-pointer p-1 rounded-md hover:bg-rose-950/30 flex-shrink-0" title="Quitar">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                </button>
+            <div class="flex-1 min-w-0 pr-2">
+                <h4 class="text-[12px] font-bold text-slate-200 truncate leading-none mb-1" title="${nombre}">${nombre}</h4>
+                <p class="text-[9px] text-slate-400 truncate flex items-center gap-1.5">
+                    <span>T:${talle}</span> • <span>C:${color}</span>
+                    <span class="px-1 py-0.5 rounded text-[8px] font-bold ${sucursalId === 1 ? 'bg-indigo-900/40 text-indigo-400' : 'bg-emerald-900/40 text-emerald-400'} border border-slate-700/50">📍 ${nombreSucursal}</span>
+                </p>
             </div>
-        
-            <div class="flex justify-between items-center mt-1">
-                <div class="flex items-center bg-slate-900 border border-slate-700 rounded-lg overflow-hidden h-7 shadow-inner">
-                    <button onclick="window.modificarCantidad(${index}, -1)" class="w-7 h-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">-</button>
-                    <input type="number" value="${cantidad}" onchange="window.cambiarCantidadManual(${index}, this.value)" class="w-8 h-full bg-transparent text-center text-xs font-mono text-white focus:outline-none hide-arrows" style="appearance: none; -moz-appearance: textfield;">
-                    <button onclick="window.modificarCantidad(${index}, 1)" class="w-7 h-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">+</button>
-                </div>
-                <span class="text-sm font-black text-emerald-400 font-mono">$${(precio * cantidad).toLocaleString('es-AR')}</span>
+            
+            <div class="w-[70px] flex items-center justify-center gap-1 bg-slate-950 p-0.5 rounded-md border border-slate-800">
+                <button onclick="window.modificarCantidad(${index}, -1)" class="w-5 h-5 flex items-center justify-center bg-slate-800 hover:bg-slate-700 rounded text-slate-300 hover:text-white text-xs cursor-pointer">-</button>
+                <input type="number" value="${cantidad}" onchange="window.cambiarCantidadManual(${index}, this.value)" class="w-5 h-5 bg-transparent text-center text-[11px] font-mono font-bold text-white focus:outline-none hide-arrows" style="appearance: none; -moz-appearance: textfield;">
+                <button onclick="window.modificarCantidad(${index}, 1)" class="w-5 h-5 flex items-center justify-center bg-slate-800 hover:bg-slate-700 rounded text-slate-300 hover:text-white text-xs cursor-pointer">+</button>
+            </div>
+
+            <div class="w-[80px] text-right font-mono font-bold text-emerald-400 text-[13px] tracking-tight">
+                $${(precio * cantidad).toLocaleString('es-AR')}
+            </div>
+
+            <div class="w-6 flex justify-end pl-1">
+                <button onclick="window.eliminarDelCarrito(${index})" class="text-slate-600 hover:text-rose-400 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity p-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
             </div>
         `;
         
         contenedor.appendChild(div);
     });
 
-    // Descuentos intactos
+    // Descuentos originales
     const tipoMod = document.getElementById("tipoModificador")?.value || "nada";
     const valorMod = parseFloat(document.getElementById("valorModificador")?.value) || 0;
     let totalFinal = totalBase;
