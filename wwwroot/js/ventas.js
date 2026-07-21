@@ -56,7 +56,7 @@ async function cargarProductos() {
 }
 
 // ========================================================
-// 2. DIBUJAR EL CATÁLOGO EN PANTALLA (CON PRIVILEGIOS)
+// 2. DIBUJAR EL CATÁLOGO EN PANTALLA (LISTA COMPACTA)
 // ========================================================
 function renderizarCatalogo(productosAFiltrar) {
     const contenedor = document.getElementById("productosCatalogo");
@@ -64,20 +64,20 @@ function renderizarCatalogo(productosAFiltrar) {
 
     contenedor.innerHTML = "";
     let prendasMostradas = 0;
-
-    // 🌟 FIX: Lectura segura de rol
-    const esAdmin = window.esAdmin();
-    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const esAdmin = typeof window.esAdmin === 'function' ? window.esAdmin() : false;
 
     if (!productosAFiltrar || productosAFiltrar.length === 0) {
         contenedor.innerHTML = `<div class="p-8 text-center text-slate-500 col-span-full border border-dashed border-slate-800 rounded-2xl">📦 No se encontraron prendas que coincidan con la búsqueda.</div>`;
         return;
     }
 
-    productosAFiltrar.forEach((producto) => {
+    // Contenedor tipo lista (para que no sean tarjetas gigantes)
+    const lista = document.createElement("div");
+    lista.className = "flex flex-col gap-2 w-full";
+
+    productosAFiltrar.forEach((producto, indexProducto) => {
         const nombreBase = producto.nombre ?? producto.Nombre ?? "Prenda";
         const precio = producto.precio ?? producto.Precio ?? 0;
-        const categoriaTexto = producto.categoria ?? producto.Categoria ?? "JEANS";
         const variantes = producto.variantes ?? producto.Variantes ?? [];
 
         variantes.forEach((variante) => {
@@ -85,16 +85,23 @@ function renderizarCatalogo(productosAFiltrar) {
             const talle = variante.talle ?? variante.Talle ?? "N/A";
             const color = variante.color ?? variante.Color ?? "N/A";
 
+            let opcionesSucursalHTML = "";
             let stockGlobal = 0;
-            let nombresSucursales = []; // 🌟 NUEVO: Guardamos dónde está la ropa
 
+            // 🌟 MAGIA: Armamos el desplegable leyendo en qué sucursales está esta prenda
             if (variante.stockDetalle && Array.isArray(variante.stockDetalle)) {
                 variante.stockDetalle.forEach(suc => {
                     if (suc.cantidad > 0) {
                         stockGlobal += suc.cantidad;
-                        if (!nombresSucursales.includes(suc.sucursal)) {
-                            nombresSucursales.push(suc.sucursal);
+                        // Buscamos el ID real
+                        let sId = 1;
+                        if (window.sucursalesParaVentas) {
+                            const match = window.sucursalesParaVentas.find(s => s.nombre === suc.sucursal);
+                            if (match) sId = match.id;
+                        } else {
+                            sId = suc.sucursal === 'San Miguel' ? 2 : 1;
                         }
+                        opcionesSucursalHTML += `<option value="${sId}">📍 ${suc.sucursal} (Stock: ${suc.cantidad})</option>`;
                     }
                 });
             }
@@ -102,29 +109,75 @@ function renderizarCatalogo(productosAFiltrar) {
             const stockLocal = variante.stock ?? variante.Stock ?? 0;
             const stockAMostrar = esAdmin ? stockGlobal : stockLocal;
 
-            if (stockAMostrar <= 0) return;
+            if (stockAMostrar <= 0) return; // Si no hay stock, no mostramos la fila
 
-            const itemEnCarrito = carrito.find(item => item.id === varianteId && item.sucursalId === (usuarioLocal.sucursalId || 1));
-            const cantidadEnCarrito = itemEnCarrito ? itemEnCarrito.cantidad : 0;
-            const stockDinamico = stockAMostrar - cantidadEnCarrito;
-
-            // 🌟 MAGIA: Si es Admin, le inyectamos la ubicación en el talle
-            let talleAMostrar = talle;
-            if (esAdmin && nombresSucursales.length > 0) {
-                talleAMostrar = `${talle} | 📍 ${nombresSucursales.join(", ")}`;
-            }
-
-            dibujarTarjetaHtml(contenedor, varianteId, nombreBase, precio, stockDinamico, talleAMostrar, color, categoriaTexto);
+            // DISEÑO ULTRA COMPACTO
+            const row = document.createElement("div");
+            row.className = "bg-slate-900 border border-slate-800 p-3 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-3 hover:bg-slate-800/50 transition-colors";
+            
+            row.innerHTML = `
+                <div class="flex-1">
+                    <h4 class="text-white font-bold text-sm">${nombreBase}</h4>
+                    <div class="flex gap-2 text-xs text-slate-400 mt-1">
+                        <span class="bg-slate-950 px-2 py-0.5 rounded border border-slate-800">Talle: <b class="text-slate-200">${talle}</b></span>
+                        <span class="bg-slate-950 px-2 py-0.5 rounded border border-slate-800">Color: <b class="text-slate-200">${color}</b></span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-3 w-full sm:w-auto">
+                    <span class="text-emerald-400 font-bold text-lg w-20 text-right pr-2">$${precio}</span>
+                    
+                    <!-- 🌟 EL USUARIO ELIGE DE DÓNDE SALE ANTES DE AGREGAR -->
+                    <select id="sucursal_origen_${varianteId}" class="bg-slate-950 border border-slate-700 text-xs font-bold uppercase tracking-wider rounded-lg p-2.5 text-indigo-300 outline-none flex-1 sm:w-48 cursor-pointer">
+                        ${opcionesSucursalHTML || `<option value="1">📍 STOCK CENTRAL</option>`}
+                    </select>
+                    
+                    <button onclick="window.agregarVarianteDirecta(${varianteId}, ${indexProducto})" class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-lg font-bold shadow-md active:scale-95 transition-all">
+                        Agregar
+                    </button>
+                </div>
+            `;
+            lista.appendChild(row);
             prendasMostradas++;
         });
     });
 
+    contenedor.appendChild(lista);
+
     if (prendasMostradas === 0) {
         contenedor.innerHTML = `<div class="p-8 text-center text-slate-400 col-span-full border border-dashed border-slate-800 rounded-2xl bg-slate-900/50">
-            📦 No hay prendas disponibles físicamente para vender.<br>
-            ${!esAdmin ? '<span class="text-xs text-slate-500 mt-2 block">💡 TIP: Buscá en la pestaña de Inventario para vender desde otra sucursal.</span>' : ''}
+            📦 No hay prendas disponibles físicamente para vender.
         </div>`;
     }
+}
+
+// 🌟 FUNCIÓN NUEVA: Agrega leyendo el selector
+window.agregarVarianteDirecta = function(varianteId, indexProducto) {
+    const selectSucursal = document.getElementById(`sucursal_origen_${varianteId}`);
+    const sucursalElegida = selectSucursal ? parseInt(selectSucursal.value) : 1;
+
+    const producto = productos[indexProducto];
+    const variante = (producto.variantes ?? producto.Variantes).find(v => (v.id ?? v.Id) === varianteId);
+
+    const itemEnCarrito = carrito.find(item => item.id === varianteId && Number(item.sucursalId) === sucursalElegida);
+
+    if (itemEnCarrito) {
+        itemEnCarrito.cantidad++;
+    } else {
+        carrito.push({
+            id: varianteId,
+            nombre: producto.nombre || producto.Nombre,
+            precio: producto.precio || producto.PrecioVenta,
+            talle: variante.talle ?? variante.Talle ?? "N/A",
+            color: variante.color ?? variante.Color ?? "N/A",
+            amount: 1,
+            cantidad: 1,
+            sucursalId: sucursalElegida
+        });
+    }
+
+    if(typeof actualizarInterfazCarrito === "function") actualizarInterfazCarrito();
+    if(window.toast) window.toast.success("🛒 Prenda agregada al ticket");
 }
 
 // =========================================================================
@@ -158,67 +211,6 @@ window.venderDesdeInventario = function(varianteId, nombre, precio, talle, color
     if(typeof window.actualizarInterfazCarrito === 'function') window.actualizarInterfazCarrito();
     if(typeof window.filtrarProductos === 'function') window.filtrarProductos();
 };
-
-// ========================================================
-// 🎨 RENDERS: TARJETA CON ALERTA DE STOCK CRÍTICO
-// ========================================================
-function dibujarTarjetaHtml(contenedor, id, nombre, precio, stock, talle, color, categoria) {
-    const tieneStock = stock > 0;
-    const esCritico = tieneStock && stock <= 3; // 🔥 SE ACTIVA SI QUEDAN 3 O MENOS
-
-    // Configuramos dinámicamente los estilos según el nivel de stock
-    let claseStock = "text-slate-400";
-    let textoStock = `📦 Stock: ${stock} u.`;
-    let badgeCritico = "";
-
-    if (!tieneStock) {
-        claseStock = "text-rose-400 font-medium";
-        textoStock = "🚫 Sin Stock";
-    } else if (esCritico) {
-        claseStock = "text-amber-400 font-bold animate-pulse";
-        textoStock = `⚠️ ¡Últimas ${stock} unidades!`;
-        // Badge flotante arriba a la derecha
-        badgeCritico = `
-            <span class="bg-amber-950/80 text-amber-400 text-[9px] font-extrabold px-2 py-0.5 rounded-md border border-amber-500/30 animate-pulse">
-                STOCK CRÍTICO
-            </span>`;
-    }
-
-    const tarjeta = document.createElement("div");
-    // Estructura nueva (Rounded 2xl, hover effects, group)
-    tarjeta.className = `bg-slate-900 border ${esCritico ? 'border-amber-500/40 shadow-lg shadow-amber-950/20' : 'border-slate-800'} rounded-2xl p-4 flex flex-col justify-between hover:border-indigo-500/50 transition-all shadow-sm hover:shadow-indigo-500/10 group`;
-
-    tarjeta.innerHTML = `
-        <div>
-            <div class="flex justify-between items-start mb-3">
-                <span class="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-1 rounded-md uppercase tracking-wider">
-                    ${categoria}
-                </span>
-                ${badgeCritico ? badgeCritico : `<span class="text-[11px] font-semibold ${claseStock} bg-slate-950 px-2 py-1 rounded-md border border-slate-800">${textoStock}</span>`}
-            </div>
-            
-            <h4 class="text-slate-100 font-bold text-base leading-tight mb-2 group-hover:text-indigo-300 transition-colors">
-                ${nombre}
-            </h4>
-            
-            <div class="flex flex-wrap gap-1.5 text-[10px] text-slate-400 mb-4">
-                <span class="bg-slate-800 px-2 py-1 rounded-md">Talle: <b class="text-slate-200">${talle}</b></span>
-                <span class="bg-slate-800 px-2 py-1 rounded-md">Color: <b class="text-slate-200">${color}</b></span>
-            </div>
-        </div>
-
-        <div class="flex items-center justify-between mt-1 pt-3 border-t border-slate-800/60">
-            <span class="text-xl font-black text-emerald-400">$${precio}</span>
-            <button 
-                onclick="agregarAlCarritoPorId(${id})" 
-                ${tieneStock ? '' : 'disabled'} 
-                class="${tieneStock ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-900/20 hover:shadow-indigo-500/30' : 'bg-slate-800 text-slate-500 cursor-not-allowed'} text-[13px] font-bold py-2 px-5 rounded-xl transition-all active:scale-95">
-                ${tieneStock ? 'Agregar' : 'Sin Stock'}
-            </button>
-        </div>
-    `;
-    contenedor.appendChild(tarjeta);
-}
 
 // ========================================================
 // 🔍 LÓGICA DEL BUSCADOR EN TIEMPO REAL (CATÁLOGO)
@@ -351,24 +343,13 @@ window.actualizarInterfazCarrito = function() {
     contenedor.innerHTML = "";
     
     if (carrito.length === 0) {
-        contenedor.innerHTML = `<div id="carritoVacio" class="text-slate-500 text-center py-8 text-sm">El ticket está vacío. Seleccioná prendas.</div>`;
+        contenedor.innerHTML = `<div id="carritoVacio" class="text-slate-500 text-center py-10 text-sm border-2 border-dashed border-slate-800 rounded-xl mt-4">El ticket está vacío.<br>Seleccioná prendas de la lista.</div>`;
         totalText.textContent = "$0";
         if (modalTotalText) modalTotalText.textContent = "$0";
         return;
     }
 
     let totalBase = 0;
-
-    // 🔥 ENCABEZADO DE TABLA (Ultra Compacto)
-    const header = document.createElement("div");
-    header.className = "flex justify-between items-center px-1 pb-2 mb-1 border-b border-slate-800 text-[9px] font-bold text-slate-500 uppercase tracking-wider";
-    header.innerHTML = `
-        <div class="flex-1">Producto</div>
-        <div class="w-[70px] text-center">Cant.</div>
-        <div class="w-[80px] text-right">Subtotal</div>
-        <div class="w-6"></div>
-    `;
-    contenedor.appendChild(header);
 
     carrito.forEach((item, index) => {
         const nombre = item.nombre || item.Nombre || "Prenda";
@@ -380,7 +361,6 @@ window.actualizarInterfazCarrito = function() {
 
         totalBase += precio * cantidad;
 
-        // Buscamos el nombre correcto de la sucursal
         let nombreSucursal = sucursalId === 1 ? 'Monteros' : 'San Miguel';
         if (window.sucursalesParaVentas) {
             const sucMatch = window.sucursalesParaVentas.find(s => Number(s.id) === sucursalId);
@@ -388,39 +368,43 @@ window.actualizarInterfazCarrito = function() {
         }
 
         const div = document.createElement("div");
-        // 🔥 DISEÑO FILA DE EXCEL / TICKET (Sin bordes gruesos, todo compacto)
-        div.className = "flex justify-between items-center py-2 px-1 border-b border-slate-800/40 hover:bg-slate-900/50 transition-colors group";
+        // DISEÑO GIGANTE Y CLARO PARA EL CARRITO
+        div.className = "bg-slate-900 border-2 border-slate-800 p-4 rounded-xl mb-3 shadow-md";
 
         div.innerHTML = `
-            <div class="flex-1 min-w-0 pr-2">
-                <h4 class="text-[12px] font-bold text-slate-200 truncate leading-none mb-1" title="${nombre}">${nombre}</h4>
-                <p class="text-[9px] text-slate-400 truncate flex items-center gap-1.5">
-                    <span>T:${talle}</span> • <span>C:${color}</span>
-                    <span class="px-1 py-0.5 rounded text-[8px] font-bold ${sucursalId === 1 ? 'bg-indigo-900/40 text-indigo-400' : 'bg-emerald-900/40 text-emerald-400'} border border-slate-700/50">📍 ${nombreSucursal}</span>
-                </p>
+            <div class="flex justify-between items-start mb-3">
+                <div>
+                    <h4 class="text-lg font-black text-white leading-tight">${nombre}</h4>
+                    <p class="text-sm text-slate-400 mt-1">
+                        Talle: <span class="text-white font-bold">${talle}</span> <span class="mx-1">|</span> 
+                        Color: <span class="text-white font-bold">${color}</span>
+                    </p>
+                    <p class="inline-block mt-2 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wider ${sucursalId === 1 ? 'bg-indigo-900/50 text-indigo-400' : 'bg-emerald-900/50 text-emerald-400'} border border-slate-700/50">
+                        📍 Origen: ${nombreSucursal}
+                    </p>
+                </div>
+                <button onclick="window.eliminarDelCarrito(${index})" class="text-slate-500 hover:text-rose-500 bg-slate-950 p-2 rounded-lg border border-slate-800 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
             </div>
             
-            <div class="w-[70px] flex items-center justify-center gap-1 bg-slate-950 p-0.5 rounded-md border border-slate-800">
-                <button onclick="window.modificarCantidad(${index}, -1)" class="w-5 h-5 flex items-center justify-center bg-slate-800 hover:bg-slate-700 rounded text-slate-300 hover:text-white text-xs cursor-pointer">-</button>
-                <input type="number" value="${cantidad}" onchange="window.cambiarCantidadManual(${index}, this.value)" class="w-5 h-5 bg-transparent text-center text-[11px] font-mono font-bold text-white focus:outline-none hide-arrows" style="appearance: none; -moz-appearance: textfield;">
-                <button onclick="window.modificarCantidad(${index}, 1)" class="w-5 h-5 flex items-center justify-center bg-slate-800 hover:bg-slate-700 rounded text-slate-300 hover:text-white text-xs cursor-pointer">+</button>
-            </div>
-
-            <div class="w-[80px] text-right font-mono font-bold text-emerald-400 text-[13px] tracking-tight">
-                $${(precio * cantidad).toLocaleString('es-AR')}
-            </div>
-
-            <div class="w-6 flex justify-end pl-1">
-                <button onclick="window.eliminarDelCarrito(${index})" class="text-slate-600 hover:text-rose-400 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity p-1">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
+            <div class="flex justify-between items-end border-t border-slate-800/60 pt-3">
+                <div class="flex items-center bg-slate-950 border border-slate-700 rounded-lg p-1 shadow-inner">
+                    <button onclick="window.modificarCantidad(${index}, -1)" class="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-slate-700 rounded text-white font-bold text-xl cursor-pointer">-</button>
+                    <input type="number" value="${cantidad}" onchange="window.cambiarCantidadManual(${index}, this.value)" class="w-12 h-10 bg-transparent text-center font-black text-white text-lg focus:outline-none hide-arrows" style="appearance: none; -moz-appearance: textfield;">
+                    <button onclick="window.modificarCantidad(${index}, 1)" class="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-slate-700 rounded text-white font-bold text-xl cursor-pointer">+</button>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm text-slate-500 mb-0.5">${cantidad} x $${precio.toLocaleString('es-AR')}</p>
+                    <span class="text-3xl font-black text-emerald-400 font-mono tracking-tighter">$${(precio * cantidad).toLocaleString('es-AR')}</span>
+                </div>
             </div>
         `;
         
         contenedor.appendChild(div);
     });
 
-    // Descuentos originales
+    // Lógica de Descuentos intacta
     const tipoMod = document.getElementById("tipoModificador")?.value || "nada";
     const valorMod = parseFloat(document.getElementById("valorModificador")?.value) || 0;
     let totalFinal = totalBase;
