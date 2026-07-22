@@ -260,77 +260,118 @@ window.eliminarProducto = async function(id, nombre) {
 };
 
 // =========================================================================
-// 👕 5. MODAL VARIANTES (Visibilidad Omnicanal + Botón Venta)
+// 👕 MÓDULO DE VARIANTES — Agregar variante a producto existente
 // =========================================================================
-window.verVariantes = function(id) {
-    if (!window.productosMemoria) return;
 
-    const prod = window.productosMemoria.find(p => p.id === id);
-    if (!prod) return;
-
-    document.getElementById("modalVariantesTitulo").innerText = prod.nombre ?? "Producto";
-
-    const tbody = document.getElementById("modalVariantesBody");
-    const listaVariantes = prod.variantes ?? [];
-    let html = "";
-
-    if (Array.isArray(listaVariantes) && listaVariantes.length > 0) {
-        listaVariantes.forEach(v => {
-            
-            let detalleHtml = "";
-            if (v.stockDetalle && v.stockDetalle.length > 0) {
-                if (v.stockDetalle.length > 1) {
-                    detalleHtml = `<div class="mt-3 pt-3 border-t border-slate-700/50 flex flex-col gap-2">`;
-                    v.stockDetalle.forEach(d => {
-                        const colorNum = d.cantidad > 0 ? "text-emerald-400" : "text-slate-500";
-                        
-                        // 🌟 MAGIA: Si hay stock y NO es nuestro local, mostramos el botón de vender de allá
-                        const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
-                        const esLocalActual = d.sucursalId === (usuarioLocal.sucursalId || 1);
-                        
-                        let btnVender = "";
-                        if (d.cantidad > 0 && !esLocalActual) {
-                            const safeNombre = (prod.nombre || "").replace(/'/g, "\\'");
-                            const safeTalle = (v.talle || "").replace(/'/g, "\\'");
-                            const safeColor = (v.color || "").replace(/'/g, "\\'");
-                            const precio = prod.precio || prod.precioVenta || 0;
-                            
-                            btnVender = `<button onclick="window.venderDesdeInventario(${v.id}, '${safeNombre}', ${precio}, '${safeTalle}', '${safeColor}', ${d.sucursalId})" class="ml-3 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] px-2 py-1 rounded shadow-md transition-colors cursor-pointer">🛒 Vender</button>`;
-                        }
-
-                        detalleHtml += `
-                            <div class="flex justify-between items-center text-sm">
-                                <span class="text-slate-300">${d.sucursal}</span>
-                                <div class="flex items-center">
-                                    <span class="font-mono font-bold text-base ${colorNum}">${d.cantidad} u.</span>
-                                    ${btnVender}
-                                </div>
-                            </div>
-                        `;
-                    });
-                    detalleHtml += `</div>`;
-                }
-            }
-
-            html += `
-                <tr class="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors">
-                    <td class="py-4 font-medium text-white capitalize align-top text-lg">${v.talle ?? "-"}</td>
-                    <td class="py-4 text-slate-400 capitalize align-top text-lg">${v.color ?? "-"}</td>
-                    <td class="py-4 text-right align-top w-64">
-                        <div class="font-mono text-white font-bold text-sm bg-slate-950/80 px-3 py-2 rounded-lg border border-indigo-500/30 inline-block mb-1 shadow-md">
-                            Local actual: <span class="text-indigo-400 text-xl ml-2">${v.stock ?? 0}</span>
-                        </div>
-                        ${detalleHtml}
-                    </td>
-                </tr>
-            `;
-        });
-    } else {
-        html = `<tr><td colspan="3" class="py-6 text-center text-slate-500 italic text-xs">Sin variantes registradas.</td></tr>`;
+// ── 1. Abrir modal ───────────────────────────────────────────────────────
+window.abrirModalAgregarVariante = function(productoId) {
+    const prod = window.productosMemoria.find(p => p.id == productoId || p.Id == productoId);
+    if (!prod) {
+        alert("No se encontró el producto. Recargá la página.");
+        return;
     }
 
-    if (tbody) tbody.innerHTML = html;
-    document.getElementById("modalVariantes")?.classList.remove("hidden");
+    try {
+        if(typeof window.llenarSelectSucursales === 'function') {
+            window.llenarSelectSucursales("varianteSucursal", "contenedorSucursalVariante");
+        }
+    } catch(e) {
+        console.warn("No se pudieron cargar sucursales", e);
+    }
+
+    const inputId = document.getElementById("varianteProductoId");
+    if (inputId) inputId.value = productoId;
+
+    const titulo = document.getElementById("modalVarianteTitulo");
+    if (titulo) titulo.textContent = prod.nombre ?? prod.Nombre ?? "Producto";
+    
+    const subtitulo = document.getElementById("modalVarianteSubtitulo");
+    if (subtitulo) subtitulo.textContent = `Agregando variante a: ${prod.nombre ?? prod.Nombre ?? ""}`;
+
+    const form = document.getElementById("formAgregarVariante");
+    if (form) {
+        form.reset();
+        if (inputId) inputId.value = productoId; // Restaurar el ID oculto tras el reset
+    }
+
+    const divError = document.getElementById("errorVariante");
+    if (divError) divError.classList.add("hidden");
+
+    const modal = document.getElementById("modalAgregarVariante");
+    if (modal) modal.classList.remove("hidden");
+};
+
+// ── 2. Cerrar modal ───────────────────────────────────────────────────────
+window.cerrarModalAgregarVariante = function() {
+    document.getElementById("modalAgregarVariante")?.classList.add("hidden");
+    document.getElementById("formAgregarVariante")?.reset();
+    document.getElementById("errorVariante")?.classList.add("hidden");
+};
+
+// ── 3. Guardar variante ───────────────────────────────────────────────────
+window.guardarNuevaVariante = async function(event) {
+    event.preventDefault();
+
+    const token      = window.ConfigInventario.obtenerToken();
+    const productoId = parseInt(document.getElementById("varianteProductoId")?.value);
+    const talle      = document.getElementById("varianteTalle")?.value.trim();
+    const color      = document.getElementById("varianteColor")?.value.trim();
+    const codBarras  = document.getElementById("varianteCodigoBarras")?.value.trim();
+    const stock      = parseInt(document.getElementById("varianteStock")?.value);
+    const stockMin   = parseInt(document.getElementById("varianteStockMinimo")?.value) || 2;
+    const divError   = document.getElementById("errorVariante");
+
+    // Leer la sucursal elegida
+    const sel = document.getElementById("varianteSucursal");
+    const sucursalIdElegida = (sel && sel.value) ? parseInt(sel.value) : (JSON.parse(localStorage.getItem("usuario"))?.sucursalId || 1);
+
+    if (!talle || !color || !codBarras || isNaN(stock) || isNaN(productoId)) {
+        divError.textContent = "Completá todos los campos obligatorios.";
+        divError.classList.remove("hidden");
+        return;
+    }
+
+    const payload = {
+        productoId: productoId,
+        talle: talle,
+        color: color,
+        codigoBarras: codBarras,
+        stockInicial: stock, 
+        stockMinimo: stockMin,
+        sucursalId: sucursalIdElegida
+    };
+
+    const btn = event.submitter;
+    const restaurar = window.btnLoading ? window.btnLoading(btn, "Guardando...") : () => {};
+
+    try {
+        const respuesta = await fetch(`${window.ConfigInventario.URL}/variantes`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!respuesta.ok) {
+            const errorTexto = await respuesta.text();
+            throw new Error(errorTexto || "Error interno del servidor");
+        }
+
+        window.cerrarModalAgregarVariante();
+        await window.cargarProductosInventario(); 
+        
+        if (window.toast) window.toast.success(`✅ Variante ${talle} / ${color} agregada.`);
+        else alert(`✅ Variante ${talle} / ${color} agregada.`);
+
+    } catch (error) {
+        console.error("❌ Error al guardar variante:", error);
+        divError.innerHTML = `<strong>Error del sistema:</strong> ${error.message}`;
+        divError.classList.remove("hidden");
+    } finally {
+        restaurar();
+    }
 };
 
 // ── Cerrar Modal de Variantes ─────────────────────────────────────────────
