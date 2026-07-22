@@ -421,13 +421,13 @@ window.guardarNuevaVariante = async function(event) {
         return;
     }
 
-    // 🌟 EL FIX ESTÁ ACÁ: codigoBarras: codBarras
+    // 🌟 EL FIX: Cambiamos stockInicial por stockActual (como lo pide tu C#)
     const payload = {
         productoId: productoId, 
         talle: talle, 
         color: color, 
         codigoBarras: codBarras, 
-        stockInicial: stock, 
+        stockActual: stock, // <--- ACÁ ESTABA EL PROBLEMA
         stockMinimo: stockMin,
         sucursalId: sucursalIdElegida
     };
@@ -449,11 +449,11 @@ window.guardarNuevaVariante = async function(event) {
 
         window.cerrarModalAgregarVariante();
         await window.cargarProductosInventario(); 
-        if (window.toast) window.toast.success(`✅ Variante ${talle} agregada.`);
+        if (window.toast) window.toast.success(`✅ Variante ${talle} / ${color} agregada.`);
         else alert(`✅ Variante agregada.`);
     } catch (error) {
         console.error(error);
-        divError.innerHTML = `<strong>Error:</strong> ${error.message}`;
+        divError.innerHTML = `<strong>Error del servidor:</strong> ${error.message}`;
         divError.classList.remove("hidden");
     } finally {
         restaurar();
