@@ -56,41 +56,26 @@ async function cargarProductos() {
 }
 
 // ========================================================
-// 2. DIBUJAR EL CATÁLOGO EN PANTALLA (TABLA CLÁSICA)
+// 2. DIBUJAR EL CATÁLOGO EN PANTALLA (TARJETAS CLÁSICAS)
 // ========================================================
 function renderizarCatalogo(productosAFiltrar) {
     const contenedor = document.getElementById("productosCatalogo");
     if (!contenedor) return;
-
+    
+    contenedor.innerHTML = "";
+    let prendasMostradas = 0;
     const esAdmin = typeof window.esAdmin === 'function' ? window.esAdmin() : false;
 
     if (!productosAFiltrar || productosAFiltrar.length === 0) {
-        contenedor.innerHTML = `<div class="p-8 text-center text-slate-500 border border-dashed border-slate-800 rounded-xl">📦 No se encontraron prendas.</div>`;
+        contenedor.innerHTML = `<div class="p-8 text-center text-slate-500 col-span-full border border-dashed border-slate-800 rounded-2xl">📦 No se encontraron prendas.</div>`;
         return;
     }
-
-    // 🔥 TABLA CLÁSICA Y COMPACTA
-    let htmlTabla = `
-    <div class="overflow-x-auto bg-slate-900 border border-slate-800 rounded-xl">
-        <table class="w-full text-left border-collapse whitespace-nowrap">
-            <thead class="bg-slate-950/80 text-slate-400 text-[10px] uppercase tracking-wider">
-                <tr>
-                    <th class="p-3 font-medium">Prenda</th>
-                    <th class="p-3 font-medium text-center">Detalle</th>
-                    <th class="p-3 font-medium">Ubicación / Stock</th>
-                    <th class="p-3 font-medium text-right">Precio</th>
-                    <th class="p-3 font-medium text-center">Acción</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-800/50 text-sm">
-    `;
-
-    let prendasMostradas = 0;
 
     productosAFiltrar.forEach((producto, indexProducto) => {
         const nombreBase = producto.nombre ?? producto.Nombre ?? "Prenda";
         const precio = producto.precio ?? producto.Precio ?? 0;
         const variantes = producto.variantes ?? producto.Variantes ?? [];
+        const categoria = producto.categoria ?? producto.Categoria ?? "PRENDA";
 
         variantes.forEach((variante) => {
             const varianteId = variante.id ?? variante.Id;
@@ -100,7 +85,6 @@ function renderizarCatalogo(productosAFiltrar) {
             let opcionesSucursalHTML = "";
             let stockGlobal = 0;
 
-            // Buscamos dónde hay stock y armamos el selector
             if (variante.stockDetalle && Array.isArray(variante.stockDetalle)) {
                 variante.stockDetalle.forEach(suc => {
                     if (suc.cantidad > 0) {
@@ -119,41 +103,78 @@ function renderizarCatalogo(productosAFiltrar) {
 
             const stockLocal = variante.stock ?? variante.Stock ?? 0;
             const stockAMostrar = esAdmin ? stockGlobal : stockLocal;
+            
+            if (stockAMostrar <= 0) return;
 
-            if (stockAMostrar <= 0) return; // Ocultar sin stock
-
-            htmlTabla += `
-                <tr class="hover:bg-slate-800/40 transition-colors">
-                    <td class="p-3 font-bold text-slate-200">${nombreBase}</td>
-                    <td class="p-3 text-center text-xs text-slate-400">
-                        <span class="bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">T: <b class="text-slate-200">${talle}</b></span>
-                        <span class="bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 ml-1">C: <b class="text-slate-200">${color}</b></span>
-                    </td>
-                    <td class="p-3">
-                        <select id="sucursal_origen_${varianteId}" class="bg-slate-950 border border-slate-700 rounded text-[11px] font-bold text-indigo-300 p-1.5 w-full max-w-[180px] outline-none cursor-pointer uppercase tracking-wider">
+            const tarjeta = document.createElement("div");
+            tarjeta.className = "bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between hover:border-indigo-500/50 transition-all shadow-sm";
+            
+            tarjeta.innerHTML = `
+                <div>
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-1 rounded-md uppercase tracking-wider">${categoria}</span>
+                        <span class="text-[11px] font-semibold text-slate-400 bg-slate-950 px-2 py-1 rounded-md border border-slate-800">📦 Stock: ${stockAMostrar}</span>
+                    </div>
+                    
+                    <h4 class="text-slate-100 font-bold text-base leading-tight mb-2">${nombreBase}</h4>
+                    
+                    <div class="flex flex-wrap gap-1.5 text-[10px] text-slate-400 mb-3">
+                        <span class="bg-slate-800 px-2 py-1 rounded-md">Talle: <b class="text-slate-200">${talle}</b></span>
+                        <span class="bg-slate-800 px-2 py-1 rounded-md">Color: <b class="text-slate-200">${color}</b></span>
+                    </div>
+                    
+                    <!-- 🌟 SELECTOR DE SUCURSAL CHICO EN LA TARJETA -->
+                    <div class="mb-3">
+                        <select id="sucursal_origen_${varianteId}" class="w-full bg-slate-950 border border-slate-700 text-[11px] font-bold text-indigo-300 rounded p-1.5 outline-none cursor-pointer">
                             ${opcionesSucursalHTML || `<option value="1">📍 STOCK CENTRAL</option>`}
                         </select>
-                    </td>
-                    <td class="p-3 text-right text-emerald-400 font-bold">$${precio.toLocaleString('es-AR')}</td>
-                    <td class="p-3 text-center">
-                        <button onclick="window.agregarVarianteDirecta(${varianteId}, ${indexProducto})" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer">
-                            + Agregar
-                        </button>
-                    </td>
-                </tr>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-between mt-1 pt-3 border-t border-slate-800/60">
+                    <span class="text-xl font-black text-emerald-400">$${precio.toLocaleString('es-AR')}</span>
+                    <button onclick="window.agregarVarianteDirecta(${varianteId}, ${indexProducto})" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[13px] font-bold py-2 px-4 rounded-xl transition-all active:scale-95 cursor-pointer">
+                        Agregar
+                    </button>
+                </div>
             `;
+            contenedor.appendChild(tarjeta);
             prendasMostradas++;
         });
     });
 
-    htmlTabla += `</tbody></table></div>`;
-
     if (prendasMostradas === 0) {
-        contenedor.innerHTML = `<div class="p-8 text-center text-slate-400 border border-dashed border-slate-800 rounded-xl bg-slate-900/50">📦 No hay prendas disponibles físicamente.</div>`;
-    } else {
-        contenedor.innerHTML = htmlTabla;
+        contenedor.innerHTML = `<div class="p-8 text-center text-slate-400 col-span-full border border-dashed border-slate-800 rounded-2xl bg-slate-900/50">📦 No hay prendas con stock disponible.</div>`;
     }
 }
+
+// Función que lee el selector y agrega al carrito
+window.agregarVarianteDirecta = function(varianteId, indexProducto) {
+    const selectSucursal = document.getElementById(`sucursal_origen_${varianteId}`);
+    const sucursalElegida = selectSucursal ? parseInt(selectSucursal.value) : 1;
+
+    const producto = productos[indexProducto];
+    const variante = (producto.variantes ?? producto.Variantes).find(v => (v.id ?? v.Id) === varianteId);
+    const itemEnCarrito = carrito.find(item => item.id === varianteId && Number(item.sucursalId) === sucursalElegida);
+
+    if (itemEnCarrito) {
+        itemEnCarrito.cantidad++;
+    } else {
+        carrito.push({
+            id: varianteId,
+            nombre: producto.nombre || producto.Nombre,
+            precio: producto.precio || producto.PrecioVenta,
+            talle: variante.talle ?? variante.Talle ?? "N/A",
+            color: variante.color ?? variante.Color ?? "N/A",
+            amount: 1,
+            cantidad: 1,
+            sucursalId: sucursalElegida
+        });
+    }
+
+    if(typeof actualizarInterfazCarrito === "function") actualizarInterfazCarrito();
+    if(window.toast) window.toast.success("🛒 Agregado al ticket");
+};
 
 // 🌟 FUNCIÓN NUEVA: Agrega leyendo el selector de la tabla
 window.agregarVarianteDirecta = function(varianteId, indexProducto) {
@@ -345,7 +366,7 @@ window.actualizarInterfazCarrito = function() {
     if (!contenedor || !totalText) return;
 
     if (carrito.length === 0) {
-        contenedor.innerHTML = `<div class="text-slate-500 text-center py-10 text-sm border border-dashed border-slate-800 rounded-xl mt-2 bg-slate-950/30">El ticket está vacío.<br>Agregá prendas desde el catálogo.</div>`;
+        contenedor.innerHTML = `<div class="text-slate-500 text-center py-6 text-sm italic">Ticket vacío.</div>`;
         totalText.textContent = "$0";
         if (modalTotalText) modalTotalText.textContent = "$0";
         return;
@@ -353,73 +374,65 @@ window.actualizarInterfazCarrito = function() {
 
     let totalBase = 0;
     
-    // 🔥 TABLA PARA EL CARRITO
-    let htmlCarrito = `
-    <div class="border border-slate-800 rounded-xl overflow-hidden bg-slate-900">
+    // 🌟 TABLA ESTILO EXCEL (Básica pero premium)
+    let html = `
+    <div class="bg-slate-950 border border-slate-800 rounded-lg overflow-hidden">
         <table class="w-full text-left border-collapse">
-            <thead class="bg-slate-950/60 border-b border-slate-800 text-[10px] text-slate-500 uppercase">
+            <thead class="bg-slate-900 border-b border-slate-800 text-[9px] uppercase tracking-wider text-slate-500">
                 <tr>
-                    <th class="p-2 font-bold">Producto</th>
+                    <th class="p-2 font-bold w-[45%]">Detalle</th>
                     <th class="p-2 font-bold text-center">Cant.</th>
                     <th class="p-2 font-bold text-right">Subtotal</th>
-                    <th class="p-2 w-8"></th>
+                    <th class="p-2 text-center w-8"></th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-slate-800/40 text-sm">
+            <tbody class="divide-y divide-slate-800/60 text-sm">
     `;
 
     carrito.forEach((item, index) => {
-        const nombre = item.nombre || item.Nombre || "Prenda";
-        const talle = item.talle || item.Talle || "-";
-        const color = item.color || item.Color || "-";
-        const precio = item.precio || item.PrecioVenta || 0;
-        const cantidad = item.cantidad || item.amount || 1;
-        const sucursalId = parseInt(item.sucursalId || 1);
-
+        const precio = item.precio || 0;
+        const cantidad = item.cantidad || 1;
         totalBase += precio * cantidad;
 
-        let nombreSucursal = sucursalId === 1 ? 'Monteros' : 'San Miguel';
+        let nombreSucursal = item.sucursalId === 1 ? 'Monteros' : 'San Miguel';
         if (window.sucursalesParaVentas) {
-            const sucMatch = window.sucursalesParaVentas.find(s => Number(s.id) === sucursalId);
+            const sucMatch = window.sucursalesParaVentas.find(s => Number(s.id) === Number(item.sucursalId));
             if (sucMatch) nombreSucursal = sucMatch.nombre;
         }
 
-        htmlCarrito += `
-            <tr class="hover:bg-slate-800/30">
+        html += `
+            <tr class="hover:bg-slate-900/50 transition-colors group">
                 <td class="p-2">
-                    <div class="font-bold text-slate-200 text-[13px] leading-tight mb-0.5">${nombre}</div>
-                    <div class="text-[10px] text-slate-400">
-                        T:${talle} | C:${color} <br> 
-                        <span class="text-indigo-400 font-medium">📍 ${nombreSucursal}</span>
-                    </div>
+                    <div class="text-[11px] font-bold text-slate-200 leading-tight truncate w-full max-w-[120px]" title="${item.nombre}">${item.nombre}</div>
+                    <div class="text-[9px] text-slate-500 mt-0.5">T:${item.talle} | C:${item.color}</div>
+                    <div class="text-[8px] text-indigo-400 uppercase tracking-widest font-bold mt-0.5">📍 ${nombreSucursal}</div>
                 </td>
                 <td class="p-2 align-middle">
-                    <div class="flex items-center justify-center bg-slate-950 border border-slate-700 rounded-md w-[76px] mx-auto overflow-hidden">
-                        <button onclick="window.modificarCantidad(${index}, -1)" class="w-7 h-7 text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">-</button>
-                        <input type="number" value="${cantidad}" onchange="window.cambiarCantidadManual(${index}, this.value)" class="w-7 h-7 bg-transparent text-center text-xs font-bold text-white focus:outline-none hide-arrows" style="appearance: none; -moz-appearance: textfield;">
-                        <button onclick="window.modificarCantidad(${index}, 1)" class="w-7 h-7 text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">+</button>
+                    <div class="flex items-center justify-center gap-1 bg-slate-900 border border-slate-700 rounded p-0.5 w-16 mx-auto">
+                        <button onclick="window.modificarCantidad(${index}, -1)" class="w-4 h-4 flex items-center justify-center text-slate-400 hover:text-white bg-slate-800 rounded text-xs leading-none cursor-pointer">-</button>
+                        <input type="number" value="${cantidad}" onchange="window.cambiarCantidadManual(${index}, this.value)" class="w-5 text-center text-[10px] font-bold text-white bg-transparent outline-none hide-arrows" style="appearance: none;">
+                        <button onclick="window.modificarCantidad(${index}, 1)" class="w-4 h-4 flex items-center justify-center text-slate-400 hover:text-white bg-slate-800 rounded text-xs leading-none cursor-pointer">+</button>
                     </div>
                 </td>
-                <td class="p-2 text-right font-mono font-bold text-emerald-400 text-[13px] align-middle">
+                <td class="p-2 text-right align-middle font-mono font-bold text-emerald-400 text-[12px]">
                     $${(precio * cantidad).toLocaleString('es-AR')}
                 </td>
                 <td class="p-2 text-center align-middle">
-                    <button onclick="window.eliminarDelCarrito(${index})" class="text-slate-600 hover:text-rose-500 p-1 cursor-pointer transition-colors" title="Quitar">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    <button onclick="window.eliminarDelCarrito(${index})" class="text-slate-600 hover:text-rose-500 cursor-pointer p-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
                 </td>
             </tr>
         `;
     });
 
-    htmlCarrito += `</tbody></table></div>`;
-    contenedor.innerHTML = htmlCarrito;
+    html += `</tbody></table></div>`;
+    contenedor.innerHTML = html;
 
-    // Descuentos originales
+    // Descuentos intactos
     const tipoMod = document.getElementById("tipoModificador")?.value || "nada";
     const valorMod = parseFloat(document.getElementById("valorModificador")?.value) || 0;
     let totalFinal = totalBase;
-    
     if (tipoMod === "descuento_pct") totalFinal -= totalBase * (valorMod / 100);
     if (tipoMod === "descuento_fijo") totalFinal -= valorMod;
     if (tipoMod === "recargo_pct") totalFinal += totalBase * (valorMod / 100);
