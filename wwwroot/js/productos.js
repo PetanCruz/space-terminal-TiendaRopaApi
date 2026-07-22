@@ -421,9 +421,12 @@ window.guardarNuevaVariante = async function(event) {
         return;
     }
 
-    // 🌟 FIX API C#: Mandamos stockInicial para creación
+    // 🌟 EL FIX ESTÁ ACÁ: codigoBarras: codBarras
     const payload = {
-        productoId, talle, color, codigoBarras,
+        productoId: productoId, 
+        talle: talle, 
+        color: color, 
+        codigoBarras: codBarras, 
         stockInicial: stock, 
         stockMinimo: stockMin,
         sucursalId: sucursalIdElegida
