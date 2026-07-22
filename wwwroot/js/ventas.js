@@ -56,24 +56,36 @@ async function cargarProductos() {
 }
 
 // ========================================================
-// 2. DIBUJAR EL CATÁLOGO EN PANTALLA (LISTA COMPACTA)
+// 2. DIBUJAR EL CATÁLOGO EN PANTALLA (TABLA CLÁSICA)
 // ========================================================
 function renderizarCatalogo(productosAFiltrar) {
     const contenedor = document.getElementById("productosCatalogo");
     if (!contenedor) return;
 
-    contenedor.innerHTML = "";
-    let prendasMostradas = 0;
     const esAdmin = typeof window.esAdmin === 'function' ? window.esAdmin() : false;
 
     if (!productosAFiltrar || productosAFiltrar.length === 0) {
-        contenedor.innerHTML = `<div class="p-8 text-center text-slate-500 col-span-full border border-dashed border-slate-800 rounded-2xl">📦 No se encontraron prendas que coincidan con la búsqueda.</div>`;
+        contenedor.innerHTML = `<div class="p-8 text-center text-slate-500 border border-dashed border-slate-800 rounded-xl">📦 No se encontraron prendas.</div>`;
         return;
     }
 
-    // Contenedor tipo lista (para que no sean tarjetas gigantes)
-    const lista = document.createElement("div");
-    lista.className = "flex flex-col gap-2 w-full";
+    // 🔥 TABLA CLÁSICA Y COMPACTA
+    let htmlTabla = `
+    <div class="overflow-x-auto bg-slate-900 border border-slate-800 rounded-xl">
+        <table class="w-full text-left border-collapse whitespace-nowrap">
+            <thead class="bg-slate-950/80 text-slate-400 text-[10px] uppercase tracking-wider">
+                <tr>
+                    <th class="p-3 font-medium">Prenda</th>
+                    <th class="p-3 font-medium text-center">Detalle</th>
+                    <th class="p-3 font-medium">Ubicación / Stock</th>
+                    <th class="p-3 font-medium text-right">Precio</th>
+                    <th class="p-3 font-medium text-center">Acción</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/50 text-sm">
+    `;
+
+    let prendasMostradas = 0;
 
     productosAFiltrar.forEach((producto, indexProducto) => {
         const nombreBase = producto.nombre ?? producto.Nombre ?? "Prenda";
@@ -82,26 +94,25 @@ function renderizarCatalogo(productosAFiltrar) {
 
         variantes.forEach((variante) => {
             const varianteId = variante.id ?? variante.Id;
-            const talle = variante.talle ?? variante.Talle ?? "N/A";
-            const color = variante.color ?? variante.Color ?? "N/A";
+            const talle = variante.talle ?? variante.Talle ?? "-";
+            const color = variante.color ?? variante.Color ?? "-";
 
             let opcionesSucursalHTML = "";
             let stockGlobal = 0;
 
-            // 🌟 MAGIA: Armamos el desplegable leyendo en qué sucursales está esta prenda
+            // Buscamos dónde hay stock y armamos el selector
             if (variante.stockDetalle && Array.isArray(variante.stockDetalle)) {
                 variante.stockDetalle.forEach(suc => {
                     if (suc.cantidad > 0) {
                         stockGlobal += suc.cantidad;
-                        // Buscamos el ID real
                         let sId = 1;
                         if (window.sucursalesParaVentas) {
                             const match = window.sucursalesParaVentas.find(s => s.nombre === suc.sucursal);
                             if (match) sId = match.id;
                         } else {
-                            sId = suc.sucursal === 'San Miguel' ? 2 : 1;
+                            sId = suc.sucursal.includes('Miguel') ? 2 : 1;
                         }
-                        opcionesSucursalHTML += `<option value="${sId}">📍 ${suc.sucursal} (Stock: ${suc.cantidad})</option>`;
+                        opcionesSucursalHTML += `<option value="${sId}">📍 ${suc.sucursal} (${suc.cantidad} u.)</option>`;
                     }
                 });
             }
@@ -109,49 +120,42 @@ function renderizarCatalogo(productosAFiltrar) {
             const stockLocal = variante.stock ?? variante.Stock ?? 0;
             const stockAMostrar = esAdmin ? stockGlobal : stockLocal;
 
-            if (stockAMostrar <= 0) return; // Si no hay stock, no mostramos la fila
+            if (stockAMostrar <= 0) return; // Ocultar sin stock
 
-            // DISEÑO ULTRA COMPACTO
-            const row = document.createElement("div");
-            row.className = "bg-slate-900 border border-slate-800 p-3 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-3 hover:bg-slate-800/50 transition-colors";
-            
-            row.innerHTML = `
-                <div class="flex-1">
-                    <h4 class="text-white font-bold text-sm">${nombreBase}</h4>
-                    <div class="flex gap-2 text-xs text-slate-400 mt-1">
-                        <span class="bg-slate-950 px-2 py-0.5 rounded border border-slate-800">Talle: <b class="text-slate-200">${talle}</b></span>
-                        <span class="bg-slate-950 px-2 py-0.5 rounded border border-slate-800">Color: <b class="text-slate-200">${color}</b></span>
-                    </div>
-                </div>
-                
-                <div class="flex items-center gap-3 w-full sm:w-auto">
-                    <span class="text-emerald-400 font-bold text-lg w-20 text-right pr-2">$${precio}</span>
-                    
-                    <!-- 🌟 EL USUARIO ELIGE DE DÓNDE SALE ANTES DE AGREGAR -->
-                    <select id="sucursal_origen_${varianteId}" class="bg-slate-950 border border-slate-700 text-xs font-bold uppercase tracking-wider rounded-lg p-2.5 text-indigo-300 outline-none flex-1 sm:w-48 cursor-pointer">
-                        ${opcionesSucursalHTML || `<option value="1">📍 STOCK CENTRAL</option>`}
-                    </select>
-                    
-                    <button onclick="window.agregarVarianteDirecta(${varianteId}, ${indexProducto})" class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-lg font-bold shadow-md active:scale-95 transition-all">
-                        Agregar
-                    </button>
-                </div>
+            htmlTabla += `
+                <tr class="hover:bg-slate-800/40 transition-colors">
+                    <td class="p-3 font-bold text-slate-200">${nombreBase}</td>
+                    <td class="p-3 text-center text-xs text-slate-400">
+                        <span class="bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">T: <b class="text-slate-200">${talle}</b></span>
+                        <span class="bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 ml-1">C: <b class="text-slate-200">${color}</b></span>
+                    </td>
+                    <td class="p-3">
+                        <select id="sucursal_origen_${varianteId}" class="bg-slate-950 border border-slate-700 rounded text-[11px] font-bold text-indigo-300 p-1.5 w-full max-w-[180px] outline-none cursor-pointer uppercase tracking-wider">
+                            ${opcionesSucursalHTML || `<option value="1">📍 STOCK CENTRAL</option>`}
+                        </select>
+                    </td>
+                    <td class="p-3 text-right text-emerald-400 font-bold">$${precio.toLocaleString('es-AR')}</td>
+                    <td class="p-3 text-center">
+                        <button onclick="window.agregarVarianteDirecta(${varianteId}, ${indexProducto})" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer">
+                            + Agregar
+                        </button>
+                    </td>
+                </tr>
             `;
-            lista.appendChild(row);
             prendasMostradas++;
         });
     });
 
-    contenedor.appendChild(lista);
+    htmlTabla += `</tbody></table></div>`;
 
     if (prendasMostradas === 0) {
-        contenedor.innerHTML = `<div class="p-8 text-center text-slate-400 col-span-full border border-dashed border-slate-800 rounded-2xl bg-slate-900/50">
-            📦 No hay prendas disponibles físicamente para vender.
-        </div>`;
+        contenedor.innerHTML = `<div class="p-8 text-center text-slate-400 border border-dashed border-slate-800 rounded-xl bg-slate-900/50">📦 No hay prendas disponibles físicamente.</div>`;
+    } else {
+        contenedor.innerHTML = htmlTabla;
     }
 }
 
-// 🌟 FUNCIÓN NUEVA: Agrega leyendo el selector
+// 🌟 FUNCIÓN NUEVA: Agrega leyendo el selector de la tabla
 window.agregarVarianteDirecta = function(varianteId, indexProducto) {
     const selectSucursal = document.getElementById(`sucursal_origen_${varianteId}`);
     const sucursalElegida = selectSucursal ? parseInt(selectSucursal.value) : 1;
@@ -178,7 +182,7 @@ window.agregarVarianteDirecta = function(varianteId, indexProducto) {
 
     if(typeof actualizarInterfazCarrito === "function") actualizarInterfazCarrito();
     if(window.toast) window.toast.success("🛒 Prenda agregada al ticket");
-}
+};
 
 // =========================================================================
 // 🛒 AGREGAR AL CARRITO DESDE INVENTARIO (INTER-SUCURSAL)
@@ -331,7 +335,7 @@ window.cambiarSucursalItem = function(index, nuevoId) {
 };
 
 // ========================================================
-// 4. ACTUALIZAR EL TICKET VISUAL Y LOS TOTALES EN VIVO
+// 4. CARRITO DE COMPRAS (TABLA COMPACTA)
 // ========================================================
 window.actualizarInterfazCarrito = function() {
     const contenedor = document.getElementById("carritoItems");
@@ -340,16 +344,29 @@ window.actualizarInterfazCarrito = function() {
     
     if (!contenedor || !totalText) return;
 
-    contenedor.innerHTML = "";
-    
     if (carrito.length === 0) {
-        contenedor.innerHTML = `<div id="carritoVacio" class="text-slate-500 text-center py-10 text-sm border-2 border-dashed border-slate-800 rounded-xl mt-4">El ticket está vacío.<br>Seleccioná prendas de la lista.</div>`;
+        contenedor.innerHTML = `<div class="text-slate-500 text-center py-10 text-sm border border-dashed border-slate-800 rounded-xl mt-2 bg-slate-950/30">El ticket está vacío.<br>Agregá prendas desde el catálogo.</div>`;
         totalText.textContent = "$0";
         if (modalTotalText) modalTotalText.textContent = "$0";
         return;
     }
 
     let totalBase = 0;
+    
+    // 🔥 TABLA PARA EL CARRITO
+    let htmlCarrito = `
+    <div class="border border-slate-800 rounded-xl overflow-hidden bg-slate-900">
+        <table class="w-full text-left border-collapse">
+            <thead class="bg-slate-950/60 border-b border-slate-800 text-[10px] text-slate-500 uppercase">
+                <tr>
+                    <th class="p-2 font-bold">Producto</th>
+                    <th class="p-2 font-bold text-center">Cant.</th>
+                    <th class="p-2 font-bold text-right">Subtotal</th>
+                    <th class="p-2 w-8"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/40 text-sm">
+    `;
 
     carrito.forEach((item, index) => {
         const nombre = item.nombre || item.Nombre || "Prenda";
@@ -367,44 +384,38 @@ window.actualizarInterfazCarrito = function() {
             if (sucMatch) nombreSucursal = sucMatch.nombre;
         }
 
-        const div = document.createElement("div");
-        // DISEÑO GIGANTE Y CLARO PARA EL CARRITO
-        div.className = "bg-slate-900 border-2 border-slate-800 p-4 rounded-xl mb-3 shadow-md";
-
-        div.innerHTML = `
-            <div class="flex justify-between items-start mb-3">
-                <div>
-                    <h4 class="text-lg font-black text-white leading-tight">${nombre}</h4>
-                    <p class="text-sm text-slate-400 mt-1">
-                        Talle: <span class="text-white font-bold">${talle}</span> <span class="mx-1">|</span> 
-                        Color: <span class="text-white font-bold">${color}</span>
-                    </p>
-                    <p class="inline-block mt-2 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wider ${sucursalId === 1 ? 'bg-indigo-900/50 text-indigo-400' : 'bg-emerald-900/50 text-emerald-400'} border border-slate-700/50">
-                        📍 Origen: ${nombreSucursal}
-                    </p>
-                </div>
-                <button onclick="window.eliminarDelCarrito(${index})" class="text-slate-500 hover:text-rose-500 bg-slate-950 p-2 rounded-lg border border-slate-800 transition-colors">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                </button>
-            </div>
-            
-            <div class="flex justify-between items-end border-t border-slate-800/60 pt-3">
-                <div class="flex items-center bg-slate-950 border border-slate-700 rounded-lg p-1 shadow-inner">
-                    <button onclick="window.modificarCantidad(${index}, -1)" class="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-slate-700 rounded text-white font-bold text-xl cursor-pointer">-</button>
-                    <input type="number" value="${cantidad}" onchange="window.cambiarCantidadManual(${index}, this.value)" class="w-12 h-10 bg-transparent text-center font-black text-white text-lg focus:outline-none hide-arrows" style="appearance: none; -moz-appearance: textfield;">
-                    <button onclick="window.modificarCantidad(${index}, 1)" class="w-10 h-10 flex items-center justify-center bg-slate-800 hover:bg-slate-700 rounded text-white font-bold text-xl cursor-pointer">+</button>
-                </div>
-                <div class="text-right">
-                    <p class="text-sm text-slate-500 mb-0.5">${cantidad} x $${precio.toLocaleString('es-AR')}</p>
-                    <span class="text-3xl font-black text-emerald-400 font-mono tracking-tighter">$${(precio * cantidad).toLocaleString('es-AR')}</span>
-                </div>
-            </div>
+        htmlCarrito += `
+            <tr class="hover:bg-slate-800/30">
+                <td class="p-2">
+                    <div class="font-bold text-slate-200 text-[13px] leading-tight mb-0.5">${nombre}</div>
+                    <div class="text-[10px] text-slate-400">
+                        T:${talle} | C:${color} <br> 
+                        <span class="text-indigo-400 font-medium">📍 ${nombreSucursal}</span>
+                    </div>
+                </td>
+                <td class="p-2 align-middle">
+                    <div class="flex items-center justify-center bg-slate-950 border border-slate-700 rounded-md w-[76px] mx-auto overflow-hidden">
+                        <button onclick="window.modificarCantidad(${index}, -1)" class="w-7 h-7 text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">-</button>
+                        <input type="number" value="${cantidad}" onchange="window.cambiarCantidadManual(${index}, this.value)" class="w-7 h-7 bg-transparent text-center text-xs font-bold text-white focus:outline-none hide-arrows" style="appearance: none; -moz-appearance: textfield;">
+                        <button onclick="window.modificarCantidad(${index}, 1)" class="w-7 h-7 text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">+</button>
+                    </div>
+                </td>
+                <td class="p-2 text-right font-mono font-bold text-emerald-400 text-[13px] align-middle">
+                    $${(precio * cantidad).toLocaleString('es-AR')}
+                </td>
+                <td class="p-2 text-center align-middle">
+                    <button onclick="window.eliminarDelCarrito(${index})" class="text-slate-600 hover:text-rose-500 p-1 cursor-pointer transition-colors" title="Quitar">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                </td>
+            </tr>
         `;
-        
-        contenedor.appendChild(div);
     });
 
-    // Lógica de Descuentos intacta
+    htmlCarrito += `</tbody></table></div>`;
+    contenedor.innerHTML = htmlCarrito;
+
+    // Descuentos originales
     const tipoMod = document.getElementById("tipoModificador")?.value || "nada";
     const valorMod = parseFloat(document.getElementById("valorModificador")?.value) || 0;
     let totalFinal = totalBase;
