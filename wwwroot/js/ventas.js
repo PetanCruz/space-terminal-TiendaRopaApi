@@ -3935,3 +3935,36 @@ window.reimprimirPresupuesto = async function(idPresupuesto) {
         else alert("Hubo un error al generar el PDF.");
     }
 };
+
+// ========================================================
+// CONTROLES DE CANTIDAD DEL CARRITO (Botones + y -)
+// ========================================================
+window.modificarCantidad = function(index, cambio) {
+    if (!carrito[index]) return;
+    
+    let nuevaCantidad = carrito[index].cantidad + cambio;
+    
+    // Si la cantidad llega a 0 o menos, eliminamos el producto
+    if (nuevaCantidad <= 0) {
+        window.eliminarDelCarrito(index);
+        return;
+    }
+    
+    carrito[index].cantidad = nuevaCantidad;
+    window.actualizarInterfazCarrito();
+};
+
+window.cambiarCantidadManual = function(index, valorStr) {
+    if (!carrito[index]) return;
+    
+    let nuevaCantidad = parseInt(valorStr);
+    
+    // Si borran el número o ponen letras, lo volvemos a 1 o lo eliminamos
+    if (isNaN(nuevaCantidad) || nuevaCantidad <= 0) {
+        window.eliminarDelCarrito(index);
+        return;
+    }
+
+    carrito[index].cantidad = nuevaCantidad;
+    window.actualizarInterfazCarrito();
+};

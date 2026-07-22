@@ -552,37 +552,78 @@ window.guardarNuevaCategoria = async function(event) {
 // =========================================================================
 // 👕 MÓDULO DE VARIANTES — Agregar variante a producto existente
 // =========================================================================
+window.guardarNuevaVariante = async function(event) {
+    event.preventDefault();
 
-// ── Abrir modal: carga el nombre del producto en el título ────────────────
-window.abrirModalAgregarVariante = function(productoId) {
-    const prod = window.productosMemoria.find(p => p.id === productoId);
-    if (!prod) {
-        alert("No se encontró el producto. Recargá la página.");
+    const token      = window.ConfigInventario.obtenerToken();
+    const productoId = parseInt(document.getElementById("varianteProductoId")?.value);
+    const talle      = document.getElementById("varianteTalle")?.value.trim();
+    const color      = document.getElementById("varianteColor")?.value.trim();
+    const codBarras  = document.getElementById("varianteCodigoBarras")?.value.trim();
+    const stock      = parseInt(document.getElementById("varianteStock")?.value);
+    const stockMin   = parseInt(document.getElementById("varianteStockMinimo")?.value) || 2;
+    const divError   = document.getElementById("errorVariante");
+
+    // Leer la sucursal elegida
+    const sel = document.getElementById("varianteSucursal");
+    const sucursalIdElegida = (sel && sel.value) ? parseInt(sel.value) : (JSON.parse(localStorage.getItem("usuario"))?.sucursalId || 1);
+
+    // Validaciones básicas
+    if (!talle || !color || !codBarras || isNaN(stock) || isNaN(productoId)) {
+        divError.textContent = "Completá todos los campos obligatorios.";
+        divError.classList.remove("hidden");
         return;
     }
 
-    window.llenarSelectSucursales("varianteSucursal", "contenedorSucursalVariante");
+    // 🌟 FIX: Mandamos stockInicial como espera C# al crear algo nuevo
+    const payload = {
+        productoId: productoId,
+        talle: talle,
+        color: color,
+        codigoBarras: codBarras,
+        stockInicial: stock, 
+        stockMinimo: stockMin,
+        sucursalId: sucursalIdElegida
+    };
 
-    // Guardar el ID en el formulario para usarlo al guardar
-    document.getElementById("varianteProductoId").value = productoId;
+    console.log("👕 Enviando nueva variante:", payload);
 
-    // Mostrar nombre del producto en el título del modal
-    document.getElementById("modalVarianteTitulo").textContent  = prod.nombre ?? "Producto";
-    document.getElementById("modalVarianteSubtitulo").textContent = `Agregando variante a: ${prod.nombre}`;
+    const btn = event.submitter;
+    const restaurar = window.btnLoading ? window.btnLoading(btn, "Guardando...") : () => {};
 
-    // Limpiar estado anterior
-    document.getElementById("formAgregarVariante")?.reset();
-    document.getElementById("varianteProductoId").value = productoId; // reset limpia el hidden, restaurar
-    document.getElementById("errorVariante")?.classList.add("hidden");
+    try {
+        const respuesta = await fetch(`${window.ConfigInventario.URL}/variantes`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+        });
 
-    document.getElementById("modalAgregarVariante")?.classList.remove("hidden");
-    document.getElementById("varianteTalle")?.focus();
-};
+        if (!respuesta.ok) {
+            // 🌟 MAGIA: Si C# falla, extraemos el texto exacto (Ej: "El código de barras ya existe")
+            const errorTexto = await respuesta.text();
+            throw new Error(errorTexto || "Error interno del servidor");
+        }
 
-window.cerrarModalAgregarVariante = function() {
-    document.getElementById("modalAgregarVariante")?.classList.add("hidden");
-    document.getElementById("formAgregarVariante")?.reset();
-    document.getElementById("errorVariante")?.classList.add("hidden");
+        const nuevaVariante = await respuesta.json();
+        console.log("✅ Variante creada:", nuevaVariante);
+
+        window.cerrarModalAgregarVariante();
+        await window.cargarProductosInventario(); // Recargamos para ver los cambios
+        
+        if (window.toast) window.toast.success(`✅ Variante ${talle} / ${color} agregada.`);
+        else alert(`✅ Variante ${talle} / ${color} agregada.`);
+
+    } catch (error) {
+        console.error("❌ Error al guardar variante:", error);
+        // Ahora el cartel rojo te dirá exactamente el motivo del fallo
+        divError.innerHTML = `<strong>Error del sistema:</strong> ${error.message}`;
+        divError.classList.remove("hidden");
+    } finally {
+        restaurar();
+    }
 };
 
 // ── Guardar variante ──────────────────────────────────────────────────────
