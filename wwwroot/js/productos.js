@@ -421,13 +421,13 @@ window.guardarNuevaVariante = async function(event) {
         return;
     }
 
-    // 🌟 EL FIX: Cambiamos stockInicial por stockActual (como lo pide tu C#)
+    // 🌟 PAYLOAD EXACTO: Mapeado 1 a 1 con VarianteCreateRequestDto de tu backend
     const payload = {
         productoId: productoId, 
         talle: talle, 
         color: color, 
         codigoBarras: codBarras, 
-        stockActual: stock, // <--- ACÁ ESTABA EL PROBLEMA
+        stockActual: stock,      // <-- Esta es la propiedad que espera tu C#
         stockMinimo: stockMin,
         sucursalId: sucursalIdElegida
     };
@@ -443,17 +443,26 @@ window.guardarNuevaVariante = async function(event) {
         });
 
         if (!respuesta.ok) {
-            const errorTexto = await respuesta.text();
-            throw new Error(errorTexto || "Error interno del servidor C#");
+            // 🌟 LECTOR DE ERRORES C#: Desempaqueta tu "BadRequest(new { mensaje = '...' })"
+            let errorMsg = "Error del servidor (HTTP " + respuesta.status + ")";
+            try {
+                const errData = await respuesta.json();
+                errorMsg = errData.mensaje || errData.title || JSON.stringify(errData);
+            } catch (e) {
+                const text = await respuesta.text();
+                if (text) errorMsg = text;
+            }
+            throw new Error(errorMsg);
         }
 
         window.cerrarModalAgregarVariante();
         await window.cargarProductosInventario(); 
         if (window.toast) window.toast.success(`✅ Variante ${talle} / ${color} agregada.`);
         else alert(`✅ Variante agregada.`);
+        
     } catch (error) {
         console.error(error);
-        divError.innerHTML = `<strong>Error del servidor:</strong> ${error.message}`;
+        divError.innerHTML = `<strong>Error:</strong> ${error.message}`;
         divError.classList.remove("hidden");
     } finally {
         restaurar();
