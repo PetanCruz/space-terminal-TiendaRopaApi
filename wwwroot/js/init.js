@@ -542,9 +542,11 @@ window.toggleMenuMovil = function() {
     const sidebar = document.getElementById('sidebarMenu');
     if (sidebar) {
         sidebar.classList.toggle('hidden');
-        sidebar.classList.toggle('absolute');
-        sidebar.classList.toggle('z-[100]'); // Lo pone por encima de todo
-        sidebar.classList.toggle('h-full');
-        sidebar.classList.toggle('shadow-2xl');
+        // Agregamos clases para forzar que sea un Drawer overlay en mobile
+        sidebar.classList.toggle('fixed');
+        sidebar.classList.toggle('inset-y-0');
+        sidebar.classList.toggle('left-0');
+        sidebar.classList.toggle('flex');
+        sidebar.classList.toggle('z-[100]');
     }
 };
