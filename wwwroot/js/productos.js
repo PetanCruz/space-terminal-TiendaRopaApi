@@ -421,13 +421,12 @@ window.guardarNuevaVariante = async function(event) {
         return;
     }
 
-    // 🌟 PAYLOAD EXACTO: Mapeado 1 a 1 con VarianteCreateRequestDto de tu backend
     const payload = {
         productoId: productoId, 
         talle: talle, 
         color: color, 
         codigoBarras: codBarras, 
-        stockActual: stock,      // <-- Esta es la propiedad que espera tu C#
+        stockActual: stock,
         stockMinimo: stockMin,
         sucursalId: sucursalIdElegida
     };
@@ -443,15 +442,20 @@ window.guardarNuevaVariante = async function(event) {
         });
 
         if (!respuesta.ok) {
-            // 🌟 LECTOR DE ERRORES C#: Desempaqueta tu "BadRequest(new { mensaje = '...' })"
             let errorMsg = "Error del servidor (HTTP " + respuesta.status + ")";
+            
+            // 🔥 EL FIX: Leemos el texto de la respuesta UNA SOLA VEZ
+            const textoRespuesta = await respuesta.text(); 
+            
             try {
-                const errData = await respuesta.json();
-                errorMsg = errData.mensaje || errData.title || JSON.stringify(errData);
+                // Intentamos interpretarlo como JSON (tu C# manda { mensaje: "..." })
+                const errData = JSON.parse(textoRespuesta);
+                errorMsg = errData.mensaje || errData.title || textoRespuesta;
             } catch (e) {
-                const text = await respuesta.text();
-                if (text) errorMsg = text;
+                // Si C# escupió texto plano, usamos eso
+                if (textoRespuesta) errorMsg = textoRespuesta;
             }
+            
             throw new Error(errorMsg);
         }
 
@@ -462,7 +466,7 @@ window.guardarNuevaVariante = async function(event) {
         
     } catch (error) {
         console.error(error);
-        divError.innerHTML = `<strong>Error:</strong> ${error.message}`;
+        divError.innerHTML = `<strong>Aviso C#:</strong> ${error.message}`;
         divError.classList.remove("hidden");
     } finally {
         restaurar();
