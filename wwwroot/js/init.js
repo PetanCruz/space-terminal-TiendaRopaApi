@@ -398,25 +398,20 @@ window.inicializarSeguridad = function() {
 // 📱 PWA — Registro del Service Worker + Banner de instalación
 // =========================================================================
 
-// ── Registrar el Service Worker ───────────────────────────────────────────
+// ── DESTRUIR EL SERVICE WORKER Y LA CACHÉ ─────────────────────────────────
 if ("serviceWorker" in navigator) {
-    window.addEventListener("load", async () => {
-        try {
-            const registro = await navigator.serviceWorker.register("/sw.js");
-            console.log("✅ [PWA] Service Worker registrado:", registro.scope);
-
-            // Detectar actualizaciones disponibles
-            registro.addEventListener("updatefound", () => {
-                const nuevoSW = registro.installing;
-                nuevoSW?.addEventListener("statechange", () => {
-                    if (nuevoSW.statechange === "installed" && navigator.serviceWorker.controller) {
-                        window.toast?.info("🔄 Nueva versión disponible. Recargá para actualizar.");
-                    }
-                });
-            });
-
-        } catch (error) {
-            console.warn("⚠️ [PWA] Service Worker no pudo registrarse:", error);
+    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+            registration.unregister();
+            console.log("🔥 Service Worker ELIMINADO CON ÉXITO");
+        }
+    });
+    
+    // Vaciamos el almacenamiento de la PWA
+    caches.keys().then(function(names) {
+        for (let name of names) {
+            caches.delete(name);
+            console.log("🧹 Caché rebelde borrada: " + name);
         }
     });
 }
