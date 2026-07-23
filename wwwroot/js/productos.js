@@ -329,7 +329,7 @@ window.verVariantes = function(id) {
         listaVariantes.forEach(v => {
             let detalleHtml = "";
             if (v.stockDetalle && v.stockDetalle.length > 0 && v.stockDetalle.length > 1) {
-                detalleHtml = `<div class="mt-3 pt-3 border-t border-slate-700/50 flex flex-col gap-2">`;
+                detalleHtml = `<div class="mt-3 pt-3 border-t border-slate-700/50 flex flex-col gap-2 w-full">`;
                 v.stockDetalle.forEach(d => {
                     const colorNum = d.cantidad > 0 ? "text-emerald-400" : "text-slate-500";
                     const esLocalActual = d.sucursalId === ((JSON.parse(localStorage.getItem("usuario")) || {}).sucursalId || 1);
@@ -347,13 +347,19 @@ window.verVariantes = function(id) {
                 detalleHtml += `</div>`;
             }
 
+            // 🔥 FIX: Agregamos el botón de Reponer Stock alineado a la derecha
             html += `
                 <tr class="border-b border-slate-800/50 hover:bg-slate-800/20">
                     <td class="py-4 font-medium text-white capitalize text-lg">${v.talle ?? "-"}</td>
                     <td class="py-4 text-slate-400 capitalize text-lg">${v.color ?? "-"}</td>
-                    <td class="py-4 text-right w-64">
-                        <div class="font-mono text-white font-bold text-sm bg-slate-950/80 px-3 py-2 rounded-lg border border-indigo-500/30 inline-block mb-1 shadow-md">
-                            Local actual: <span class="text-indigo-400 text-xl ml-2">${v.stock ?? 0}</span>
+                    <td class="py-4 text-right min-w-[300px]">
+                        <div class="flex items-center justify-end gap-2 mb-1">
+                            <div class="font-mono text-white font-bold text-sm bg-slate-950/80 px-3 py-2 rounded-lg border border-indigo-500/30 shadow-md">
+                                Local actual: <span class="text-indigo-400 text-xl ml-2">${v.stock ?? 0}</span>
+                            </div>
+                            <button onclick="window.abrirModalReponerStock(${v.id}, '${(prod.nombre||"").replace(/'/g, "\\'")}', '${v.talle}', '${v.color}', ${v.stock ?? 0})" class="px-3 py-2 bg-emerald-950/60 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-900/80 rounded-lg text-sm font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-md">
+                                📦 Reponer
+                            </button>
                         </div>
                         ${detalleHtml}
                     </td>
@@ -466,7 +472,7 @@ window.guardarNuevaVariante = async function(event) {
         
     } catch (error) {
         console.error(error);
-        divError.innerHTML = `<strong>Aviso C#:</strong> ${error.message}`;
+        divError.innerHTML = `<strong>Atención:</strong> ${error.message}`;
         divError.classList.remove("hidden");
     } finally {
         restaurar();

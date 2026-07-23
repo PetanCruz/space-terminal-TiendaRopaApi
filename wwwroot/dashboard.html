@@ -162,7 +162,7 @@
 
         <!-- ===================== SECCIÓN VENTAS ===================== -->
         <div id="seccion-ventas" class="space-y-8">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
                 <div class="lg:col-span-2 space-y-4">
                     <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-3">
                         <h2 class="text-lg font-bold text-white flex items-center gap-2">🛍️ Catálogo de Prendas</h2>
@@ -174,7 +174,7 @@
                     <div id="productosCatalogo" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
                 </div>
 
-                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-[calc(100vh-8rem)] sticky top-24 shadow-xl">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-[calc(100vh-2rem)] sticky top-4 shadow-xl">
                     <div class="space-y-4 flex-1 flex flex-col overflow-hidden">
                         <div class="flex justify-between items-center pb-2 border-b border-slate-800">
                             <h3 class="font-bold text-white text-base">🧾 Detalle del Ticket</h3>
@@ -236,20 +236,25 @@
                         <p id="cierreTransferencia" class="text-xl font-black text-blue-400 mt-1">$0</p>
                     </div>
                 </div>
+                <!-- Tabla principal -->
                 <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
-                    <table class="w-full text-left border-collapse">
-                        <thead class="bg-slate-800 text-slate-300 text-xs uppercase tracking-wider">
-                            <tr>
-                                <th class="p-4">ID Venta</th>
-                                <th class="p-4">Fecha y Hora</th>
-                                <th class="p-4">Medio de Pago</th>
-                                <th class="p-4">Total Liquidado</th>
-                                <th class="p-4 text-center">Detalle</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tablaHistorialBody" class="divide-y divide-slate-800/60 text-slate-300 text-sm"></tbody>
-                    </table>
+                    <!-- 🔥 ESTO PERMITE DESLIZAR CON EL DEDO EN EL CELU 🔥 -->
+                   <div class="overflow-x-auto">
+                       <table class="w-full text-left border-collapse whitespace-nowrap min-w-[800px]">
+                          <thead class="bg-slate-800 text-slate-300 text-xs uppercase tracking-wider">
+                          <tr>
+                             <th class="p-4">Detalle de Prenda</th>
+                             <th class="p-4">Categoría</th>
+                             <th class="p-4">Precio Compra</th>
+                             <th class="p-4">Precio Venta</th>
+                             <th class="p-4 text-center">Disponibilidad</th>
+                             <th class="p-4 text-right">Acciones</th>
+                           </tr>
+                          </thead>
+                    <tbody id="tablaProductosBody" class="divide-y divide-slate-800/60 text-slate-300 text-sm"></tbody>
+                 </table>
                 </div>
+             </div>
             </div>
         </div>
         <!-- FIN SECCIÓN HISTORIAL -->
