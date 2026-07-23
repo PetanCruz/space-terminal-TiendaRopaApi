@@ -140,6 +140,10 @@ window.cargarProductosInventario = async function() {
         const prods = await respuesta.json();
         window.productosMemoria = prods;
         window.renderizarTablaProductosInventario(prods);
+        
+        // Cargamos el stock crítico directamente acá de forma segura
+        if (window.cargarStockCritico) await window.cargarStockCritico();
+
     } catch (error) {
         console.error("❌ Error al cargar productos:", error);
         if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-rose-400">Error de conexión.</td></tr>`;
@@ -150,7 +154,10 @@ window.renderizarTablaProductosInventario = function(lista) {
     const tbody = document.getElementById("tablaProductosBody");
     if (!tbody) return;
 
-    const esAdmin = window.esAdmin();
+    // 🔥 FIX: Chequeo de administrador a prueba de fallos
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const esAdmin = (typeof window.esAdmin === 'function') ? window.esAdmin() : (usuarioLocal.rol === "administrador" || usuarioLocal.rol === "Administrador");
+
     const btnAddProd = document.querySelector("button[onclick='window.abrirModalAgregar()']");
     const btnAddCat = document.querySelector("button[onclick*='abrirModalAgregarCategoria']");
     
@@ -541,12 +548,6 @@ window.renderizarStockCritico = function(criticos) {
                 <td class="p-3 text-right"><button onclick="window.abrirModalReponerStock(${v.varianteId}, '${v.producto.replace(/'/g, "\\'")}', '${v.talle}', '${v.color}', ${v.stockActual})" class="bg-emerald-950/40 text-emerald-400 text-xs px-3 py-1.5 rounded-lg border border-emerald-500/20">📦 Reponer</button></td>
             </tr>`;
     }).join("");
-};
-
-const _cargarOriginal = window.cargarProductosInventario;
-window.cargarProductosInventario = async function() {
-    await _cargarOriginal();
-    await window.cargarStockCritico();
 };
 
 window.abrirModalReponerStock = function(varianteId, productoNombre, talle, color, stockActual) {

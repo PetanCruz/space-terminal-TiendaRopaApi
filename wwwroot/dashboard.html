@@ -1193,5 +1193,21 @@
     <script src="/js/empresa.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <!-- ================================================================= -->
+    <!-- 🔥 SCRIPT NUCLEAR PARA LIMPIAR CACHÉ MÓVIL REBELDE 🔥             -->
+    <!-- ================================================================= -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                    console.log("🔥 Service Worker viejo eliminado");
+                }
+            });
+        }
+    </script>
+</body>
+</html>
 </body>
 </html>
