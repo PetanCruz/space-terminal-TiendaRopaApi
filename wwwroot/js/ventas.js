@@ -1674,34 +1674,233 @@ window.reimprimirPresupuesto = async function(id) { /* Genera PDF (Intacta) */ }
 // =========================================================================
 // 🗂️ HISTORIAL VISUAL DE CIERRES DE CAJA Y MODALES
 // =========================================================================
-window.verHistorialCierres = async function() { /* Dibuja modal (Intacta) */ };
-window.abrirModalCobro = function() { if (carrito.length === 0) return; document.getElementById("modalOpcionesCobro")?.classList.remove("hidden"); };
-window.ejecutarCobro = function(metodo) { if(document.getElementById("formaPago")) document.getElementById("formaPago").value = metodo; window.cerrarModalCobro(); window.procesarVentaInteligente(); };
-window.cerrarModalCobro = function() { document.getElementById("modalOpcionesCobro")?.classList.add("hidden"); };
+window.verHistorialCierres = async function() {
+    const token = localStorage.getItem("token");
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const sucursalActiva = localStorage.getItem("sucursalAdminActiva") || usuarioLocal.sucursalId || 1;
+    
+    if(window.toast) window.toast.info("Cargando historial de cajas...");
+
+    try {
+        const respuesta = await fetch(`${API_URL}/cierrecaja?sucursalId=${sucursalActiva}`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        
+        if (!respuesta.ok) throw new Error("Error al obtener cierres");
+        const cierres = await respuesta.json();
+
+        let filasHTML = "";
+        if (cierres.length === 0) {
+            filasHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-500 italic">No hay cierres de caja registrados en esta sucursal.</td></tr>`;
+        } else {
+            cierres.forEach(c => {
+                const fecha = new Date(c.fecha || c.Fecha).toLocaleString("es-AR", {day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute:"2-digit"});
+                const total = Number(c.totalGeneral || c.TotalGeneral || 0).toLocaleString("es-AR");
+                const obs = c.observaciones || c.Observaciones || "-";
+                
+                filasHTML += `
+                    <tr class="border-b border-slate-800 hover:bg-slate-800/30 transition-colors">
+                        <td class="p-4 text-slate-300 text-xs">${fecha}</td>
+                        <td class="p-4 text-slate-400 text-center">${c.cantidadVentas || 0}</td>
+                        <td class="p-4 text-emerald-400 font-bold">$${total}</td>
+                        <td class="p-4 text-slate-500 text-xs italic truncate max-w-[150px]" title="${obs}">${obs}</td>
+                        <td class="p-4 text-center">
+                            <button onclick='window.imprimirResumenCaja(${JSON.stringify(c)})' class="text-indigo-400 hover:text-indigo-300 p-2 rounded hover:bg-indigo-950/50 transition-colors cursor-pointer" title="Reimprimir">
+                                🖨️
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        const modalHTML = `
+        <div id="modalHistorialCajas" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+            <div class="bg-slate-900 border border-slate-800 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+                <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/40">
+                    <h3 class="text-white font-bold text-lg flex items-center gap-2">🗄️ Historial de Cajas Cerradas</h3>
+                    <button onclick="document.getElementById('modalHistorialCajas').remove()" class="text-slate-400 hover:text-white transition-colors text-xl cursor-pointer">✕</button>
+                </div>
+                
+                <div class="overflow-y-auto w-full p-0 flex-1">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-slate-950/50 text-slate-400 text-xs uppercase tracking-wider sticky top-0">
+                            <tr>
+                                <th class="p-4 font-medium">Fecha y Hora</th>
+                                <th class="p-4 font-medium text-center">Ventas</th>
+                                <th class="p-4 font-medium">Total</th>
+                                <th class="p-4 font-medium">Observaciones</th>
+                                <th class="p-4 font-medium text-center">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-sm text-slate-300">
+                            ${filasHTML}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        `;
+
+        const viejo = document.getElementById("modalHistorialCajas");
+        if (viejo) viejo.remove();
+        document.body.insertAdjacentHTML("beforeend", modalHTML);
+
+    } catch (error) {
+        console.error(error);
+        alert("❌ Hubo un error al cargar el historial de cajas.");
+    }
+};
 
 // =========================================================================
-// ⚡ MÓDULO DE ATAJOS DE TECLADO AVANZADOS Y CANTIDADES
+// 💳 CONTROLADOR DEL MODAL DE COBRO (UX PREMIUM)
+// =========================================================================
+window.abrirModalCobro = function() {
+    if (!carrito || carrito.length === 0) {
+        if(window.toast) window.toast.warning("El ticket está vacío. Agregá prendas primero.");
+        else alert("El ticket está vacío. Agregá prendas primero.");
+        return;
+    }
+    const modal = document.getElementById("modalOpcionesCobro");
+    if (modal) {
+        modal.classList.remove("hidden");
+        // 🔥 ESTAS TRES CLASES SON LAS QUE LO CENTRAN EN LA PANTALLA:
+        modal.classList.add("flex", "items-center", "justify-center"); 
+    }
+};
+
+window.ejecutarCobro = function(metodo) {
+    const select = document.getElementById("formaPago");
+    if (select) select.value = metodo; // Elige el cuadrito que tocaste en secreto
+    window.cerrarModalCobro();
+    window.procesarVentaInteligente(); // Dispara la venta
+};
+
+window.cerrarModalCobro = function() {
+    const modal = document.getElementById("modalOpcionesCobro");
+    if (modal) {
+        modal.classList.add("hidden");
+        // 🔥 LE SACAMOS LAS CLASES AL CERRARLO PARA QUE NO SE ROMPA EL DISEÑO
+        modal.classList.remove("flex", "items-center", "justify-center");
+    }
+};
+
+// =========================================================================
+// ⚡ MÓDULO DE ATAJOS DE TECLADO AVANZADOS (NINJA POS)
 // =========================================================================
 document.addEventListener("keydown", function(e) {
     const modalCobroAbierto = !document.getElementById("modalOpcionesCobro")?.classList.contains("hidden");
     const enVentas = !document.getElementById("seccion-ventas")?.classList.contains("hidden");
+
+    // Detectamos si el usuario está escribiendo adentro de un input o textarea
     const escribiendoEnInput = ["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName);
 
-    if (e.key === "F2" && enVentas && !modalCobroAbierto) { e.preventDefault(); window.abrirModalCobro(); }
-    else if (e.key === "F4" && enVentas && !modalCobroAbierto) { e.preventDefault(); window.vaciarCarrito(); }
-    else if (e.key === "Escape") { window.cerrarModalCobro(); document.getElementById("sugerenciasCliente")?.classList.add("hidden"); }
+    // 💳 F2: COBRAR (Abre el modal al instante)
+    if (e.key === "F2") {
+        e.preventDefault(); // Evita que el navegador baje el volumen o haga cosas raras
+        if (enVentas && !modalCobroAbierto) {
+            window.abrirModalCobro();
+        }
+    }
+    
+    // 🗑️ F4: VACIAR CARRITO
+    else if (e.key === "F4") {
+        e.preventDefault();
+        if (enVentas && !modalCobroAbierto) window.vaciarCarrito();
+    }
+
+    // 🔍 F8: FOCO EN BUSCADOR DE PRENDAS
+    else if (e.key === "F8") {
+        e.preventDefault();
+        if (enVentas && !modalCobroAbierto) {
+            const buscador = document.getElementById("inputBuscador");
+            if (buscador) { buscador.focus(); buscador.select(); }
+        }
+    }
+
+    // 🧍‍♂️ F9: FOCO EN BUSCADOR DE CLIENTE (Dentro del modal de cobro)
+    else if (e.key === "F9") {
+        e.preventDefault();
+        if (modalCobroAbierto) {
+            const inputCliente = document.getElementById("inputClienteVenta");
+            if (inputCliente) {
+                inputCliente.focus();
+                inputCliente.select();
+            }
+        }
+    }
+
+    // ❌ ESCAPE: BOTÓN DE PÁNICO (Cierra todo)
+    else if (e.key === "Escape") {
+        if (typeof window.cerrarModalCobro === "function") window.cerrarModalCobro();
+        document.getElementById("sugerenciasCliente")?.classList.add("hidden");
+        if (typeof window.cerrarCierreCaja === "function") window.cerrarCierreCaja();
+        if (typeof window.cerrarModalVariantes === "function") window.cerrarModalVariantes();
+        if (typeof window.cerrarModalHistorialCliente === "function") window.cerrarModalHistorialCliente();
+    }
+
+    // 🔢 ATAJOS DEL MODAL DE COBRO (Solo si el modal está abierto y no está escribiendo un texto/número)
+    if (modalCobroAbierto && !escribiendoEnInput) {
+        if (e.key === "1") { e.preventDefault(); window.ejecutarCobro('Efectivo'); }
+        else if (e.key === "2") { e.preventDefault(); window.ejecutarCobro('Transferencia'); }
+        else if (e.key === "3") { e.preventDefault(); window.ejecutarCobro('Débito'); }
+        else if (e.key === "4") { e.preventDefault(); window.ejecutarCobro('Crédito'); }
+        else if (e.key === "5") { e.preventDefault(); window.cerrarModalCobro(); window.cobrarConMercadoPago(); }
+        else if (e.key === "6") { e.preventDefault(); window.ejecutarCobro('Cuenta Corriente'); }
+        else if (e.key === "p" || e.key === "P") { e.preventDefault(); window.cerrarModalCobro(); window.generarPresupuesto(); }
+    }
 });
 
+// ========================================================
+// CONTROLES DE CANTIDAD DEL CARRITO (Botones + y -)
+// ========================================================
 window.modificarCantidad = function(index, cambio) {
     if (!carrito[index]) return;
+    
     let nuevaCantidad = carrito[index].cantidad + cambio;
-    if (nuevaCantidad <= 0) { window.eliminarDelCarrito(index); return; }
-    carrito[index].cantidad = nuevaCantidad; window.actualizarInterfazCarrito();
+    
+    // Si la cantidad llega a 0 o menos, eliminamos el producto
+    if (nuevaCantidad <= 0) {
+        window.eliminarDelCarrito(index);
+        return;
+    }
+    
+    carrito[index].cantidad = nuevaCantidad;
+    window.actualizarInterfazCarrito();
 };
 
 window.cambiarCantidadManual = function(index, valorStr) {
     if (!carrito[index]) return;
+    
     let nuevaCantidad = parseInt(valorStr);
-    if (isNaN(nuevaCantidad) || nuevaCantidad <= 0) { window.eliminarDelCarrito(index); return; }
-    carrito[index].cantidad = nuevaCantidad; window.actualizarInterfazCarrito();
+    
+    // Si borran el número o ponen letras, lo volvemos a 1 o lo eliminamos
+    if (isNaN(nuevaCantidad) || nuevaCantidad <= 0) {
+        window.eliminarDelCarrito(index);
+        return;
+    }
+
+    carrito[index].cantidad = nuevaCantidad;
+    window.actualizarInterfazCarrito();
 };
+
+// ========================================================
+// 🚀 INICIALIZACIÓN AUTOMÁTICA DE LA APP
+// ========================================================
+document.addEventListener("DOMContentLoaded", async () => {
+    console.log("🚀 Página cargada por completo. Iniciando servicios...");
+    
+    try {
+        await cargarProductos();
+        console.log("✅ Catálogo inicializado con éxito.");
+    } catch (err) {
+        console.error("❌ Error crítico al cargar catálogo inicial:", err);
+    }
+
+    try {
+        await cargarHistorialVentas();
+        console.log("✅ Historial de ventas cargado.");
+    } catch (err) {
+        console.error("❌ Error crítico al cargar historial inicial:", err);
+    }
+});

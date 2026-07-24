@@ -1,5 +1,5 @@
 // =========================================================================
-// 🛒 MÓDULO DE PRODUCTOS E INVENTARIO (LIMPIO Y UNIFICADO)
+// 🛒 MÓDULO DE PRODUCTOS E INVENTARIO (LIMPIO, UNIFICADO Y BLINDADO)
 // =========================================================================
 
 window.ConfigInventario = window.ConfigInventario || {
@@ -141,12 +141,12 @@ window.cargarProductosInventario = async function() {
         window.productosMemoria = prods;
         window.renderizarTablaProductosInventario(prods);
         
-        // Cargamos el stock crítico directamente acá de forma segura
+        // Cargamos el stock crítico de forma segura
         if (window.cargarStockCritico) await window.cargarStockCritico();
 
     } catch (error) {
         console.error("❌ Error al cargar productos:", error);
-        if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-rose-400">Error de conexión.</td></tr>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-rose-400">Error de conexión al cargar inventario.</td></tr>`;
     }
 };
 
@@ -154,7 +154,6 @@ window.renderizarTablaProductosInventario = function(lista) {
     const tbody = document.getElementById("tablaProductosBody");
     if (!tbody) return;
 
-    // 🔥 FIX: Chequeo de administrador a prueba de fallos
     const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
     const esAdmin = (typeof window.esAdmin === 'function') ? window.esAdmin() : (usuarioLocal.rol === "administrador" || usuarioLocal.rol === "Administrador");
 
@@ -171,11 +170,11 @@ window.renderizarTablaProductosInventario = function(lista) {
 
     let html = "";
     lista.forEach((p) => {
-        const pId = p.id ?? 0;
-        const pNombre = p.nombre ?? "Prenda sin nombre";
-        const pCosto = p.precioCosto ?? 0;
-        const pVenta = p.precio ?? p.precioVenta ?? 0;
-        const nombreCategoria = p.categoria ?? "Sin categoría";
+        const pId = p.id ?? p.Id ?? 0;
+        const pNombre = p.nombre ?? p.Nombre ?? "Prenda sin nombre";
+        const pCosto = p.precioCosto ?? p.PrecioCosto ?? 0;
+        const pVenta = p.precio ?? p.precioVenta ?? p.PrecioVenta ?? 0;
+        const nombreCategoria = p.categoria ?? p.Categoria ?? "Sin categoría";
 
         let stockTotal = 0;
         if (Array.isArray(p.variantes)) {
@@ -183,7 +182,7 @@ window.renderizarTablaProductosInventario = function(lista) {
                 if (esAdmin && v.stockDetalle && Array.isArray(v.stockDetalle)) {
                     stockTotal += v.stockDetalle.reduce((acc, suc) => acc + (suc.cantidad || 0), 0);
                 } else {
-                    stockTotal += parseInt(v.stock ?? 0);
+                    stockTotal += parseInt(v.stock ?? v.Stock ?? 0);
                 }
             });
         }
@@ -194,7 +193,7 @@ window.renderizarTablaProductosInventario = function(lista) {
                 ? `<span class="bg-amber-950/60 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-md font-bold text-xs animate-pulse">⚠️ ${stockTotal} u.</span>`
                 : `<span class="bg-emerald-950/60 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-md font-bold text-xs">${stockTotal} u.</span>`;
 
-        const safeNombre = pNombre.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const safeNombre = String(pNombre).replace(/'/g, "\\'").replace(/"/g, '&quot;');
         let precioCostoHtml = `<td class="p-4 text-slate-500 text-xs italic">***</td>`; 
         let botonesAdmin = "";
         
@@ -230,10 +229,10 @@ window.filtrarProductosInventario = function() {
     if (!window.productosMemoria) return;
 
     const filtrados = window.productosMemoria.filter(p => {
-        const pNombre = (p.nombre ?? "").toLowerCase();
-        const coincideTxt = pNombre.includes(txt) || (p.descripcion ?? "").toLowerCase().includes(txt);
+        const pNombre = (p.nombre ?? p.Nombre ?? "").toLowerCase();
+        const coincideTxt = pNombre.includes(txt) || (p.descripcion ?? p.Descripcion ?? "").toLowerCase().includes(txt);
         if (catFiltro === "") return coincideTxt;
-        return coincideTxt && String(p.categoriaId ?? "") === String(catFiltro);
+        return coincideTxt && String(p.categoriaId ?? p.CategoriaId ?? "") === String(catFiltro);
     });
     window.renderizarTablaProductosInventario(filtrados);
 };
@@ -318,7 +317,6 @@ window.guardarNuevoProducto = async function(event) {
 window.verVariantes = function(id) {
     if (!window.productosMemoria) return;
 
-    // 🌟 FIX JS: Tolerancia a tipos y mayúsculas
     const prod = window.productosMemoria.find(p => p.id == id || p.Id == id);
     if (!prod) {
         console.error(`Producto con ID ${id} no encontrado en memoria.`);
@@ -329,42 +327,54 @@ window.verVariantes = function(id) {
     if (titulo) titulo.innerText = prod.nombre ?? prod.Nombre ?? "Producto";
 
     const tbody = document.getElementById("modalVariantesBody");
-    const listaVariantes = prod.variantes ?? [];
+    const listaVariantes = prod.variantes ?? prod.Variantes ?? [];
     let html = "";
 
     if (Array.isArray(listaVariantes) && listaVariantes.length > 0) {
         listaVariantes.forEach(v => {
+            const vId = v.id ?? v.Id ?? 0;
+            const talleStr = String(v.talle ?? v.Talle ?? "-");
+            const colorStr = String(v.color ?? v.Color ?? "-");
+            const stockNum = v.stock ?? v.Stock ?? 0;
+            
+            // 🔥 BLINDAJE CONTRA ERRORES DE SINTAXIS EN EL BOTON REPONER
+            const prodNombre = String(prod.nombre ?? prod.Nombre ?? "");
+            const safeProdNombre = prodNombre.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const safeTalle = talleStr.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const safeColor = colorStr.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
             let detalleHtml = "";
             if (v.stockDetalle && v.stockDetalle.length > 0 && v.stockDetalle.length > 1) {
                 detalleHtml = `<div class="mt-3 pt-3 border-t border-slate-700/50 flex flex-col gap-2 w-full">`;
                 v.stockDetalle.forEach(d => {
-                    const colorNum = d.cantidad > 0 ? "text-emerald-400" : "text-slate-500";
-                    const esLocalActual = d.sucursalId === ((JSON.parse(localStorage.getItem("usuario")) || {}).sucursalId || 1);
+                    const cant = d.cantidad ?? d.Cantidad ?? 0;
+                    const sucId = d.sucursalId ?? d.SucursalId ?? 1;
+                    const colorNum = cant > 0 ? "text-emerald-400" : "text-slate-500";
+                    const esLocalActual = sucId === ((JSON.parse(localStorage.getItem("usuario")) || {}).sucursalId || 1);
                     
-                    let btnVender = (d.cantidad > 0 && !esLocalActual) 
-                        ? `<button onclick="window.venderDesdeInventario(${v.id}, '${(prod.nombre||"").replace(/'/g, "\\'")}', ${prod.precio||prod.precioVenta||0}, '${v.talle}', '${v.color}', ${d.sucursalId})" class="ml-3 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] px-2 py-1 rounded shadow-md cursor-pointer">🛒 Vender</button>` 
+                    let btnVender = (cant > 0 && !esLocalActual) 
+                        ? `<button onclick="window.venderDesdeInventario(${vId}, '${safeProdNombre}', ${prod.precio ?? prod.precioVenta ?? prod.PrecioVenta ?? 0}, '${safeTalle}', '${safeColor}', ${sucId})" class="ml-3 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] px-2 py-1 rounded shadow-md cursor-pointer">🛒 Vender</button>` 
                         : "";
 
                     detalleHtml += `
                         <div class="flex justify-between items-center text-sm">
-                            <span class="text-slate-300">${d.sucursal}</span>
-                            <div class="flex items-center"><span class="font-mono font-bold text-base ${colorNum}">${d.cantidad} u.</span>${btnVender}</div>
+                            <span class="text-slate-300">${d.sucursal ?? d.Sucursal ?? "Sucursal"}</span>
+                            <div class="flex items-center"><span class="font-mono font-bold text-base ${colorNum}">${cant} u.</span>${btnVender}</div>
                         </div>`;
                 });
                 detalleHtml += `</div>`;
             }
 
-            // 🔥 FIX: Agregamos el botón de Reponer Stock alineado a la derecha
             html += `
                 <tr class="border-b border-slate-800/50 hover:bg-slate-800/20">
-                    <td class="py-4 font-medium text-white capitalize text-lg">${v.talle ?? "-"}</td>
-                    <td class="py-4 text-slate-400 capitalize text-lg">${v.color ?? "-"}</td>
+                    <td class="py-4 font-medium text-white capitalize text-lg">${talleStr}</td>
+                    <td class="py-4 text-slate-400 capitalize text-lg">${colorStr}</td>
                     <td class="py-4 text-right min-w-[300px]">
                         <div class="flex items-center justify-end gap-2 mb-1">
                             <div class="font-mono text-white font-bold text-sm bg-slate-950/80 px-3 py-2 rounded-lg border border-indigo-500/30 shadow-md">
-                                Local actual: <span class="text-indigo-400 text-xl ml-2">${v.stock ?? 0}</span>
+                                Local actual: <span class="text-indigo-400 text-xl ml-2">${stockNum}</span>
                             </div>
-                            <button onclick="window.abrirModalReponerStock(${v.id}, '${(prod.nombre||"").replace(/'/g, "\\'")}', '${v.talle}', '${v.color}', ${v.stock ?? 0})" class="px-3 py-2 bg-emerald-950/60 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-900/80 rounded-lg text-sm font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-md">
+                            <button onclick="window.abrirModalReponerStock(${vId}, '${safeProdNombre}', '${safeTalle}', '${safeColor}', ${stockNum})" class="px-3 py-2 bg-emerald-950/60 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-900/80 rounded-lg text-sm font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-md">
                                 📦 Reponer
                             </button>
                         </div>
@@ -456,19 +466,13 @@ window.guardarNuevaVariante = async function(event) {
 
         if (!respuesta.ok) {
             let errorMsg = "Error del servidor (HTTP " + respuesta.status + ")";
-            
-            // 🔥 EL FIX: Leemos el texto de la respuesta UNA SOLA VEZ
             const textoRespuesta = await respuesta.text(); 
-            
             try {
-                // Intentamos interpretarlo como JSON (tu C# manda { mensaje: "..." })
                 const errData = JSON.parse(textoRespuesta);
                 errorMsg = errData.mensaje || errData.title || textoRespuesta;
             } catch (e) {
-                // Si C# escupió texto plano, usamos eso
                 if (textoRespuesta) errorMsg = textoRespuesta;
             }
-            
             throw new Error(errorMsg);
         }
 
@@ -537,15 +541,24 @@ window.renderizarStockCritico = function(criticos) {
 
     contenedor.classList.remove("hidden");
     tbody.innerHTML = criticos.map(v => {
-        const sinStock = v.stockActual === 0;
+        const vStockActual = v.stockActual ?? v.StockActual ?? 0;
+        const sinStock = vStockActual === 0;
         const bColor = sinStock ? "bg-rose-950/60 text-rose-400 border-rose-500/20" : "bg-amber-950/60 text-amber-400 border-amber-500/20";
+        
+        // 🔥 BLINDAJE EXTRA PARA LA TABLA DE STOCK CRITICO
+        const vNombreOriginal = String(v.producto ?? v.Producto ?? "");
+        const safeProdNombre = vNombreOriginal.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const safeTalle = String(v.talle ?? v.Talle ?? "").replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const safeColor = String(v.color ?? v.Color ?? "").replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const vId = v.varianteId ?? v.VarianteId ?? 0;
+
         return `
             <tr class="hover:bg-slate-900/30 border-b border-slate-800/40">
-                <td class="p-3 text-white text-sm font-bold">${sinStock ? "🔴" : "🟡"} ${v.producto}</td>
-                <td class="p-3 text-slate-400 text-xs capitalize">${v.talle} / ${v.color}</td>
-                <td class="p-3 text-center"><span class="border px-2.5 py-1 rounded-md font-bold font-mono text-xs ${bColor}">${sinStock ? "SIN STOCK" : v.stockActual+" u."}</span></td>
-                <td class="p-3 text-slate-500 text-xs text-center">mín: ${v.stockMinimo}</td>
-                <td class="p-3 text-right"><button onclick="window.abrirModalReponerStock(${v.varianteId}, '${v.producto.replace(/'/g, "\\'")}', '${v.talle}', '${v.color}', ${v.stockActual})" class="bg-emerald-950/40 text-emerald-400 text-xs px-3 py-1.5 rounded-lg border border-emerald-500/20">📦 Reponer</button></td>
+                <td class="p-3 text-white text-sm font-bold">${sinStock ? "🔴" : "🟡"} ${vNombreOriginal}</td>
+                <td class="p-3 text-slate-400 text-xs capitalize">${safeTalle} / ${safeColor}</td>
+                <td class="p-3 text-center"><span class="border px-2.5 py-1 rounded-md font-bold font-mono text-xs ${bColor}">${sinStock ? "SIN STOCK" : vStockActual+" u."}</span></td>
+                <td class="p-3 text-slate-500 text-xs text-center">mín: ${v.stockMinimo ?? v.StockMinimo ?? 0}</td>
+                <td class="p-3 text-right"><button onclick="window.abrirModalReponerStock(${vId}, '${safeProdNombre}', '${safeTalle}', '${safeColor}', ${vStockActual})" class="bg-emerald-950/40 text-emerald-400 text-xs px-3 py-1.5 rounded-lg border border-emerald-500/20">📦 Reponer</button></td>
             </tr>`;
     }).join("");
 };
@@ -616,10 +629,10 @@ window.llenarSelectSucursales = async function(selectId, contenedorId) {
         select.innerHTML = "";
         if (sucursales.length <= 1) {
             if (contenedor) contenedor.classList.add("hidden");
-            if (sucursales.length === 1) select.innerHTML = `<option value="${sucursales[0].id}">${sucursales[0].nombre}</option>`;
+            if (sucursales.length === 1) select.innerHTML = `<option value="${sucursales[0].id ?? sucursales[0].Id}">${sucursales[0].nombre ?? sucursales[0].Nombre}</option>`;
         } else {
             if (contenedor) contenedor.classList.remove("hidden");
-            sucursales.forEach(s => select.innerHTML += `<option value="${s.id}">${s.nombre}</option>`);
+            sucursales.forEach(s => select.innerHTML += `<option value="${s.id ?? s.Id}">${s.nombre ?? s.Nombre}</option>`);
             const uLocal = JSON.parse(localStorage.getItem("usuario")) || {};
             if(uLocal.sucursalId) select.value = uLocal.sucursalId;
         }
