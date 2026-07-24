@@ -2141,7 +2141,7 @@ window.BarcodeScanner = (function() {
             }
 
             // Acumular caracteres en el buffer
-            if (e.key.length === 1) {
+            if (e.key && e.key.length === 1) {
                 bufferCodigo += e.key;
                 clearTimeout(timerBuffer);
                 // Si pasan 100ms sin más teclas, limpiar el buffer
