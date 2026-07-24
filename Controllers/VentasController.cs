@@ -89,6 +89,43 @@ namespace TiendaRopaAPI.Controllers
                 }
 
                 nuevaVenta.Total = totalVenta;
+
+                // =========================================================================
+                // 🌟 MAGIA 1: LÓGICA DE CLIENTES (FIADOS Y PUNTOS DE FIDELIZACIÓN)
+                // =========================================================================
+                if (nuevaVenta.ClienteId.HasValue)
+                {
+                    var cliente = await _context.Clientes.FindAsync(nuevaVenta.ClienteId.Value);
+                    if (cliente != null)
+                    {
+                        // 🎁 Sistema de Fidelización (Ej: 1 punto por cada $1000 gastados)
+                        int puntosGanados = (int)(totalVenta / 1000); 
+                        cliente.PuntosAcumulados += puntosGanados;
+
+                        // 📒 Sistema de Cuenta Corriente (Fiado)
+                        if (nuevaVenta.MetodoPago.Equals("Cuenta Corriente", StringComparison.OrdinalIgnoreCase) || 
+                            nuevaVenta.MetodoPago.Equals("Fiado", StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Aumentamos lo que nos debe
+                            cliente.SaldoCuentaCorriente += totalVenta;
+
+                            // Creamos el comprobante del movimiento de deuda
+                            var movimientoDeuda = new MovimientoCuenta
+                            {
+                                ClienteId = cliente.Id,
+                                FechaHora = DateTime.Now,
+                                Tipo = "COMPRA", // Este tipo NO suma a la caja diaria en el frontend
+                                Monto = totalVenta,
+                                Detalle = "Ticket por compra de indumentaria",
+                                VentaId = nuevaVenta.Id // Lo atamos al ID de esta venta recién generada
+                            };
+
+                            _context.MovimientosCuenta.Add(movimientoDeuda);
+                        }
+                    }
+                }
+                // =========================================================================
+
                 await _context.SaveChangesAsync();
 
                 await transaction.CommitAsync();
@@ -123,29 +160,29 @@ namespace TiendaRopaAPI.Controllers
             if (venta == null) return NotFound(new { mensaje = "La venta no existe." });
 
             var detalles = await _context.VentaDetalles
-            .Where(d => d.VentaId == id)
-            .Include(d => d.ProductoVariante)
-            .ThenInclude(pv => pv!.Producto)
-            .Select(d => new {
-            d.Id,
-            ProductoNombre = d.ProductoVariante != null && d.ProductoVariante.Producto != null ? d.ProductoVariante.Producto.Nombre : "Producto Eliminado",
-            Talle = d.ProductoVariante != null ? d.ProductoVariante.Talle : "",
-            Color = d.ProductoVariante != null ? d.ProductoVariante.Color : "",
-            d.Cantidad,
-            d.PrecioUnitario, // El precio con descuento que se cobró
-            
-            // 🌟 AGREGADO: Traemos el precio de lista original del producto
-            PrecioOriginal = d.ProductoVariante != null && d.ProductoVariante.Producto != null ? d.ProductoVariante.Producto.PrecioVenta : d.PrecioUnitario,
-            
-            Subtotal = d.Cantidad * d.PrecioUnitario
-        })
-        .ToListAsync();
+                .Where(d => d.VentaId == id)
+                .Include(d => d.ProductoVariante)
+                .ThenInclude(pv => pv!.Producto)
+                .Select(d => new {
+                    d.Id,
+                    ProductoNombre = d.ProductoVariante != null && d.ProductoVariante.Producto != null ? d.ProductoVariante.Producto.Nombre : "Producto Eliminado",
+                    Talle = d.ProductoVariante != null ? d.ProductoVariante.Talle : "",
+                    Color = d.ProductoVariante != null ? d.ProductoVariante.Color : "",
+                    d.Cantidad,
+                    d.PrecioUnitario, // El precio con descuento que se cobró
+                    
+                    // 🌟 AGREGADO: Traemos el precio de lista original del producto
+                    PrecioOriginal = d.ProductoVariante != null && d.ProductoVariante.Producto != null ? d.ProductoVariante.Producto.PrecioVenta : d.PrecioUnitario,
+                    
+                    Subtotal = d.Cantidad * d.PrecioUnitario
+                })
+                .ToListAsync();
 
-    return Ok(new {
-        InformacionVenta = venta,
-        ArticulosComprados = detalles
-    });
-}
+            return Ok(new {
+                InformacionVenta = venta,
+                ArticulosComprados = detalles
+            });
+        }
 
         // 4. REPORTE GENERAL DE FACTURACIÓN
         [HttpGet("dashboard/resumen")]

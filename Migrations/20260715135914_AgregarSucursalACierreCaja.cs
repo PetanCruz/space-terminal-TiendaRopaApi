@@ -12,61 +12,61 @@ namespace TiendaRopaAPI.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "stock_actual",
-                table: "producto_variantes");
+           // migrationBuilder.DropColumn(
+            //    name: "stock_actual",
+          //      table: "producto_variantes");
 
-            migrationBuilder.DropColumn(
-                name: "stock_minimo",
-                table: "producto_variantes");
+            //migrationBuilder.DropColumn(
+              //  name: "stock_minimo",
+                //table: "producto_variantes");
 
-            migrationBuilder.AddColumn<int>(
-                name: "SucursalId",
-                table: "ventas",
-                type: "int",
-                nullable: true);
+            //migrationBuilder.AddColumn<int>(
+              //  name: "SucursalId",
+                //table: "ventas",
+                //type: "int",
+                //nullable: true);
 
-            migrationBuilder.AddColumn<int>(
-                name: "cliente_id",
-                table: "ventas",
-                type: "int",
-                nullable: true);
+           // migrationBuilder.AddColumn<int>(
+            //    name: "cliente_id",
+            //    table: "ventas",
+              //  type: "int",
+                //nullable: true);
 
-            migrationBuilder.AddColumn<int>(
-                name: "SucursalId",
-                table: "usuarios",
-                type: "int",
-                nullable: true);
+           // migrationBuilder.AddColumn<int>(
+             //   name: "SucursalId",
+               // table: "usuarios",
+               // type: "int",
+               // nullable: true);
 
-            migrationBuilder.AddColumn<int>(
-                name: "SucursalId",
-                table: "cierres_caja",
-                type: "int",
-                nullable: true);
+            //migrationBuilder.AddColumn<int>(
+              //  name: "SucursalId",
+               // table: "cierres_caja",
+               // type: "int",
+               // nullable: true);
 
-            migrationBuilder.CreateTable(
-                name: "clientes",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
-                    Nombre = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Dni = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: true)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Telefono = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: true)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    Email = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: true)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    puntos_acumulados = table.Column<int>(type: "int", nullable: false),
-                    Activo = table.Column<bool>(type: "tinyint(1)", nullable: false),
-                    created_at = table.Column<DateTime>(type: "datetime(6)", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_clientes", x => x.Id);
-                })
-                .Annotation("MySql:CharSet", "utf8mb4");
+          //  migrationBuilder.CreateTable(
+            //    name: "clientes",
+              //  columns: table => new
+               // {
+                //    Id = table.Column<int>(type: "int", nullable: false)
+                 //       .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
+                  //  Nombre = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
+                   //     .Annotation("MySql:CharSet", "utf8mb4"),
+                   // Dni = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: true)
+                     //   .Annotation("MySql:CharSet", "utf8mb4"),
+                   // Telefono = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: true)
+                     //   .Annotation("MySql:CharSet", "utf8mb4"),
+                    //Email = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: true)
+                      //  .Annotation("MySql:CharSet", "utf8mb4"),
+                    //puntos_acumulados = table.Column<int>(type: "int", nullable: false),
+                    //Activo = table.Column<bool>(type: "tinyint(1)", nullable: false),
+                    //created_at = table.Column<DateTime>(type: "datetime(6)", nullable: false)
+                //},
+                //constraints: table =>
+                //{
+                 //   table.PrimaryKey("PK_clientes", x => x.Id);
+                //})
+                //.Annotation("MySql:CharSet", "utf8mb4");
 
             migrationBuilder.CreateTable(
                 name: "Presupuestos",

@@ -22,7 +22,18 @@ namespace TiendaRopaAPI.Models
         [StringLength(100)]
         public string? Email { get; set; }
 
-        // Listo para fidelización futura — no se usa todavía
+        [StringLength(200)]
+        public string? Direccion { get; set; }
+
+        public decimal LimiteCredito { get; set; } = 0.00m;
+
+        // --- SALDO PARA EL FIADO ---
+        public decimal SaldoCuentaCorriente { get; set; } = 0.00m; 
+
+        [StringLength(500)]
+        public string? Notas { get; set; }
+
+        // --- SISTEMA DE FIDELIZACIÓN ---
         [Column("puntos_acumulados")]
         public int PuntosAcumulados { get; set; } = 0;
 

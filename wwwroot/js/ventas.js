@@ -1810,16 +1810,20 @@ window.renderizarTablaClientes = function(lista) {
             <td class="p-4 text-slate-400 text-xs">${c.telefono || "—"}</td>
             <td class="p-4 text-slate-400 text-xs">${c.email || "—"}</td>
             <td class="p-4 text-emerald-400 font-mono font-bold text-sm">$${Number(c.totalCompras || 0).toLocaleString("es-AR")}</td>
-            <td class="p-4 text-right space-x-1">
-                <button onclick="window.verHistorialCliente(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')"
-                    class="bg-indigo-950 hover:bg-indigo-900 text-indigo-400 text-xs px-2 py-1.5 rounded-lg border border-indigo-500/20 cursor-pointer">
-                    📋 Historial
-                </button>
-                <button onclick="window.eliminarCliente(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')"
-                    class="bg-rose-950/30 hover:bg-rose-900/60 text-rose-400 text-xs px-2 py-1.5 rounded-lg border border-rose-500/20 cursor-pointer">
-                    🗑️ Baja
-                </button>
-            </td>
+            <td class="p-4 text-right flex justify-end gap-1">
+                <button onclick="window.editarCliente(${c.id})"
+                  class="bg-amber-950/30 hover:bg-amber-900/60 text-amber-400 text-xs px-2 py-1.5 rounded-lg border border-amber-500/20 cursor-pointer transition-colors">
+                 ✏️ Editar
+               </button>
+               <button onclick="window.verHistorialCliente(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')"
+                  class="bg-indigo-950 hover:bg-indigo-900 text-indigo-400 text-xs px-2 py-1.5 rounded-lg border border-indigo-500/20 cursor-pointer transition-colors">
+                 📋 Historial
+               </button>
+               <button onclick="window.eliminarCliente(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')"
+                  class="bg-rose-950/30 hover:bg-rose-900/60 text-rose-400 text-xs px-2 py-1.5 rounded-lg border border-rose-500/20 cursor-pointer transition-colors">
+                  🗑️ Baja
+               </button>
+           </td>
         </tr>
     `).join("");
 };
@@ -3967,4 +3971,194 @@ window.cambiarCantidadManual = function(index, valorStr) {
 
     carrito[index].cantidad = nuevaCantidad;
     window.actualizarInterfazCarrito();
+};
+
+// =========================================================================
+// 📒 MÓDULO DE CUENTAS CORRIENTES (FIADOS)
+// =========================================================================
+
+window.cuentasMemoria = [];
+
+// 1. Cargar la tabla principal
+window.cargarCuentasCorrientes = async function() {
+    const tbody = document.getElementById("tablaCuentasBody");
+    if (!tbody) return;
+    
+    tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500 animate-pulse text-sm">Cargando cuentas corrientes...</td></tr>`;
+
+    try {
+        const token = localStorage.getItem("token");
+        // Reutilizamos el endpoint de clientes que ya existe
+        const resp = await fetch(`${API_URL}/clientes`, { headers: { "Authorization": `Bearer ${token}` } });
+        if (!resp.ok) throw new Error("Error al cargar clientes");
+
+        const clientes = await resp.json();
+        
+        // Filtramos solo los que tienen deuda (saldo mayor a 0)
+        window.cuentasMemoria = clientes.filter(c => c.saldoCuentaCorriente > 0 || c.SaldoCuentaCorriente > 0);
+        window.renderizarTablaCuentas(window.cuentasMemoria);
+
+    } catch (error) {
+        console.error("Error cargando cuentas:", error);
+        tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-rose-400 text-sm">No se pudieron cargar las cuentas.</td></tr>`;
+    }
+};
+
+// 2. Dibujar la tabla
+window.renderizarTablaCuentas = function(lista) {
+    const tbody = document.getElementById("tablaCuentasBody");
+    if (!tbody) return;
+
+    if (!lista || lista.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-emerald-500 font-medium italic text-sm">🎉 No hay clientes con deudas pendientes.</td></tr>`;
+        return;
+    }
+
+    const diaActual = new Date().getDate();
+
+    tbody.innerHTML = lista.map(c => {
+        const saldo = c.saldoCuentaCorriente || c.SaldoCuentaCorriente || 0;
+        
+        // Lógica de alerta: si es pasado el día 10 del mes
+        const estaVencida = diaActual > 10;
+        let badgeEstado = `<span class="bg-emerald-900/40 text-emerald-400 border border-emerald-700/50 px-2 py-0.5 rounded text-xs">Al día</span>`;
+        
+        if (estaVencida) {
+            badgeEstado = `<span class="bg-rose-900/40 text-rose-400 border border-rose-700/50 px-2 py-0.5 rounded text-xs flex items-center gap-1 w-max"><span class="animate-pulse">⚠️</span> Vencida</span>`;
+        }
+
+        return `
+            <tr class="hover:bg-slate-900/50 transition-colors border-b border-slate-800">
+                <td class="p-4 font-bold text-white">${c.nombre}</td>
+                <td class="p-4 text-slate-400 text-xs">${c.telefono || "—"}</td>
+                <td class="p-4 text-center flex justify-center">${badgeEstado}</td>
+                <td class="p-4 text-right text-rose-400 font-bold font-mono">$${Number(saldo).toLocaleString("es-AR")}</td>
+                <td class="p-4 text-center">
+                    <button onclick="window.abrirModalCobroFiado(${c.id})" class="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm">
+                        Cobrar / Ver
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join("");
+};
+
+// 3. Filtrar en el buscador
+window.filtrarCuentas = function() {
+    const input = document.getElementById("inputBuscarCuenta");
+    if (!input) return;
+    
+    const txt = input.value.toLowerCase().trim();
+    const filtrados = window.cuentasMemoria.filter(c => (c.nombre || "").toLowerCase().includes(txt));
+    
+    window.renderizarTablaCuentas(filtrados);
+};
+
+// 4. Abrir Modal de Pagos
+window.abrirModalCobroFiado = async function(clienteId) {
+    const modal = document.getElementById("modalCuentaCorriente");
+    const token = localStorage.getItem("token");
+
+    if (!modal) return;
+    modal.classList.remove("hidden");
+    
+    document.getElementById("ccHistorialBody").innerHTML = `<tr><td colspan="3" class="p-4 text-center text-slate-500 animate-pulse text-xs">Cargando movimientos...</td></tr>`;
+    document.getElementById("ccMontoPago").value = "";
+
+    try {
+        const resp = await fetch(`${API_URL}/cuentascorrientes/${clienteId}`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        
+        if (!resp.ok) throw new Error("Error al obtener estado de cuenta");
+        const datos = await resp.json();
+
+        document.getElementById("ccNombreCliente").textContent = datos.nombre || datos.Nombre;
+        document.getElementById("ccSaldoTotal").textContent = `$${Number(datos.saldoTotal || datos.SaldoTotal).toLocaleString("es-AR")}`;
+        
+        const alertaVencimiento = document.getElementById("ccAlertaVencimiento");
+        if (datos.cuentaVencida || datos.CuentaVencida) {
+            alertaVencimiento.classList.remove("hidden");
+        } else {
+            alertaVencimiento.classList.add("hidden");
+        }
+
+        // Llenar tabla de historial
+        const movs = datos.movimientos || datos.Movimientos || [];
+        if (movs.length === 0) {
+            document.getElementById("ccHistorialBody").innerHTML = `<tr><td colspan="3" class="p-4 text-center text-slate-500 italic text-xs">Sin movimientos.</td></tr>`;
+        } else {
+            document.getElementById("ccHistorialBody").innerHTML = movs.map(m => {
+                const esCompra = m.tipo === "COMPRA" || m.Tipo === "COMPRA";
+                const colorMonto = esCompra ? "text-rose-400" : "text-emerald-400";
+                const signo = esCompra ? "+" : "-";
+                
+                return `
+                    <tr class="border-b border-slate-800/40 hover:bg-slate-800/20">
+                        <td class="p-3 text-slate-400 text-[11px]">${new Date(m.fechaHora || m.FechaHora).toLocaleString("es-AR")}</td>
+                        <td class="p-3 text-slate-300 text-xs">${m.detalle || m.Detalle}</td>
+                        <td class="p-3 text-right font-mono font-bold text-sm ${colorMonto}">${signo}$${Number(m.monto || m.Monto).toLocaleString("es-AR")}</td>
+                    </tr>
+                `;
+            }).join("");
+        }
+
+        // Configurar botón de pago
+        const btnPagar = document.getElementById("btnRegistrarPagoCC");
+        btnPagar.onclick = () => window.procesarPagoFiado(clienteId);
+
+    } catch (error) {
+        console.error(error);
+        document.getElementById("ccHistorialBody").innerHTML = `<tr><td colspan="3" class="p-4 text-center text-rose-400 text-xs">Error al cargar datos.</td></tr>`;
+    }
+};
+
+// 5. Procesar Pago
+window.procesarPagoFiado = async function(clienteId) {
+    const inputMonto = document.getElementById("ccMontoPago");
+    const montoStr = inputMonto.value;
+    const monto = parseFloat(montoStr);
+
+    if (isNaN(monto) || monto <= 0) {
+        alert("⚠️ Ingresá un monto válido mayor a 0.");
+        return;
+    }
+
+    const confirmar = confirm(`¿Confirmás el pago de $${monto.toLocaleString("es-AR")} para esta cuenta?`);
+    if (!confirmar) return;
+
+    const btnPagar = document.getElementById("btnRegistrarPagoCC");
+    btnPagar.disabled = true;
+    btnPagar.textContent = "Procesando...";
+
+    try {
+        const token = localStorage.getItem("token");
+        const resp = await fetch(`${API_URL}/cuentascorrientes/${clienteId}/pagar`, {
+            method: "POST",
+            headers: { 
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(monto)
+        });
+
+        if (!resp.ok) {
+            const err = await resp.text();
+            throw new Error(err);
+        }
+
+        if (window.toast) window.toast.success("✅ Pago registrado correctamente.");
+        else alert("✅ Pago registrado correctamente.");
+        
+        // Recargar datos
+        inputMonto.value = "";
+        await window.abrirModalCobroFiado(clienteId);
+        await window.cargarCuentasCorrientes();
+
+    } catch (error) {
+        alert(`❌ No se pudo registrar el pago:\n${error.message}`);
+    } finally {
+        btnPagar.disabled = false;
+        btnPagar.textContent = "Registrar Pago";
+    }
 };

@@ -108,6 +108,9 @@
             <button onclick="cambiarPantalla('seccion-clientes', this); window.cargarClientes();" class="nav-btn w-full flex items-center gap-2.5 px-2 py-2 rounded-lg text-[13px] font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all border border-transparent">
                 <span class="text-base">🧑‍🤝‍🧑</span> Clientes
             </button>
+            <button onclick="cambiarPantalla('seccion-cuentas', this); window.cargarCuentasCorrientes();" class="nav-btn w-full flex items-center gap-2.5 px-2 py-2 rounded-lg text-[13px] font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all border border-transparent">
+                <span class="text-base">📒</span> Cuentas Corrientes
+            </button>
             <button id="btnNavPersonal" onclick="cambiarPantalla('seccion-usuarios', this)" class="nav-btn w-full flex items-center gap-2.5 px-2 py-2 rounded-lg text-[13px] font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all border border-transparent">
                 <span class="text-base">👥</span> Personal
             </button>
@@ -394,10 +397,15 @@
                 </div>
                 <button onclick="window.abrirModalAgregarCliente()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors cursor-pointer">+ Nuevo Cliente</button>
             </div>
-            <div class="bg-slate-900/40 border border-slate-900 p-3 rounded-xl">
-                <input type="text" id="inputBuscarCliente" oninput="window.filtrarClientes()" placeholder="Buscar por nombre, DNI o teléfono..."
-                    class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors">
-            </div>
+            <!-- Cliente -->
+                <div class="relative w-full">
+                    <input type="text" id="inputClienteVenta" oninput="window.buscarClienteVenta(this.value)" autocomplete="off" placeholder="Buscar por nombre o DNI..." 
+                        class="w-full bg-slate-950/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors pr-10">
+                        <kbd class="absolute top-1/2 -translate-y-1/2 right-2 bg-slate-800 border border-slate-600 text-slate-400 px-1.5 py-0.5 rounded text-[10px] font-mono shadow-sm">F9</kbd>
+  
+                          <!-- CONTENEDOR DE SUGERENCIAS -->
+                             <div id="sugerenciasCliente" class="absolute z-50 w-full bg-slate-900 border border-slate-700 rounded-lg shadow-2xl mt-1 hidden max-h-48 overflow-y-auto"></div>
+                        </div>
             <div class="bg-slate-900 border border-slate-800/80 rounded-xl overflow-hidden shadow-xl">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
@@ -418,7 +426,40 @@
                 </div>
             </div>
         </div>
-        <!-- FIN SECCIÓN CLIENTES -->
+                                <!-- FIN SECCIÓN CLIENTES -->
+
+        <!-- ===================== SECCIÓN CUENTAS CORRIENTES ===================== -->
+             <div id="seccion-cuentas" class="hidden space-y-6">
+              <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-md">
+        <div>
+            <h2 class="text-xl font-bold text-white">📒 Cuentas Corrientes (Fiados)</h2>
+            <p class="text-xs text-slate-400 mt-0.5">Gestión de saldos, pagos parciales y vencimientos</p>
+        </div>
+        <div class="flex gap-2 w-full sm:w-auto">
+            <input type="text" id="inputBuscarCuenta" oninput="window.filtrarCuentas()" placeholder="🔍 Buscar cliente..." 
+                   class="w-full sm:w-64 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 transition-colors">
+            <button onclick="window.cargarCuentasCorrientes()" class="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors cursor-pointer whitespace-nowrap">🔄 Actualizar</button>
+        </div>
+    </div>
+    
+    <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
+        <table class="w-full text-left border-collapse">
+            <thead class="bg-slate-800 text-slate-300 text-xs uppercase tracking-wider">
+                <tr>
+                    <th class="p-4">Cliente</th>
+                    <th class="p-4">Teléfono</th>
+                    <th class="p-4 text-center">Estado</th>
+                    <th class="p-4 text-right">Saldo Deudor</th>
+                    <th class="p-4 text-center">Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tablaCuentasBody" class="divide-y divide-slate-800/60 text-slate-300 text-sm">
+                <tr><td colspan="5" class="p-8 text-center text-slate-500 italic text-sm">Cargando cuentas...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+             <!-- FIN SECCIÓN CUENTAS CORRIENTES -->
 
         <!-- ===================== SECCIÓN ESTADÍSTICAS ===================== -->
         <div id="seccion-estadisticas" class="hidden space-y-6">
@@ -516,6 +557,60 @@
                     </button>
                 </div>
             </div>
+
+            <!-- Modal: Gestión de Cuenta Corriente -->
+<div id="modalCuentaCorriente" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        
+        <div class="p-4 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
+            <div>
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">📒 Cuenta Corriente</h3>
+                <p id="ccNombreCliente" class="text-sm text-amber-400 font-medium mt-0.5">---</p>
+            </div>
+            <button onclick="document.getElementById('modalCuentaCorriente').classList.add('hidden')" class="text-slate-400 hover:text-white text-2xl p-1 cursor-pointer leading-none">&times;</button>
+        </div>
+
+        <div class="p-5 flex flex-col gap-4 overflow-y-auto">
+            
+            <!-- Resumen de Saldo -->
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 flex justify-between items-center shadow-inner">
+                <div>
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Deuda Total Actual</span>
+                    <div id="ccAlertaVencimiento" class="hidden mt-1 text-[10px] font-bold text-rose-400 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-500/20">⚠️ CUENTA VENCIDA (Pasó el día 10)</div>
+                </div>
+                <span id="ccSaldoTotal" class="text-3xl font-black text-rose-400">$0</span>
+            </div>
+
+            <!-- Ingresar Pago -->
+            <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-4">
+                <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">💰 Registrar Pago Parcial o Total</label>
+                <div class="flex gap-2">
+                    <input type="number" id="ccMontoPago" placeholder="Monto a pagar..." class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-amber-500">
+                    <button id="btnRegistrarPagoCC" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold px-6 py-2 rounded-lg transition-colors shadow-lg shadow-emerald-900/20">Registrar Pago</button>
+                </div>
+            </div>
+
+            <!-- Historial de Movimientos -->
+            <div>
+                <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">📜 Historial de Movimientos</h4>
+                <div class="border border-slate-800 rounded-xl overflow-hidden bg-slate-950/30">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-900 border-b border-slate-800 text-[10px] text-slate-400 uppercase tracking-wider">
+                            <tr>
+                                <th class="p-3">Fecha</th>
+                                <th class="p-3">Detalle</th>
+                                <th class="p-3 text-right">Monto</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ccHistorialBody" class="divide-y divide-slate-800/40">
+                            <!-- Se llena con JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
             <!-- Cierre de Caja -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
