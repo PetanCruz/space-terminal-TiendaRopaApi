@@ -148,6 +148,34 @@ function renderizarCatalogo(productosAFiltrar) {
     }
 }
 
+// Función que lee el selector y agrega al carrito
+window.agregarVarianteDirecta = function(varianteId, indexProducto) {
+    const selectSucursal = document.getElementById(`sucursal_origen_${varianteId}`);
+    const sucursalElegida = selectSucursal ? parseInt(selectSucursal.value) : 1;
+
+    const producto = productos[indexProducto];
+    const variante = (producto.variantes ?? producto.Variantes).find(v => (v.id ?? v.Id) === varianteId);
+    const itemEnCarrito = carrito.find(item => item.id === varianteId && Number(item.sucursalId) === sucursalElegida);
+
+    if (itemEnCarrito) {
+        itemEnCarrito.cantidad++;
+    } else {
+        carrito.push({
+            id: varianteId,
+            nombre: producto.nombre || producto.Nombre,
+            precio: producto.precio || producto.PrecioVenta,
+            talle: variante.talle ?? variante.Talle ?? "N/A",
+            color: variante.color ?? variante.Color ?? "N/A",
+            amount: 1,
+            cantidad: 1,
+            sucursalId: sucursalElegida
+        });
+    }
+
+    if(typeof actualizarInterfazCarrito === "function") actualizarInterfazCarrito();
+    if(window.toast) window.toast.success("🛒 Agregado al ticket");
+};
+
 // 🌟 FUNCIÓN NUEVA: Agrega leyendo el selector de la tabla
 window.agregarVarianteDirecta = function(varianteId, indexProducto) {
     const selectSucursal = document.getElementById(`sucursal_origen_${varianteId}`);
@@ -198,8 +226,13 @@ window.venderDesdeInventario = function(varianteId, nombre, precio, talle, color
         });
     }
 
+    // Cerramos el modal de variantes
     if(typeof window.cerrarModalVariantes === 'function') window.cerrarModalVariantes();
+    
+    // Cambiamos a la pestaña de ventas
     if(typeof window.cambiarPantalla === 'function') window.cambiarPantalla('seccion-ventas');
+    
+    // Actualizamos ticket
     if(typeof window.actualizarInterfazCarrito === 'function') window.actualizarInterfazCarrito();
     if(typeof window.filtrarProductos === 'function') window.filtrarProductos();
 };
@@ -249,10 +282,13 @@ function agregarAlCarrito(index, varianteId) {
     const varianteSeleccionada = variantes.find(v => (v.id ?? v.Id) === varianteId);
     if (!varianteSeleccionada) return;
 
+    // 🔥 LA MAGIA: Buscamos DÓNDE ESTÁ REALMENTE el stock de esta variante
     let idSucursalReal = null;
     if (varianteSeleccionada.stockDetalle && Array.isArray(varianteSeleccionada.stockDetalle)) {
+        // Buscamos la primera sucursal que tenga stock
         const sucursalConStock = varianteSeleccionada.stockDetalle.find(s => s.cantidad > 0);
         if (sucursalConStock) {
+            // Emparejamos el nombre con tu base de datos global de sucursales para sacar el ID exacto
             const match = window.sucursalesParaVentas.find(s => s.nombre === sucursalConStock.sucursal);
             if (match) {
                 idSucursalReal = match.id;
@@ -262,6 +298,7 @@ function agregarAlCarrito(index, varianteId) {
         }
     }
     
+    // Si la prenda no tiene sucursal definida, recién ahí caemos en la del cajero
     if (!idSucursalReal) {
         const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
         idSucursalReal = parseInt(localStorage.getItem("sucursalAdminActiva")) || parseInt(usuarioLocal.sucursalId) || 1;
@@ -296,7 +333,7 @@ function agregarAlCarrito(index, varianteId) {
             color: varianteSeleccionada.color ?? varianteSeleccionada.Color ?? "N/A",
             amount: 1, 
             cantidad: 1,
-            sucursalId: parseInt(idSucursalReal)
+            sucursalId: parseInt(idSucursalReal) // 🔥 AHORA SÍ GUARDA LA SUCURSAL REAL DONDE ESTÁ LA PRENDA
         });
     }
 
@@ -304,6 +341,7 @@ function agregarAlCarrito(index, varianteId) {
     if(typeof filtrarProductos === "function") filtrarProductos();
 }
 
+// Eliminar del Carrito
 function eliminarDelCarrito(index) {
     carrito.splice(index, 1);
     actualizarInterfazCarrito();
@@ -313,7 +351,7 @@ function eliminarDelCarrito(index) {
 window.cambiarSucursalItem = function(index, nuevoId) {
     if (carrito[index]) {
         carrito[index].sucursalId = parseInt(nuevoId);
-        window.actualizarInterfazCarrito(); 
+        window.actualizarInterfazCarrito(); // Refrescamos el ticket
     }
 };
 
@@ -336,6 +374,7 @@ window.actualizarInterfazCarrito = function() {
 
     let totalBase = 0;
     
+    // 🌟 TABLA ESTILO EXCEL (Básica pero premium)
     let html = `
     <div class="bg-slate-950 border border-slate-800 rounded-lg overflow-hidden">
         <table class="w-full text-left border-collapse">
@@ -390,6 +429,7 @@ window.actualizarInterfazCarrito = function() {
     html += `</tbody></table></div>`;
     contenedor.innerHTML = html;
 
+    // Descuentos intactos
     const tipoMod = document.getElementById("tipoModificador")?.value || "nada";
     const valorMod = parseFloat(document.getElementById("valorModificador")?.value) || 0;
     let totalFinal = totalBase;
@@ -410,6 +450,8 @@ window.actualizarInterfazCarrito = function() {
 async function cargarHistorialVentas() {
     try {
         const token = localStorage.getItem("token");
+
+        console.log("🔑 TOKEN ENVIADO A VENTAS:", token);
         
         const respuesta = await fetch(`${API_URL}/ventas`, {
             method: "GET",
@@ -422,7 +464,11 @@ async function cargarHistorialVentas() {
         if (!respuesta.ok) throw new Error(`Error: ${respuesta.status}`);
 
         const ventas = await respuesta.json();
+        
+        // 💾 Guardamos la copia completa original en nuestra memoria global
         window.ventasGlobales = ventas;
+        
+        // ⚙️ Activamos el motor de filtros (por defecto procesará e imprimirá todo)
         window.filtrarVentas();
         console.log("✅ Historial de ventas sincronizado con éxito.");
 
@@ -490,7 +536,7 @@ window.dibujarTablaVentas = function(ventasAProcesar) {
 // ⚙️ MOTOR DE FILTRADO DE HISTORIAL EN TIEMPO REAL
 // ========================================================
 window.filtrarVentas = function() {
-    const inputFecha = document.getElementById("filtroFecha")?.value;
+    const inputFecha = document.getElementById("filtroFecha")?.value; // Obtiene el formato "YYYY-MM-DD"
     
     let ventasFiltradas = [...window.ventasGlobales];
 
@@ -499,18 +545,24 @@ window.filtrarVentas = function() {
             const fechaRaw = venta.fecha || venta.fechaHora || venta.fecha_venta || venta.createdAt;
             if (!fechaRaw) return false;
             
+            // Forzamos la conversión a formato local exacto "YYYY-MM-DD" para matchear con el input
             const fechaVentaLocal = new Date(fechaRaw).toLocaleDateString('sv'); 
             return fechaVentaLocal === inputFecha;
         });
     }
 
+    // 1. Recalculamos el Cierre de Caja basándonos en la lista filtrada
     window.actualizarCierreCaja(ventasFiltradas);
+
+    // 2. Redibujamos la tabla únicamente con los elementos que corresponden al filtro
     window.dibujarTablaVentas(ventasFiltradas);
 };
 
+// Controladores rápidos de los botones del panel (Hoy, Ayer, Todos)
 window.aplicarPreajusteFiltro = function(tipo) {
     const inputFecha = document.getElementById("filtroFecha");
     
+    // Limpiamos los estilos de botón activo/inactivo de Tailwind
     ["btnFiltroHoy", "btnFiltroAyer", "btnFiltroTodos"].forEach(id => {
         const btn = document.getElementById(id);
         if (btn) {
@@ -519,6 +571,7 @@ window.aplicarPreajusteFiltro = function(tipo) {
         }
     });
 
+    // Encendemos el botón presionado
     const idActivo = tipo === 'hoy' ? 'btnFiltroHoy' : tipo === 'ayer' ? 'btnFiltroAyer' : 'btnFiltroTodos';
     const btnActivo = document.getElementById(idActivo);
     if (btnActivo) {
@@ -526,13 +579,14 @@ window.aplicarPreajusteFiltro = function(tipo) {
     }
 
     if (tipo === 'todos') {
-        if (inputFecha) inputFecha.value = ""; 
+        if (inputFecha) inputFecha.value = ""; // Vaciamos input de fecha
     } else {
         const d = new Date();
         if (tipo === 'ayer') d.setDate(d.getDate() - 1);
-        if (inputFecha) inputFecha.value = d.toLocaleDateString('sv'); 
+        if (inputFecha) inputFecha.value = d.toLocaleDateString('sv'); // Asigna el día en formato YYYY-MM-DD
     }
 
+    // Ejecuta el motor centralizado de filtrado
     window.filtrarVentas();
 };
 
@@ -542,7 +596,7 @@ window.aplicarPreajusteFiltro = function(tipo) {
 window.actualizarCierreCaja = function(listaDeVentas) {
     if (!Array.isArray(listaDeVentas)) return;
 
-    let totalGeneral = 0; 
+    let totalGeneral = 0; // Solo plata real
     let totalEfectivo = 0;
     let totalTransferencia = 0;
 
@@ -550,8 +604,9 @@ window.actualizarCierreCaja = function(listaDeVentas) {
         const total = parseFloat(venta.total || venta.total_venta || 0);
         const metodo = (venta.metodoPago || venta.medioPago || "efectivo").toLowerCase();
 
+        // 🌟 NUEVO: Ignoramos la Cuenta Corriente para que no ensucie la caja
         if (metodo.includes("cuenta corriente") || metodo.includes("fiado")) {
-            return; 
+            return; // Cortamos acá, no suma ni a efectivo ni a general
         }
 
         totalGeneral += total;
@@ -559,6 +614,7 @@ window.actualizarCierreCaja = function(listaDeVentas) {
         if (metodo.includes("efectivo")) {
             totalEfectivo += total;
         } else {
+            // Tarjetas, Transferencias, MP, etc.
             totalTransferencia += total;
         }
     });
@@ -579,8 +635,12 @@ window.actualizarCierreCaja = function(listaDeVentas) {
 // =========================================================================
 window.imprimirEnTicketera = function(id) {
     const modal = document.getElementById("modalDetalleFactura");
-    if (!modal) return;
+    if (!modal) {
+        console.warn("⚠️ No se encontró el modal en pantalla para mandar a imprimir.");
+        return;
+    }
 
+    // Extraemos los datos reflejados en el modal actual
     const metodoPago = modal.querySelector("span.bg-slate-800")?.textContent || "Efectivo";
     const total = modal.querySelector("span.text-emerald-400")?.textContent || "$0";
     
@@ -609,13 +669,23 @@ window.imprimirEnTicketera = function(id) {
     });
 
     const ventanaImpresion = window.open("", "_blank", "width=300,height=600");
+    
     ventanaImpresion.document.write(`
         <html>
         <head>
             <title>Ticket #${id}</title>
             <style>
                 @page { size: auto; margin: 0mm; }
-                body { font-family: 'Courier New', Courier, monospace; width: 260px; margin: 0; padding: 10px; color: #000; background: #fff; font-size: 12px; line-height: 1.2; }
+                body { 
+                    font-family: 'Courier New', Courier, monospace; 
+                    width: 260px; 
+                    margin: 0; 
+                    padding: 10px; 
+                    color: #000; 
+                    background: #fff; 
+                    font-size: 12px; 
+                    line-height: 1.2;
+                }
                 .center { text-align: center; }
                 .bold { font-weight: bold; }
                 .header { font-size: 15px; margin-bottom: 5px; }
@@ -629,29 +699,46 @@ window.imprimirEnTicketera = function(id) {
             <div class="center bold header">SPACE TERMINAL</div>
             <div class="center" style="font-size: 10px;">Gestión de Stock y Facturación</div>
             <div class="linea-divisoria"></div>
+            
             <div class="bold">TICKET DE VENTA #${id}</div>
             <div style="margin-top: 4px;"><b>Forma de Pago:</b> ${metodoPago}</div>
+            
             <div class="linea-divisoria"></div>
             <div class="bold" style="font-size: 11px;">ITEMS:</div>
-            <table style="margin-top: 4px;">${itemsHTML}</table>
-            <table class="total-table">
-                <tr><td>TOTAL COBRADO:</td><td style="text-align: right;">${total}</td></tr>
+            <table style="margin-top: 4px;">
+                ${itemsHTML}
             </table>
+            
+            <table class="total-table">
+                <tr>
+                    <td>TOTAL COBRADO:</td>
+                    <td style="text-align: right;">${total}</td>
+                </tr>
+            </table>
+            
             <div class="linea-divisoria"></div>
-            <div class="center footer">¡Gracias por tu compra!<br>--- Sistema de Control Oficial ---</div>
+            <div class="center footer">
+                ¡Gracias por tu compra!<br>
+                --- Sistema de Control Oficial ---
+            </div>
+            
             <script>
-                window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 300); };
+                window.onload = function() {
+                    window.print();
+                    setTimeout(function() { window.close(); }, 300);
+                };
             <\/script>
         </body>
         </html>
     `);
+    
     ventanaImpresion.document.close();
 };
-
 // =========================================================================
 // 🎫 VISUALIZAR DETALLE DE FACTURA / TICKET (CON MENÚ DE OPCIONES)
 // =========================================================================
 async function verDetalleFactura(id, datosLocales = null) {
+    console.log("🔍 Buscando detalle de la venta N°: " + id);
     const token = localStorage.getItem("token");
 
     let metodoPagoDesdeTabla = null;
@@ -671,16 +758,23 @@ async function verDetalleFactura(id, datosLocales = null) {
                 }
             }
         }
-    } catch (domError) {}
+    } catch (domError) {
+        console.log("No se pudo escanear la tabla visual:", domError);
+    }
 
     try {
         let venta;
+
         if (datosLocales) {
+            console.log("🎯 [SISTEMA] Usando datos locales para armar las opciones del ticket.");
             venta = datosLocales;
         } else {
             const respuesta = await fetch(`${API_URL}/ventas/${id}`, {
                 method: "GET",
-                headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                }
             });
             if (!respuesta.ok) throw new Error("No se pudo obtener el detalle.");
             venta = await respuesta.json();
@@ -729,6 +823,7 @@ async function verDetalleFactura(id, datosLocales = null) {
                 const precioListaUnitario = item.precioLista || item.precioOriginal || (datosGenerales.descuento ? (precioCobradoUnitario + Math.round(datosGenerales.descuento / cantidad)) : precioCobradoUnitario);
                 
                 totalOriginalTeorico += (precioListaUnitario * cantidad);
+                const ahorroItem = (precioListaUnitario - precioCobradoUnitario) * cantidad;
 
                 contenedorPrendasHTML += `
                     <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 flex flex-col justify-between text-sm mb-3">
@@ -754,13 +849,19 @@ async function verDetalleFactura(id, datosLocales = null) {
             });
         }
 
+        if (totalOriginalTeorico === 0) totalOriginalTeorico = totalFacturado;
+        const descuentoTotal = totalOriginalTeorico - totalFacturado;
+
+        // 🎯 MODAL ACTUALIZADO: Agregamos el contenedor de doble acción abajo
         const modalHTML = `
         <div id="modalDetalleFactura" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                
                 <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/40">
                     <h3 class="text-white font-bold text-base flex items-center gap-2">📋 TICKET #${id}</h3>
                     <button id="btnCerrarModalX" onclick="document.getElementById('modalDetalleFactura').remove()" class="text-slate-400 hover:text-white transition-colors text-lg cursor-pointer">✕</button>
                 </div>
+                
                 <div class="p-4 overflow-y-auto space-y-4 flex-1">
                     <div class="bg-slate-950/50 border border-slate-800/80 rounded-xl p-4 space-y-2.5 text-sm">
                         <div class="flex justify-between items-center">
@@ -773,17 +874,25 @@ async function verDetalleFactura(id, datosLocales = null) {
                             <span class="text-emerald-400 font-extrabold text-lg font-mono">$${totalFacturado}</span>
                         </div>
                     </div>
+                    
                     <div>
                         <h4 class="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-2 px-1">Prendas de la compra</h4>
                         ${contenedorPrendasHTML}
                     </div>
                 </div>
+                
                 <div class="p-4 bg-slate-950/40 border-t border-slate-800 flex flex-col gap-2">
                     <div class="flex gap-2">
-                        <button onclick="window.descargarPDF(${id})" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-900/20 cursor-pointer">📥 Guardar PDF</button>
-                        <button onclick="window.imprimirEnTicketera(${id})" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-blue-900/20 cursor-pointer">🖨️ Enviar a Ticketera</button>
+                        <button id="btnDescargarPDF" onclick="window.descargarPDF(${id})" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-900/20 cursor-pointer">
+                            📥 Guardar PDF
+                        </button>
+                        <button id="btnImprimirTicketera" onclick="window.imprimirEnTicketera(${id})" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-blue-900/20 cursor-pointer">
+                            🖨️ Enviar a Ticketera
+                        </button>
                     </div>
-                    <button onclick="document.getElementById('modalDetalleFactura').remove()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold py-2 px-4 rounded-xl transition-colors cursor-pointer">Entendido</button>
+                    <button id="btnEntendido" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold py-2 px-4 rounded-xl transition-colors cursor-pointer">
+                        Entendido
+                    </button>
                 </div>
             </div>
         </div>
@@ -793,24 +902,59 @@ async function verDetalleFactura(id, datosLocales = null) {
         if (modalExistente) modalExistente.remove();
         document.body.insertAdjacentHTML("beforeend", modalHTML);
 
+        const btnEntendido = document.getElementById("btnEntendido");
+        if (btnEntendido) {
+            btnEntendido.onclick = () => {
+                const modal = document.getElementById("modalDetalleFactura");
+                if (modal) modal.remove();
+            };
+        }
+
     } catch (error) {
+        console.error("Error historial detalle:", error);
         alert("No se pudo cargar el detalle de la factura de manera correcta.");
     }
 }
 
 // ========================================================
-// 🚀 CONTROLADORES GLOBALES DE ACCIONES
+// 🚀 INICIALIZACIÓN AUTOMÁTICA DE LA APP
 // ========================================================
+//document.addEventListener("DOMContentLoaded", async () => {
+ //   console.log("🚀 Página cargada por completo. Iniciando servicios...");
+    
+//    try {
+//        await cargarProductos();
+ //       console.log("✅ Catálogo inicializado con éxito.");
+ //   } catch (err) {
+//        console.error("❌ Error crítico al cargar catálogo inicial:", err);
+//    }
+
+  //  try {
+    //    await cargarHistorialVentas();
+  //      console.log("✅ Historial de ventas cargado.");
+  //  } catch (err) {
+    //    console.error("❌ Error crítico al cargar historial inicial:", err);
+    //}
+//});
+
+// ========================================================
+// 🚀 CONTROLADORES GLOBALES DE ACCIONES (HTML BINDINGS)
+// ========================================================
+
+// 1. Botón Salir / Cerrar Sesión
 window.cerrarSesion = function() {
+    console.log("🚪 [SISTEMA] Cerrando sesión...");
     localStorage.removeItem("token"); 
     window.location.href = "login.html"; 
 };
 
+// 2. VACIAR CARRITO
 window.vaciarCarrito = async function() {
     if (!carrito || carrito.length === 0) {
         window.toast?.info("El carrito ya está vacío.");
         return;
     }
+
     const confirmado = await window.confirmar("⚠️ ¿Estás seguro de que querés vaciar todo el carrito actual?", "Vaciar Carrito", "rose");
     if (confirmado) {
         carrito = []; 
@@ -820,6 +964,9 @@ window.vaciarCarrito = async function() {
     }
 };
 
+// =========================================================================
+// 💲 CONFIRMAR VENTA EN LA BASE DE DATOS
+// =========================================================================
 window.confirmarVenta = async function() {
     if (carrito.length === 0) {
         alert("🛒 El carrito está vacío.");
@@ -839,6 +986,7 @@ window.confirmarVenta = async function() {
     const sucursalCajero = usuarioLocal.sucursalId || 1;
 
     const totalBase = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+    
     const tipoMod = document.getElementById("tipoModificador")?.value || "nada";
     const valorMod = parseFloat(document.getElementById("valorModificador")?.value) || 0;
     
@@ -877,15 +1025,18 @@ window.confirmarVenta = async function() {
             const resultado = await respuesta.json();
             const ticketId = resultado.ventaId || resultado.id || null;
 
+            // 🌟 ACÁ ESTÁ LA CLAVE 2: Le avisamos a C# que el presupuesto se vendió
             if (window.presupuestoEnUso) {
                 try {
                     await fetch(`${API_URL}/presupuestos/${window.presupuestoEnUso}/estado`, {
                         method: 'PUT',
                         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify("Convertido") 
+                        body: JSON.stringify("Convertido") // Convertido = Vendido
                     });
-                    window.presupuestoEnUso = null; 
-                } catch (e) {}
+                    window.presupuestoEnUso = null; // Lo limpiamos para la próxima venta
+                } catch (e) {
+                    console.error("No se pudo actualizar el presupuesto", e);
+                }
             }
 
             if (ticketId && typeof verDetalleFactura === "function") {
@@ -898,24 +1049,33 @@ window.confirmarVenta = async function() {
             actualizarInterfazCarrito();
             await cargarProductos();
             if (typeof cargarHistorialVentas === "function") await cargarHistorialVentas();
-            if (typeof cargarPresupuestos === "function") await cargarPresupuestos();
+            if (typeof cargarPresupuestos === "function") await cargarPresupuestos(); // Refrescamos la tabla
         } else {
             const errorTexto = await respuesta.text();
             alert(`❌ Error al guardar la venta: ${errorTexto}`);
         }
     } catch (error) {
+        console.error("❌ Error en confirmarVenta:", error);
         alert("❌ Hubo un problema de red al procesar la venta.");
     }
 };
 
+// 4. DESCARGAR PDF
 window.descargarPDF = function(id) {
-    window.obtenerYImprimirTicket(id, "normal");
+    console.log("📄 [SISTEMA] Generando e imprimiendo el PDF del ticket N°:", id);
+    window.print();
 };
 
+// ========================================================
+// 🎯 DESCUENTOS Y RECARGOS EN TIEMPO REAL (Líneas Reparadas)
+// ========================================================
 document.addEventListener("DOMContentLoaded", () => {
     const inputDescuento = document.getElementById("inputDescuentoRecargo");
+
     if (inputDescuento) {
         inputDescuento.addEventListener("input", function() {
+            console.log("✍️ Escribiendo descuento o recargo:", this.value);
+            // Ejecuta el re-dibujo automático calculando el total modificado al instante
             actualizarInterfazCarrito();
         });
     }
@@ -924,14 +1084,18 @@ document.addEventListener("DOMContentLoaded", () => {
 // =========================================================================
 // 🎫 MÓDULO DE REIMPRESIÓN DE TICKETS v2
 // =========================================================================
+
+// ── 1. GENERAR HTML TICKET (FISCAL / NO FISCAL) + TICKET DE CAMBIO ──────────────────
 window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
     const dateObj = fecha ? new Date(fecha) : new Date();
     const strFecha = dateObj.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
     const strHora = dateObj.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
+    // 🌟 LEER EL NOMBRE DEL CAJERO LOGUEADO
     const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
     const nombreCajero = (usuarioLocal.Nombre || usuarioLocal.nombre || "CAJERO 1").toUpperCase();
 
+    // Leemos la config (Módulo Empresa) o usamos datos por defecto
     const config = JSON.parse(localStorage.getItem("configEmpresa")) || {
         nombreFantasia: "SPACE TERMINAL",
         razonSocial: "TU NOMBRE O RAZON SOCIAL",
@@ -947,6 +1111,7 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
         ? `<div style="text-align:center; margin-bottom:10px;"><img src="${config.logo}" style="max-height: 60px; object-fit: contain;"></div>`
         : `<h1 class="center bold" style="font-size: 16px; margin-bottom: 5px;">${config.nombreFantasia.toUpperCase()}</h1>`;
 
+    // 🌟 VERIFICAMOS SI SE PIDIÓ FACTURA ARCA
     const toggleArca = document.getElementById("toggleFacturaARCA");
     const esFiscal = toggleArca ? toggleArca.checked : false;
 
@@ -968,6 +1133,7 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
                     <span>$${Number(subtotal).toLocaleString("es-AR", {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
             `;
+
             itemsCambioHTML += `
                 <div style="display:flex; justify-content:space-between; margin-bottom:3px; padding-bottom:3px; border-bottom: 1px dashed #ddd;">
                     <span style="width: 80%;">${nombre}<br><span style="font-size:10px; color:#555;">Talle: ${talle} | Color: ${color}</span></span>
@@ -983,6 +1149,7 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
     const mostrarTicketCambio = (id !== "PRESUPUESTO");
     const nroTicketStr = String(id === "PRESUPUESTO" ? "0" : id).padStart(8, '0');
     
+    // 🌟 BLOQUES DINÁMICOS SEGÚN ARCA (FISCAL VS NO FISCAL)
     let datosEmpresaHtml = "";
     let pieTicketHtml = "";
 
@@ -1000,11 +1167,13 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
             <p>Inicio de Actividades: ${config.inicioActividades}</p>
             <p>${config.condicionIva}</p>
             <p>A CONSUMIDOR FINAL</p>
+            
             <div class="center" style="margin: 15px 0;">
                 <p>Cód. 083 - TIQUE</p>
                 <p>P.V. Nro. 00010 - Nro. T. ${nroTicketStr}</p>
             </div>
         `;
+
         pieTicketHtml = `
             <div class="center bold" style="margin-bottom: 5px;">TRANSPARENCIA FISCAL</div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
@@ -1012,23 +1181,33 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
                 <span>$${Number(ivaContenido).toLocaleString("es-AR", {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
             </div>
             <div style="text-align: right; margin-bottom: 5px;">CAJERO: ${nombreCajero}</div>
+            
             <div class="qr-container">
                 <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${urlQR}" alt="QR AFIP">
             </div>
+            
             <div class="info-grid" style="margin-top: 10px; font-weight: bold;">
-                <span>CF ${hashCF}</span><span>V: 1.02</span>
+                <span>CF ${hashCF}</span>
+                <span>V: 1.02</span>
             </div>
         `;
     } else {
+        // Formato Comprobante Interno (SIN Fiscal)
         datosEmpresaHtml = `
             <p>${config.direccion}</p>
             <p style="margin-top: 8px;">DOCUMENTO NO VÁLIDO COMO FACTURA</p>
             <p>COMPROBANTE INTERNO</p>
-            <div class="center" style="margin: 15px 0;"><p>NRO. TICKET: ${nroTicketStr}</p></div>
+            
+            <div class="center" style="margin: 15px 0;">
+                <p>NRO. TICKET: ${nroTicketStr}</p>
+            </div>
         `;
+
         pieTicketHtml = `
             <div style="text-align: right; margin-bottom: 5px;">CAJERO: ${nombreCajero}</div>
-            <div class="center" style="margin-top: 15px;"><p>¡GRACIAS POR SU COMPRA!</p></div>
+            <div class="center" style="margin-top: 15px;">
+                <p>¡GRACIAS POR SU COMPRA!</p>
+            </div>
         `;
     }
 
@@ -1044,72 +1223,140 @@ window.generarHTMLTicket = function(id, total, metodoPago, prendas, fecha) {
                 .center { text-align: center; }
                 .bold { font-weight: bold; }
                 .ticket { padding: 10px 5px; }
+                
                 .datos-empresa { margin-bottom: 15px; }
                 .datos-empresa p { margin-bottom: 2px; }
+                
                 .info-grid { display: flex; justify-content: space-between; margin: 4px 0; }
+                
                 .divider { border-top: 1px dashed #000; margin: 10px 0; }
                 .divider-thick { border-top: 2px solid #000; margin: 10px 0; }
+                
                 .total-box { margin-top: 10px; margin-bottom: 15px; }
                 .total-line { display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; margin-bottom: 5px; }
+                
                 .qr-container { text-align: center; margin-top: 15px; }
                 .qr-container img { width: 130px; height: 130px; }
+                
                 .salto-pagina { page-break-before: always; }
-                @media print { html, body { width: 80mm; } @page { margin: 0; size: 80mm auto; } }
+                
+                @media print { 
+                    html, body { width: 80mm; } 
+                    @page { margin: 0; size: 80mm auto; } 
+                }
             </style>
         </head>
         <body>
+            <!-- TICKET DE COMPRA -->
             <div class="ticket">
                 ${logoHtml}
-                <div class="datos-empresa">${datosEmpresaHtml}</div>
-                <div class="info-grid"><span>FECHA ${strFecha}</span><span>HORA ${strHora}</span></div>
-                <div class="divider"></div>
-                <div style="margin-bottom: 10px;">${itemsHTML}</div>
-                <div class="divider"></div>
-                <div class="total-box">
-                    <div class="total-line"><span>TOTAL</span><span>$${Number(total).toLocaleString("es-AR", {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></div>
+                <div class="datos-empresa">
+                    ${datosEmpresaHtml}
                 </div>
+                
+                <div class="info-grid">
+                    <span>FECHA ${strFecha}</span>
+                    <span>HORA ${strHora}</span>
+                </div>
+                
+                <div class="divider"></div>
+                
+                <div style="margin-bottom: 10px;">
+                    ${itemsHTML}
+                </div>
+                
+                <div class="divider"></div>
+                
+                <div class="total-box">
+                    <div class="total-line">
+                        <span>TOTAL</span>
+                        <span>$${Number(total).toLocaleString("es-AR", {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    </div>
+                </div>
+                
                 <div style="margin-bottom: 15px;">
                     <p>RECIBI(MOS)</p>
                     <div style="display: flex; justify-content: space-between;">
-                        <span>${metodoPago}</span><span>$${Number(total).toLocaleString("es-AR", {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                        <span>${metodoPago}</span>
+                        <span>$${Number(total).toLocaleString("es-AR", {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                     </div>
                 </div>
+                
                 ${pieTicketHtml}
             </div>
+
             ${mostrarTicketCambio ? `
+            <!-- 🌟 SALTO DE PÁGINA PARA EL CORTE AUTOMÁTICO DE LA TICKETERA -->
             <div class="salto-pagina"></div>
+            
+            <!-- TICKET DE CAMBIO (ESTILO FISCAL MONOSPACE) -->
             <div class="ticket">
                 ${logoHtml}
                 <div class="center bold" style="font-size: 14px; margin: 15px 0;">TICKET DE CAMBIO</div>
-                <div class="info-grid"><span>REF. COMPRA:</span><strong>#${nroTicketStr}</strong></div>
-                <div class="info-grid"><span>FECHA:</span><span>${strFecha}</span></div>
+                
+                <div class="info-grid">
+                    <span>REF. COMPRA:</span>
+                    <strong>#${nroTicketStr}</strong>
+                </div>
+                <div class="info-grid">
+                    <span>FECHA:</span>
+                    <span>${strFecha}</span>
+                </div>
+                
                 <div class="divider-thick"></div>
                 <p class="bold" style="margin-bottom: 5px;">PRENDAS A CAMBIAR:</p>
-                <div style="margin-bottom: 10px;">${itemsCambioHTML}</div>
+                
+                <div style="margin-bottom: 10px;">
+                    ${itemsCambioHTML}
+                </div>
+                
                 <div class="center" style="margin-top: 25px;">
                     <p class="bold" style="font-size: 13px;">VÁLIDO POR 30 DÍAS</p>
-                    <p style="margin-top: 8px; font-size: 10px; line-height: 1.4;">LA PRENDA DEBE ESTAR SIN USO<br>Y CON SU ETIQUETA ORIGINAL ADHERIDA.</p>
+                    <p style="margin-top: 8px; font-size: 10px; line-height: 1.4;">
+                        LA PRENDA DEBE ESTAR SIN USO<br>
+                        Y CON SU ETIQUETA ORIGINAL ADHERIDA.
+                    </p>
                 </div>
             </div>
             ` : ''}
-            <script>window.onload = () => { setTimeout(() => { window.print(); }, 800); };<\/script>
+            
+            <script>
+                window.onload = () => { 
+                    setTimeout(() => { window.print(); }, 800); 
+                };
+            </script>
         </body>
         </html>
     `;
 };
 
+// ── 2. FUNCIÓN CENTRAL: Obtiene el detalle completo y abre la ventana ─────
+// FIX: Llama a GET /api/ventas/{id} para traer ArticulosComprados
 window.obtenerYImprimirTicket = async function(id, modoImpresion = "normal") {
     const token = localStorage.getItem("token");
+
     try {
+        // Siempre busca el detalle completo desde /api/ventas/{id}
+        // que devuelve { InformacionVenta, ArticulosComprados }
         const respuesta = await fetch(`${API_URL}/ventas/${id}`, {
             method: "GET",
-            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            }
         });
+
         if (!respuesta.ok) throw new Error(`Error HTTP ${respuesta.status}`);
 
         const datos = await respuesta.json();
+        console.log("🎫 Datos del ticket recibidos:", datos);
+
+        // Mapeo exacto a la estructura que devuelve tu C#:
+        // { InformacionVenta: {...}, ArticulosComprados: [...] }
         const info     = datos.informacionVenta || datos.InformacionVenta || datos;
-        const prendas  = datos.articulosComprados || datos.ArticulosComprados || datos.detalles || datos.items || datos.productos || [];
+        const prendas  = datos.articulosComprados || datos.ArticulosComprados
+                      || datos.detalles || datos.items || datos.productos || [];
+
         const total      = info.total      || info.Total      || 0;
         const metodoPago = info.metodoPago || info.MetodoPago || "Efectivo";
         const fecha      = info.fechaHora  || info.FechaHora  || info.fecha;
@@ -1118,43 +1365,74 @@ window.obtenerYImprimirTicket = async function(id, modoImpresion = "normal") {
         const ancho      = modoImpresion === "ticketera" ? "320" : "400";
         const ventanaImp = window.open("", "_blank", `width=${ancho},height=600,scrollbars=yes`);
 
-        if (!ventanaImp) { alert("⚠️ El navegador bloqueó la ventana emergente. Permitila para este sitio."); return; }
+        if (!ventanaImp) {
+            alert("⚠️ El navegador bloqueó la ventana emergente. Permitila para este sitio e intentá de nuevo.");
+            return;
+        }
+
         ventanaImp.document.write(htmlTicket);
         ventanaImp.document.close();
         ventanaImp.onload = () => { ventanaImp.focus(); ventanaImp.print(); };
+
+        console.log(`🖨️ Ticket #${id} enviado a impresión.`);
+
     } catch (error) {
-        alert("No se pudo obtener el detalle de la venta.");
+        console.error("❌ Error al obtener el ticket:", error);
+        alert("No se pudo obtener el detalle de la venta. Revisá la consola (F12).");
     }
 };
 
+// ── 3. BOTONES DEL MODAL ──────────────────────────────────────────────────
+window.descargarPDF = function(id) {
+    window.obtenerYImprimirTicket(id, "normal");
+};
+
+window.imprimirEnTicketera = function(id) {
+    window.obtenerYImprimirTicket(id, "ticketera");
+};
+
+// ── 4. BOTÓN REIMPRIMIR EN LA TABLA DEL HISTORIAL ────────────────────────
 window.reimprimirTicket = function(id) {
     window.obtenerYImprimirTicket(id, "normal");
 };
 
 // =========================================================================
 // 💰 MÓDULO DE CONTROL DE CAJA
+// Pegá este bloque al final de tu ventas.js
 // =========================================================================
+
+// ── Abrir modal y cargar resumen del día ─────────────────────────────────
 window.abrirCierreCaja = async function() {
     const token = localStorage.getItem("token");
     const modal = document.getElementById("modalCierreCaja");
     if (!modal) return;
 
+    // Mostrar el modal con estado de carga
     modal.classList.remove("hidden");
     document.getElementById("cajaCargando").classList.remove("hidden");
     document.getElementById("cajaContenido").classList.add("hidden");
     document.getElementById("cajaError").classList.add("hidden");
 
+    // 🌟 NUEVO: Extraemos la sucursal activa del Teletransportador
     const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
     const sucursalActiva = localStorage.getItem("sucursalAdminActiva") || usuarioLocal.sucursalId || 1;
 
     try {
+        // 🌟 NUEVO: Le enviamos el ID de la sucursal para que devuelva la caja correcta
         const respuesta = await fetch(`${API_URL}/cierrecaja/resumen-hoy?sucursalId=${sucursalActiva}`, {
             method: "GET",
-            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            }
         });
+
         if (!respuesta.ok) throw new Error(`Error HTTP ${respuesta.status}`);
 
         const resumen = await respuesta.json();
+        console.log("💰 Resumen de caja:", resumen);
+
+        // Mapeo tolerante PascalCase / camelCase
         const efectivo      = resumen.totalEfectivo      ?? resumen.TotalEfectivo      ?? 0;
         const transferencia = resumen.totalTransferencia ?? resumen.TotalTransferencia ?? 0;
         const debito        = resumen.totalDebito        ?? resumen.TotalDebito        ?? 0;
@@ -1162,6 +1440,7 @@ window.abrirCierreCaja = async function() {
         const totalGeneral  = resumen.totalGeneral       ?? resumen.TotalGeneral       ?? 0;
         const cantVentas    = resumen.cantidadVentas     ?? resumen.CantidadVentas     ?? 0;
 
+        // Guardar en dataset del modal para usar al confirmar cierre
         modal.dataset.efectivo      = efectivo;
         modal.dataset.transferencia = transferencia;
         modal.dataset.debito        = debito;
@@ -1169,6 +1448,7 @@ window.abrirCierreCaja = async function() {
         modal.dataset.total         = totalGeneral;
         modal.dataset.ventas        = cantVentas;
 
+        // Poblar los valores en pantalla
         document.getElementById("cajaEfectivo").textContent      = `$${Number(efectivo).toLocaleString("es-AR")}`;
         document.getElementById("cajaTransferencia").textContent = `$${Number(transferencia).toLocaleString("es-AR")}`;
         document.getElementById("cajaDebito").textContent        = `$${Number(debito).toLocaleString("es-AR")}`;
@@ -1176,9 +1456,12 @@ window.abrirCierreCaja = async function() {
         document.getElementById("cajaTotalGeneral").textContent  = `$${Number(totalGeneral).toLocaleString("es-AR")}`;
         document.getElementById("cajaCantVentas").textContent    = cantVentas;
 
+        // Mostrar contenido y ocultar loader
         document.getElementById("cajaCargando").classList.add("hidden");
         document.getElementById("cajaContenido").classList.remove("hidden");
+
     } catch (error) {
+        console.error("❌ Error al cargar resumen de caja:", error);
         document.getElementById("cajaCargando").classList.add("hidden");
         document.getElementById("cajaError").classList.remove("hidden");
     }
@@ -1186,51 +1469,78 @@ window.abrirCierreCaja = async function() {
 
 window.cerrarCierreCaja = function() {
     document.getElementById("modalCierreCaja")?.classList.add("hidden");
-    if (document.getElementById("cajaObservaciones")) document.getElementById("cajaObservaciones").value = "";
+    document.getElementById("cajaObservaciones")?.value && 
+        (document.getElementById("cajaObservaciones").value = "");
 };
 
+// ── Confirmar y guardar el cierre en la BD ────────────────────────────────
 window.confirmarCierreCaja = async function() {
     const token = localStorage.getItem("token");
     const modal = document.getElementById("modalCierreCaja");
     const btn   = document.getElementById("btnConfirmarCierre");
+
     const observaciones = document.getElementById("cajaObservaciones")?.value.trim() || "";
+
+    // 🌟 NUEVO: Extraemos la sucursal del cajero actual
     const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
     const sucursalCajero = usuarioLocal.sucursalId || 1;
 
     const payload = {
-        totalEfectivo:      parseFloat(modal.dataset.efectivo || 0),
+        totalEfectivo:      parseFloat(modal.dataset.efectivo      || 0),
         totalTransferencia: parseFloat(modal.dataset.transferencia || 0),
-        totalDebito:        parseFloat(modal.dataset.debito || 0),
-        totalCredito:       parseFloat(modal.dataset.credito || 0),
-        totalGeneral:       parseFloat(modal.dataset.total || 0),
-        cantidadVentas:     parseInt(modal.dataset.ventas || 0),
+        totalDebito:        parseFloat(modal.dataset.debito        || 0),
+        totalCredito:       parseFloat(modal.dataset.credito       || 0),
+        totalGeneral:       parseFloat(modal.dataset.total         || 0),
+        cantidadVentas:     parseInt(modal.dataset.ventas          || 0),
         observaciones:      observaciones,
-        sucursalId:         sucursalCajero 
+        sucursalId:         sucursalCajero // 🌟 Se lo mandamos a C# por las dudas
     };
 
+    // Deshabilitar botón mientras guarda
     if (btn) { btn.disabled = true; btn.textContent = "Guardando..."; }
 
     try {
         const respuesta = await fetch(`${API_URL}/cierrecaja`, {
             method: "POST",
-            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
             body: JSON.stringify(payload)
         });
 
-        if (!respuesta.ok) throw new Error(await respuesta.text());
-        
+        if (!respuesta.ok) {
+            // 🌟 FIX: Atrapamos el error EXACTO que manda C# para no tener que adivinar
+            const errorTexto = await respuesta.text();
+            throw new Error(errorTexto || `Error HTTP ${respuesta.status}`);
+        }
+
+        const resultado = await respuesta.json();
+        console.log("✅ Cierre guardado:", resultado);
+
         window.cerrarCierreCaja();
+
+        // Imprimir resumen automáticamente al cerrar
         window.imprimirResumenCaja(payload);
+
         window.toast?.success(`✅ Caja cerrada correctamente.`);
+
     } catch (error) {
-        alert(`❌ Falló el cierre de caja.\n${error.message}`);
+        console.error("❌ Error al guardar cierre:", error);
+        // 🌟 FIX: Te mostramos el motivo exacto en pantalla
+        alert(`❌ Falló el cierre de caja. El servidor dice:\n${error.message}`);
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = "✅ Confirmar Cierre de Caja"; }
     }
 };
 
+// ── Imprimir resumen de caja ──────────────────────────────────────────────
 window.imprimirResumenCaja = function(datos) {
-    const fecha = new Date().toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    const fecha = new Date().toLocaleString("es-AR", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit"
+    });
+
     const html = `
         <!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
         <title>Cierre de Caja - ${fecha}</title>
@@ -1245,7 +1555,9 @@ window.imprimirResumenCaja = function(datos) {
             .footer { text-align:center; font-size:10px; color:#777; margin-top:12px; }
             @media print { @page { margin:0; size:80mm auto; } }
         </style></head><body>
-        <h1>SPACE TERMINAL</h1><p class="sub">CIERRE DE CAJA</p><p class="sub">${fecha}</p>
+        <h1>SPACE TERMINAL</h1>
+        <p class="sub">CIERRE DE CAJA</p>
+        <p class="sub">${fecha}</p>
         <div class="divider"></div>
         <div class="fila"><span>Ventas realizadas:</span><strong>${datos.cantidadVentas}</strong></div>
         <div class="divider"></div>
@@ -1259,6 +1571,7 @@ window.imprimirResumenCaja = function(datos) {
         <div class="footer"><p>Cierre registrado correctamente</p></div>
         </body></html>
     `;
+
     const ventana = window.open("", "_blank", "width=400,height=500");
     if (!ventana) return;
     ventana.document.write(html);
@@ -1269,27 +1582,42 @@ window.imprimirResumenCaja = function(datos) {
 // =========================================================================
 // 📊 MÓDULO DE ESTADÍSTICAS
 // =========================================================================
+
 window.cargarEstadisticas = async function() {
     const token = localStorage.getItem("token");
+
+    // Mostrar skeletons de carga
     ["statTotalMes", "statVentasMes", "statTicketProm", "statMejorDia"].forEach(id => {
-        if (document.getElementById(id)) document.getElementById(id).textContent = "...";
+        const el = document.getElementById(id);
+        if (el) el.textContent = "...";
     });
 
     try {
-        const respuesta = await fetch(`${API_URL}/ventas`, { headers: { "Authorization": `Bearer ${token}` } });
+        // Traer todas las ventas para procesar localmente
+        const respuesta = await fetch(`${API_URL}/ventas`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
         if (!respuesta.ok) throw new Error("Error al cargar ventas");
+
         const ventas = await respuesta.json();
-        
-        const ahora = new Date();
+        console.log("📊 Ventas para estadísticas:", ventas);
+
+        const ahora   = new Date();
+        const mesActual = ahora.getMonth();
+        const anioActual = ahora.getFullYear();
+
+        // Filtrar ventas del mes actual
         const ventasMes = ventas.filter(v => {
             const fecha = new Date(v.fechaHora || v.FechaHora || v.fecha);
-            return fecha.getMonth() === ahora.getMonth() && fecha.getFullYear() === ahora.getFullYear();
+            return fecha.getMonth() === mesActual && fecha.getFullYear() === anioActual;
         });
 
-        const totalMes = ventasMes.reduce((acc, v) => acc + (v.total || v.Total || 0), 0);
-        const cantVentas = ventasMes.length;
-        const ticketProm = cantVentas > 0 ? totalMes / cantVentas : 0;
+        // ── KPIs principales ─────────────────────────────────────────────
+        const totalMes    = ventasMes.reduce((acc, v) => acc + (v.total || v.Total || 0), 0);
+        const cantVentas  = ventasMes.length;
+        const ticketProm  = cantVentas > 0 ? totalMes / cantVentas : 0;
 
+        // Mejor día del mes
         const porDia = {};
         ventasMes.forEach(v => {
             const dia = new Date(v.fechaHora || v.FechaHora || v.fecha).toLocaleDateString("es-AR");
@@ -1302,23 +1630,34 @@ window.cargarEstadisticas = async function() {
         document.getElementById("statTicketProm").textContent = `$${Number(ticketProm).toFixed(0)}`;
         document.getElementById("statMejorDia").textContent   = mejorDia ? mejorDia[0] : "Sin datos";
 
-        const labels14 = []; const data14 = [];
+        // ── Gráfico 1: Ventas por día (últimos 14 días) ───────────────────
+        const labels14 = [];
+        const data14   = [];
         for (let i = 13; i >= 0; i--) {
-            const d = new Date(); d.setDate(d.getDate() - i);
-            labels14.push(d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" }));
-            data14.push(porDia[d.toLocaleDateString("es-AR")] || 0);
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const label = d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+            const key   = d.toLocaleDateString("es-AR");
+            labels14.push(label);
+            data14.push(porDia[key] || 0);
         }
         window.renderGraficoLinea("graficoPorDia", labels14, data14, "Ventas diarias ($)");
 
+        // ── Gráfico 2: Métodos de pago ────────────────────────────────────
         const metodos = {};
         ventasMes.forEach(v => {
             const m = v.metodoPago || v.MetodoPago || "Efectivo";
             metodos[m] = (metodos[m] || 0) + (v.total || v.Total || 0);
         });
-        window.renderGraficoDona("graficoMetodos", Object.keys(metodos), Object.values(metodos), "Métodos de pago");
+        window.renderGraficoDona("graficoMetodos",
+            Object.keys(metodos),
+            Object.values(metodos),
+            "Métodos de pago"
+        );
 
+        // ── Gráfico 3: Ventas por día de la semana ────────────────────────
         const diasSemana = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-        const porSemana = [0, 0, 0, 0, 0, 0, 0];
+        const porSemana  = [0, 0, 0, 0, 0, 0, 0];
         ventasMes.forEach(v => {
             const d = new Date(v.fechaHora || v.FechaHora || v.fecha).getDay();
             porSemana[d] += (v.total || v.Total || 0);
@@ -1326,65 +1665,144 @@ window.cargarEstadisticas = async function() {
         window.renderGraficoBarra("graficoPorSemana", diasSemana, porSemana, "Total por día de la semana ($)");
 
     } catch (error) {
+        console.error("❌ Error al cargar estadísticas:", error);
         ["statTotalMes","statVentasMes","statTicketProm","statMejorDia"].forEach(id => {
-            if (document.getElementById(id)) document.getElementById(id).textContent = "Error";
+            const el = document.getElementById(id);
+            if (el) el.textContent = "Error";
         });
     }
 };
 
+// ── Helpers de gráficos (Chart.js) ───────────────────────────────────────
 window.renderGraficoLinea = function(canvasId, labels, data, label) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
     if (canvas._chartInstance) canvas._chartInstance.destroy();
+
     canvas._chartInstance = new Chart(canvas, {
-        type: "line", data: { labels, datasets: [{ label, data, borderColor: "#6366f1", backgroundColor: "rgba(99,102,241,0.15)", borderWidth: 2, pointBackgroundColor: "#6366f1", pointRadius: 3, fill: true, tension: 0.4 }] },
-        options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: "#94a3b8", font: { size: 10 } }, grid: { color: "#1e293b" } }, y: { ticks: { color: "#94a3b8", font: { size: 10 }, callback: v => `$${Number(v).toLocaleString("es-AR")}` }, grid: { color: "#1e293b" } } } }
+        type: "line",
+        data: {
+            labels,
+            datasets: [{
+                label,
+                data,
+                borderColor: "#6366f1",
+                backgroundColor: "rgba(99,102,241,0.15)",
+                borderWidth: 2,
+                pointBackgroundColor: "#6366f1",
+                pointRadius: 3,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: "#94a3b8", font: { size: 10 } }, grid: { color: "#1e293b" } },
+                y: { ticks: { color: "#94a3b8", font: { size: 10 }, callback: v => `$${Number(v).toLocaleString("es-AR")}` }, grid: { color: "#1e293b" } }
+            }
+        }
     });
 };
+
 window.renderGraficoBarra = function(canvasId, labels, data, label) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
     if (canvas._chartInstance) canvas._chartInstance.destroy();
+
     canvas._chartInstance = new Chart(canvas, {
-        type: "bar", data: { labels, datasets: [{ label, data, backgroundColor: "rgba(99,102,241,0.7)", borderColor: "#6366f1", borderWidth: 1, borderRadius: 6 }] },
-        options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: "#94a3b8" }, grid: { color: "#1e293b" } }, y: { ticks: { color: "#94a3b8", callback: v => `$${Number(v).toLocaleString("es-AR")}` }, grid: { color: "#1e293b" } } } }
+        type: "bar",
+        data: {
+            labels,
+            datasets: [{
+                label,
+                data,
+                backgroundColor: "rgba(99,102,241,0.7)",
+                borderColor: "#6366f1",
+                borderWidth: 1,
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: "#94a3b8" }, grid: { color: "#1e293b" } },
+                y: { ticks: { color: "#94a3b8", callback: v => `$${Number(v).toLocaleString("es-AR")}` }, grid: { color: "#1e293b" } }
+            }
+        }
     });
 };
+
 window.renderGraficoDona = function(canvasId, labels, data, label) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
     if (canvas._chartInstance) canvas._chartInstance.destroy();
+
     canvas._chartInstance = new Chart(canvas, {
-        type: "doughnut", data: { labels, datasets: [{ label, data, backgroundColor: ["#6366f1","#10b981","#3b82f6","#f59e0b","#ec4899"], borderColor: "#0f172a", borderWidth: 3 }] },
-        options: { responsive: true, plugins: { legend: { position: "bottom", labels: { color: "#94a3b8", font: { size: 11 }, padding: 12 } } } }
+        type: "doughnut",
+        data: {
+            labels,
+            datasets: [{
+                label,
+                data,
+                backgroundColor: ["#6366f1","#10b981","#3b82f6","#f59e0b","#ec4899"],
+                borderColor: "#0f172a",
+                borderWidth: 3
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: "bottom",
+                    labels: { color: "#94a3b8", font: { size: 11 }, padding: 12 }
+                }
+            }
+        }
     });
 };
 
 // =========================================================================
 // 👤 MÓDULO DE CLIENTES
 // =========================================================================
+
 window.clientesMemoria = [];
+
+// ── Cargar y renderizar tabla de clientes ─────────────────────────────────
 window.cargarClientes = async function() {
     const token = localStorage.getItem("token");
     const tbody = document.getElementById("tablaClientesBody");
     if (!tbody) return;
+
     tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500 text-sm animate-pulse">Cargando clientes...</td></tr>`;
+
     try {
-        const resp = await fetch(`${API_URL}/clientes`, { headers: { "Authorization": `Bearer ${token}` } });
-        if (!resp.ok) throw new Error();
-        window.clientesMemoria = await resp.json();
-        window.renderizarTablaClientes(window.clientesMemoria);
+        const resp = await fetch(`${API_URL}/clientes`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al cargar clientes");
+
+        const clientes = await resp.json();
+        window.clientesMemoria = clientes;
+        window.renderizarTablaClientes(clientes);
+
     } catch (error) {
-        tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-rose-400 text-sm">Error de conexión.</td></tr>`;
+        console.error("❌ Error clientes:", error);
+        tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-rose-400 text-sm">No se pudo conectar con el servidor.</td></tr>`;
     }
 };
 
 window.renderizarTablaClientes = function(lista) {
     const tbody = document.getElementById("tablaClientesBody");
     if (!tbody) return;
+
     if (!lista || lista.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-500 italic text-sm">No hay clientes.</td></tr>`; return;
+        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-500 italic text-sm">No hay clientes registrados aún.</td></tr>`;
+        return;
     }
+
     tbody.innerHTML = lista.map(c => `
         <tr class="hover:bg-slate-900/30 transition-colors border-b border-slate-800/40">
             <td class="p-4 font-bold text-white text-sm">${c.nombre}</td>
@@ -1393,8 +1811,14 @@ window.renderizarTablaClientes = function(lista) {
             <td class="p-4 text-slate-400 text-xs">${c.email || "—"}</td>
             <td class="p-4 text-emerald-400 font-mono font-bold text-sm">$${Number(c.totalCompras || 0).toLocaleString("es-AR")}</td>
             <td class="p-4 text-right space-x-1">
-                <button onclick="window.verHistorialCliente(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')" class="bg-indigo-950 hover:bg-indigo-900 text-indigo-400 text-xs px-2 py-1.5 rounded-lg border border-indigo-500/20">📋 Historial</button>
-                <button onclick="window.eliminarCliente(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')" class="bg-rose-950/30 hover:bg-rose-900/60 text-rose-400 text-xs px-2 py-1.5 rounded-lg border border-rose-500/20">🗑️ Baja</button>
+                <button onclick="window.verHistorialCliente(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')"
+                    class="bg-indigo-950 hover:bg-indigo-900 text-indigo-400 text-xs px-2 py-1.5 rounded-lg border border-indigo-500/20 cursor-pointer">
+                    📋 Historial
+                </button>
+                <button onclick="window.eliminarCliente(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')"
+                    class="bg-rose-950/30 hover:bg-rose-900/60 text-rose-400 text-xs px-2 py-1.5 rounded-lg border border-rose-500/20 cursor-pointer">
+                    🗑️ Baja
+                </button>
             </td>
         </tr>
     `).join("");
@@ -1402,283 +1826,1658 @@ window.renderizarTablaClientes = function(lista) {
 
 window.filtrarClientes = function() {
     const txt = (document.getElementById("inputBuscarCliente")?.value || "").toLowerCase();
-    window.renderizarTablaClientes(window.clientesMemoria.filter(c => (c.nombre || "").toLowerCase().includes(txt) || (c.dni || "").includes(txt) || (c.telefono || "").includes(txt)));
+    const filtrados = window.clientesMemoria.filter(c =>
+        (c.nombre || "").toLowerCase().includes(txt) ||
+        (c.dni || "").includes(txt) ||
+        (c.telefono || "").includes(txt) ||
+        (c.email || "").toLowerCase().includes(txt)
+    );
+    window.renderizarTablaClientes(filtrados);
 };
 
-window.abrirModalAgregarCliente = function() { document.getElementById("modalAgregarCliente")?.classList.remove("hidden"); document.getElementById("clienteNombre")?.focus(); };
-window.cerrarModalAgregarCliente = function() { document.getElementById("modalAgregarCliente")?.classList.add("hidden"); document.getElementById("formAgregarCliente")?.reset(); document.getElementById("errorCliente")?.classList.add("hidden"); };
+// ── Modal agregar cliente ─────────────────────────────────────────────────
+window.abrirModalAgregarCliente = function() {
+    document.getElementById("modalAgregarCliente")?.classList.remove("hidden");
+    document.getElementById("clienteNombre")?.focus();
+};
+
+window.cerrarModalAgregarCliente = function() {
+    document.getElementById("modalAgregarCliente")?.classList.add("hidden");
+    document.getElementById("formAgregarCliente")?.reset();
+    document.getElementById("errorCliente")?.classList.add("hidden");
+};
+
 window.guardarNuevoCliente = async function(event) {
     event.preventDefault();
-    const token = localStorage.getItem("token");
+    const token    = localStorage.getItem("token");
     const divError = document.getElementById("errorCliente");
+    const btn      = event.submitter;
+    const restaurar = window.btnLoading ? window.btnLoading(btn, "Guardando...") : () => {};
+
     const payload = {
-        nombre: document.getElementById("clienteNombre")?.value.trim(),
-        dni: document.getElementById("clienteDni")?.value.trim() || null,
+        nombre:   document.getElementById("clienteNombre")?.value.trim(),
+        dni:      document.getElementById("clienteDni")?.value.trim() || null,
         telefono: document.getElementById("clienteTelefono")?.value.trim() || null,
-        email: document.getElementById("clienteEmail")?.value.trim() || null,
-        activo: true
+        email:    document.getElementById("clienteEmail")?.value.trim() || null,
+        activo:   true
     };
+
     try {
-        const resp = await fetch(`${API_URL}/clientes`, { method: "POST", headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-        if (!resp.ok) throw new Error("Error al guardar");
-        window.cerrarModalAgregarCliente(); await window.cargarClientes();
-        alert(`✅ Cliente registrado.`);
+        const resp = await fetch(`${API_URL}/clientes`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({ mensaje: "Error desconocido." }));
+            throw new Error(err.mensaje);
+        }
+
+        window.cerrarModalAgregarCliente();
+        await window.cargarClientes();
+        alert(`✅ Cliente "${payload.nombre}" registrado con éxito.`);
+
     } catch (error) {
-        divError.textContent = "Error al guardar el cliente."; divError.classList.remove("hidden");
+        divError.textContent = error.message || "No se pudo guardar el cliente.";
+        divError.classList.remove("hidden");
+    } finally {
+        restaurar();
     }
 };
 
+// ── Ver historial de un cliente ───────────────────────────────────────────
 window.verHistorialCliente = async function(id, nombre) {
     const token = localStorage.getItem("token");
     const modal = document.getElementById("modalHistorialCliente");
     if (!modal) return;
+
     document.getElementById("historialClienteNombre").textContent = nombre;
-    document.getElementById("historialClienteBody").innerHTML = `<tr><td colspan="3" class="p-4 text-center text-slate-500 animate-pulse text-sm">Cargando...</td></tr>`;
+    document.getElementById("historialClienteBody").innerHTML =
+        `<tr><td colspan="3" class="p-4 text-center text-slate-500 animate-pulse text-sm">Cargando historial...</td></tr>`;
+    document.getElementById("historialClienteResumen").textContent = "";
     modal.classList.remove("hidden");
+
     try {
-        const resp = await fetch(`${API_URL}/clientes/${id}/historial`, { headers: { "Authorization": `Bearer ${token}` } });
-        if (!resp.ok) throw new Error();
+        const resp = await fetch(`${API_URL}/clientes/${id}/historial`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al cargar historial");
+
         const datos = await resp.json();
-        const historial = datos.historial || datos.Historial || [];
-        document.getElementById("historialClienteResumen").innerHTML = `<span class="text-slate-400 text-xs">${datos.cantidadVisitas || 0} visitas —</span><span class="text-emerald-400 font-bold text-sm ml-1">$${Number(datos.totalGastado || 0).toLocaleString("es-AR")} total</span>`;
-        if (historial.length === 0) { document.getElementById("historialClienteBody").innerHTML = `<tr><td colspan="3" class="p-6 text-center text-slate-500 italic text-xs">Sin compras.</td></tr>`; return; }
+        const historial      = datos.historial      || datos.Historial      || [];
+        const totalGastado   = datos.totalGastado   || datos.TotalGastado   || 0;
+        const cantVisitas    = datos.cantidadVisitas || datos.CantidadVisitas || 0;
+
+        document.getElementById("historialClienteResumen").innerHTML = `
+            <span class="text-slate-400 text-xs">${cantVisitas} visitas —</span>
+            <span class="text-emerald-400 font-bold text-sm ml-1">$${Number(totalGastado).toLocaleString("es-AR")} total</span>
+        `;
+
+        if (historial.length === 0) {
+            document.getElementById("historialClienteBody").innerHTML =
+                `<tr><td colspan="3" class="p-6 text-center text-slate-500 italic text-xs">Sin compras registradas.</td></tr>`;
+            return;
+        }
+
         document.getElementById("historialClienteBody").innerHTML = historial.map(v => `
-            <tr class="border-b border-slate-800/40 hover:bg-slate-800/20">
-                <td class="py-2.5 text-slate-400 text-xs">${new Date(v.fechaHora || v.FechaHora).toLocaleDateString("es-AR")}</td>
+            <tr class="border-b border-slate-800/40 hover:bg-slate-800/20 transition-colors">
+                <td class="py-2.5 text-slate-400 text-xs">
+                    ${new Date(v.fechaHora || v.FechaHora).toLocaleDateString("es-AR")}
+                </td>
                 <td class="py-2.5 text-slate-300 text-xs capitalize">${v.metodoPago || v.MetodoPago}</td>
-                <td class="py-2.5 text-right text-emerald-400 font-mono font-bold text-sm">$${Number(v.total || v.Total).toLocaleString("es-AR")}</td>
-            </tr>`).join("");
-    } catch {
-        document.getElementById("historialClienteBody").innerHTML = `<tr><td colspan="3" class="text-rose-400">Error</td></tr>`;
+                <td class="py-2.5 text-right text-emerald-400 font-mono font-bold text-sm">
+                    $${Number(v.total || v.Total).toLocaleString("es-AR")}
+                </td>
+            </tr>
+        `).join("");
+
+    } catch (error) {
+        document.getElementById("historialClienteBody").innerHTML =
+            `<tr><td colspan="3" class="p-4 text-center text-rose-400 text-xs">Error al cargar el historial.</td></tr>`;
     }
 };
 
-window.cerrarModalHistorialCliente = function() { document.getElementById("modalHistorialCliente")?.classList.add("hidden"); };
-window.eliminarCliente = async function(id, nombre) {
-    if (!confirm(`¿Dar de baja al cliente "${nombre}"?`)) return;
-    try {
-        await fetch(`${API_URL}/clientes/${id}`, { method: "DELETE", headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` } });
-        await window.cargarClientes();
-    } catch (error) { alert("Error al eliminar"); }
+window.cerrarModalHistorialCliente = function() {
+    document.getElementById("modalHistorialCliente")?.classList.add("hidden");
 };
 
-window.buscarClienteVenta = async function(query) {
-    if (!query || query.length < 2) { document.getElementById("sugerenciasCliente")?.classList.add("hidden"); return; }
+// ── Eliminar cliente (soft delete) ────────────────────────────────────────
+window.eliminarCliente = async function(id, nombre) {
+    const ok = window.confirmar
+        ? await window.confirmar(`¿Dar de baja al cliente <strong>"${nombre}"</strong>?<br>Sus compras anteriores quedan intactas.`, "Dar de baja", "rose")
+        : confirm(`¿Dar de baja al cliente "${nombre}"?`);
+    if (!ok) return;
+
+    const token = localStorage.getItem("token");
     try {
-        const resp = await fetch(`${API_URL}/clientes/buscar?q=${encodeURIComponent(query)}`, { headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` } });
+        const resp = await fetch(`${API_URL}/clientes/${id}`, {
+            method: "DELETE",
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al dar de baja.");
+
+        await window.cargarClientes();
+        alert(`✅ Cliente "${nombre}" dado de baja correctamente.`);
+
+    } catch (error) {
+        alert(`❌ ${error.message}`);
+    }
+};
+
+// ── Autocompletado de cliente en el punto de venta ────────────────────────
+window.buscarClienteVenta = async function(query) {
+    if (!query || query.length < 2) {
+        document.getElementById("sugerenciasCliente")?.classList.add("hidden");
+        return;
+    }
+
+    const token = localStorage.getItem("token");
+    try {
+        const resp = await fetch(`${API_URL}/clientes/buscar?q=${encodeURIComponent(query)}`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
         const clientes = await resp.json();
         const div = document.getElementById("sugerenciasCliente");
         if (!div) return;
+
         if (clientes.length === 0) { div.classList.add("hidden"); return; }
+
         div.innerHTML = clientes.map(c => `
-            <div onclick="window.seleccionarClienteVenta(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')" class="px-3 py-2 hover:bg-slate-800 cursor-pointer text-sm text-slate-300 border-b border-slate-800/50">
-                <span class="font-bold text-white">${c.nombre}</span><span class="text-slate-500 text-xs ml-2">DNI: ${c.dni || "—"}</span>
-            </div>`).join("");
+            <div onclick="window.seleccionarClienteVenta(${c.id}, '${c.nombre.replace(/'/g, "\\'")}')"
+                class="px-3 py-2 hover:bg-slate-800 cursor-pointer text-sm text-slate-300 border-b border-slate-800/50 last:border-0">
+                <span class="font-bold text-white">${c.nombre}</span>
+                <span class="text-slate-500 text-xs ml-2">DNI: ${c.dni || "—"} · ${c.telefono || "—"}</span>
+            </div>
+        `).join("");
         div.classList.remove("hidden");
-    } catch {}
+
+    } catch (e) { console.error("Error buscando cliente:", e); }
 };
+
 window.seleccionarClienteVenta = function(id, nombre) {
     window.clienteSeleccionado = id;
-    if (document.getElementById("inputClienteVenta")) document.getElementById("inputClienteVenta").value = nombre;
+    const input = document.getElementById("inputClienteVenta");
+    if (input) input.value = nombre;
     document.getElementById("sugerenciasCliente")?.classList.add("hidden");
+    console.log(`👤 Cliente seleccionado: ${nombre} (ID: ${id})`);
 };
+
 window.limpiarClienteVenta = function() {
     window.clienteSeleccionado = null;
-    if (document.getElementById("inputClienteVenta")) document.getElementById("inputClienteVenta").value = "";
+    const input = document.getElementById("inputClienteVenta");
+    if (input) input.value = "";
 };
 
 // =========================================================================
 // 📷 MÓDULO DE LECTOR DE CÓDIGO DE BARRAS
+// Soporta: Lector USB/Bluetooth (teclado) + Cámara (html5-qrcode)
 // =========================================================================
-window.BarcodeScanner = (function() {
-    let bufferCodigo = ""; let timerBuffer = null; let escaneandoCamara = false; let scannerCamara = null;
 
+window.BarcodeScanner = (function() {
+
+    let bufferCodigo = "";
+    let timerBuffer  = null;
+    let escaneandoCamara = false;
+    let scannerCamara    = null;
+
+    // ── Procesar código escaneado (desde cualquier fuente) ────────────────
     async function procesarCodigo(codigo, origen) {
-        codigo = codigo.trim(); if (!codigo) return;
-        const seccionActiva = ["seccion-ventas", "seccion-productos", "seccion-usuarios", "seccion-estadisticas", "seccion-clientes"].find(id => document.getElementById(id) && !document.getElementById(id).classList.contains("hidden")) || "seccion-ventas";
-        if (seccionActiva === "seccion-ventas") await agregarAlCarritoPorCodigo(codigo);
-        else if (seccionActiva === "seccion-productos" && document.getElementById("inputBuscarProducto")) {
-            document.getElementById("inputBuscarProducto").value = codigo;
-            if (typeof window.filtrarProductosInventario === "function") window.filtrarProductosInventario();
-        } else await agregarAlCarritoPorCodigo(codigo);
+        codigo = codigo.trim();
+        if (!codigo) return;
+
+        console.log(`📷 Código escaneado [${origen}]: ${codigo}`);
+
+        const seccionActiva = obtenerSeccionActiva();
+
+        if (seccionActiva === "seccion-ventas") {
+            await agregarAlCarritoPorCodigo(codigo);
+        } else if (seccionActiva === "seccion-productos") {
+            buscarEnInventarioPorCodigo(codigo);
+        } else {
+            // Si no hay sección clara, intentar en ventas primero
+            await agregarAlCarritoPorCodigo(codigo);
+        }
     }
 
+    function obtenerSeccionActiva() {
+        const secciones = [
+            "seccion-ventas",
+            "seccion-productos",
+            "seccion-usuarios",
+            "seccion-estadisticas",
+            "seccion-clientes"
+        ];
+        return secciones.find(id => {
+            const el = document.getElementById(id);
+            return el && !el.classList.contains("hidden");
+        }) || "seccion-ventas";
+    }
+
+    // ── Agregar al carrito por código de barras ───────────────────────────
     async function agregarAlCarritoPorCodigo(codigo) {
         const token = localStorage.getItem("token");
-        const sucursalId = (JSON.parse(localStorage.getItem("usuario")) || {}).sucursalId || 1;
+
+        // 🌟 NUEVO: Obtenemos la sucursal del cajero
+        const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+        const sucursalId = usuarioLocal.sucursalId || 1;
+
         try {
-            const resp = await fetch(`${API_URL}/variantes/buscar-codigo?codigo=${encodeURIComponent(codigo)}&sucursalId=${sucursalId}`, { headers: { "Authorization": `Bearer ${token}` } });
-            if (resp.status === 404) { alert(`⚠️ Código ${codigo} no encontrado.`); return; }
-            if (!resp.ok) throw new Error();
-            const variante = await resp.json();
-            if (typeof window.agregarAlCarrito === "function") {
-                window.agregarAlCarrito(variante.productoId ?? variante.ProductoId, variante.id ?? variante.Id);
-                window.toast?.success(`➕ Agregado`) || console.log("Agregado");
+            // 🌟 NUEVO: Le inyectamos &sucursalId=${sucursalId} a la URL
+            const resp = await fetch(
+                `${window.ConfigInventario?.URL || API_URL}/variantes/buscar-codigo?codigo=${encodeURIComponent(codigo)}&sucursalId=${sucursalId}`,
+                { headers: { "Authorization": `Bearer ${token}` } }
+            );
+
+            if (resp.status === 404) {
+                window.toast?.warning(`Código ${codigo} no encontrado en el sistema.`) ||
+                alert(`⚠️ Código ${codigo} no encontrado.`);
+                return;
             }
-        } catch { alert("❌ Error buscando código."); }
+            if (!resp.ok) throw new Error("Error al buscar código");
+
+            const variante = await resp.json();
+            console.log("✅ Variante encontrada:", variante);
+
+            // Usar la función de agregar al carrito que ya existe en ventas.js
+            if (typeof window.agregarAlCarrito === "function") {
+                window.agregarAlCarrito(
+                    variante.productoId   ?? variante.ProductoId,
+                    variante.id           ?? variante.Id,
+                    variante.productoNombre ?? variante.ProductoNombre ?? "Producto",
+                    variante.talle        ?? variante.Talle,
+                    variante.color        ?? variante.Color,
+                    variante.precioVenta  ?? variante.PrecioVenta ?? 0,
+                    variante.stockActual  ?? variante.StockActual ?? 0
+                );
+                window.toast?.success(`➕ ${variante.productoNombre ?? "Producto"} (${variante.talle}/${variante.color}) agregado al carrito`) ||
+                console.log("Agregado al carrito");
+            }
+
+        } catch (error) {
+            console.error("❌ Error buscando código:", error);
+            window.toast?.error("Error al buscar el código de barras.") ||
+            alert("❌ Error al buscar el código de barras.");
+        }
     }
 
+    // ── Buscar en inventario por código ───────────────────────────────────
+    function buscarEnInventarioPorCodigo(codigo) {
+        const input = document.getElementById("inputBuscarProducto");
+        if (input) {
+            input.value = codigo;
+            if (typeof window.filtrarProductosInventario === "function") {
+                window.filtrarProductosInventario();
+            }
+            window.toast?.info(`🔍 Buscando código: ${codigo}`) ||
+            console.log("Buscando:", codigo);
+        }
+    }
+
+    // ── MODO 1: Lector USB/Bluetooth (captura de teclado global) ─────────
     function iniciarLectorTeclado() {
         document.addEventListener("keydown", function(e) {
+            // Ignorar si el foco está en un input de texto normal
             const tag = document.activeElement?.tagName;
-            const ignorar = ["inputBuscarProducto", "inputBuscador", "inputClienteVenta", "inputNombreCategoria", "addNombre", "clienteNombre", "reponerCantidad", "varianteTalle", "varianteColor"];
-            if (ignorar.includes(document.activeElement?.id) || tag === "TEXTAREA") return;
+            const tipo = document.activeElement?.type;
+            const ignorar = [
+                "inputBuscarProducto", "inputBuscador", "inputClienteVenta",
+                "inputNombreCategoria", "addNombre", "clienteNombre",
+                "reponerCantidad", "varianteTalle", "varianteColor"
+            ];
+            if (ignorar.includes(document.activeElement?.id)) return;
+            if (tag === "TEXTAREA") return;
 
+            // El lector envía los caracteres muy rápido y termina con Enter
             if (e.key === "Enter") {
                 if (bufferCodigo.length >= 4) {
-                    const codigo = bufferCodigo; bufferCodigo = ""; clearTimeout(timerBuffer); procesarCodigo(codigo, "USB");
+                    const codigo = bufferCodigo;
+                    bufferCodigo = "";
+                    clearTimeout(timerBuffer);
+                    procesarCodigo(codigo, "USB/BT");
                 }
-                bufferCodigo = ""; return;
+                bufferCodigo = "";
+                return;
             }
-            // 🔥 ACÁ ESTÁ LA SOLUCIÓN AL ERROR LENGTH QUE TE TIRABA LA CONSOLA 🔥
+
+            // Acumular caracteres en el buffer
             if (e.key && e.key.length === 1) {
-                bufferCodigo += e.key; clearTimeout(timerBuffer);
-                timerBuffer = setTimeout(() => { bufferCodigo = ""; }, 100);
+                bufferCodigo += e.key;
+                clearTimeout(timerBuffer);
+                // Si pasan 100ms sin más teclas, limpiar el buffer
+                // (los lectores envían todo en menos de 50ms)
+                timerBuffer = setTimeout(() => {
+                    bufferCodigo = "";
+                }, 100);
             }
+        });
+
+        console.log("⌨️ Lector USB/Bluetooth activado");
+    }
+
+    // ── MODO 2: Cámara (html5-qrcode) ────────────────────────────────────
+    function abrirCamara() {
+        const modal = document.getElementById("modalCamaraScanner");
+        if (!modal) return;
+
+        modal.classList.remove("hidden");
+        escaneandoCamara = true;
+
+        // Inicializar el escáner de cámara
+        if (typeof Html5Qrcode === "undefined") {
+            document.getElementById("camaraError").textContent =
+                "La librería de cámara no cargó. Verificá tu conexión.";
+            document.getElementById("camaraError").classList.remove("hidden");
+            return;
+        }
+
+        scannerCamara = new Html5Qrcode("camaraPreview");
+
+        Html5Qrcode.getCameras().then(cameras => {
+            if (!cameras || cameras.length === 0) {
+                throw new Error("No se encontró ninguna cámara.");
+            }
+
+            // Usar la cámara trasera si existe, si no la primera disponible
+            const camaraId = cameras.find(c =>
+                c.label.toLowerCase().includes("back") ||
+                c.label.toLowerCase().includes("trasera") ||
+                c.label.toLowerCase().includes("rear")
+            )?.id || cameras[0].id;
+
+            scannerCamara.start(
+                camaraId,
+                { fps: 10, qrbox: { width: 250, height: 150 } },
+                (codigoDecodificado) => {
+                    // Código detectado — procesar y cerrar cámara
+                    cerrarCamara();
+                    procesarCodigo(codigoDecodificado, "Cámara");
+                },
+                () => {} // Error silencioso por frame sin código
+            ).catch(err => {
+                console.error("Error cámara:", err);
+                document.getElementById("camaraError").textContent =
+                    "No se pudo acceder a la cámara. Verificá los permisos del navegador.";
+                document.getElementById("camaraError").classList.remove("hidden");
+            });
+
+        }).catch(err => {
+            document.getElementById("camaraError").textContent =
+                "No se encontró ninguna cámara disponible.";
+            document.getElementById("camaraError").classList.remove("hidden");
         });
     }
 
-    function abrirCamara() { /* Lógica de cámara (intacta) */ }
-    function cerrarCamara() { /* Lógica de cámara (intacta) */ }
-    return { init: iniciarLectorTeclado, abrirCamara, cerrarCamara, procesar: procesarCodigo };
+    function cerrarCamara() {
+        const modal = document.getElementById("modalCamaraScanner");
+        if (modal) modal.classList.add("hidden");
+
+        if (scannerCamara && escaneandoCamara) {
+            scannerCamara.stop().catch(() => {});
+            scannerCamara = null;
+        }
+        escaneandoCamara = false;
+    }
+
+    // API pública
+    return {
+        init:         iniciarLectorTeclado,
+        abrirCamara:  abrirCamara,
+        cerrarCamara: cerrarCamara,
+        procesar:     procesarCodigo
+    };
+
 })();
+
+// Inicializar el lector de teclado automáticamente al cargar
 window.BarcodeScanner.init();
 
 // =========================================================================
-// 💳 MÓDULO DE MERCADO PAGO Y VENTA INTELIGENTE (ARCA)
+// 💳 MÓDULO DE MERCADO PAGO
 // =========================================================================
+
 window.MercadoPagoIntegration = (function() {
+
+    // ── Crear preferencia y mostrar QR + Link ────────────────────────────
     async function abrirPagoMP(ventaId, total, itemsCarrito) {
         const token = localStorage.getItem("token");
         const modal = document.getElementById("modalMercadoPago");
         if (!modal) return;
+
+        // Mostrar modal con loader
         modal.classList.remove("hidden");
         document.getElementById("mpCargando").classList.remove("hidden");
         document.getElementById("mpContenido").classList.add("hidden");
-        
+        document.getElementById("mpError").classList.add("hidden");
+        document.getElementById("mpTotal").textContent =
+            `$${Number(total).toLocaleString("es-AR")}`;
+
         try {
+            // Armar los ítems para MP desde el carrito
+            const items = itemsCarrito.map(item => ({
+                nombre:         item.nombre || "Prenda",
+                cantidad:       item.cantidad || 1,
+                precioUnitario: item.precio || 0
+            }));
+
+            const payload = {
+                ventaId,
+                urlBase: window.location.origin || "http://localhost:5000",
+                items
+            };
+
             const resp = await fetch(`${API_URL}/mercadopago/crear-preferencia`, {
-                method: "POST", headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-                body: JSON.stringify({ ventaId, urlBase: window.location.origin, items: itemsCarrito.map(i => ({ nombre: i.nombre, cantidad: i.cantidad, precioUnitario: i.precio })) })
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
             });
-            if (!resp.ok) throw new Error();
-            const datos = await resp.json();
-            
-            const contenedorQR = document.getElementById("mpQRContenedor");
-            if (contenedorQR && typeof MercadoPago !== "undefined") {
-                contenedorQR.innerHTML = "";
-                new MercadoPago(document.getElementById("mpPublicKey")?.value || "", { locale: "es-AR" }).bricks().create("wallet", "mpQRContenedor", { initialization: { preferenceId: datos.preferenceId } });
+
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({ mensaje: "Error desconocido." }));
+                throw new Error(err.mensaje || `Error HTTP ${resp.status}`);
             }
-            
-            if (document.getElementById("mpBtnLink")) document.getElementById("mpBtnLink").href = datos.initPoint;
-            window._mpLinkActual = datos.initPoint;
-            
+
+            const datos = await resp.json();
+            console.log("✅ Preferencia MP creada:", datos);
+
+            // ── Mostrar QR con la librería de MP ─────────────────────────
+            const contenedorQR = document.getElementById("mpQRContenedor");
+            if (contenedorQR) {
+                contenedorQR.innerHTML = ""; // Limpiar QR anterior
+
+                // Usar el SDK de MP para renderizar el QR
+                if (typeof MercadoPago !== "undefined") {
+                    const mp = new MercadoPago(
+                        document.getElementById("mpPublicKey")?.value || "",
+                        { locale: "es-AR" }
+                    );
+                    mp.bricks().create("wallet", "mpQRContenedor", {
+                        initialization: { preferenceId: datos.preferenceId }
+                    });
+                } else {
+                    // Fallback: mostrar QR como imagen vía API de QR
+                    const urlQR = encodeURIComponent(datos.sandboxUrl || datos.initPoint);
+                    contenedorQR.innerHTML = `
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${urlQR}"
+                             alt="QR Mercado Pago"
+                             class="rounded-xl mx-auto border-4 border-indigo-500/30">
+                    `;
+                }
+            }
+
+            // ── Mostrar link de pago ──────────────────────────────────────
+            const linkPago = datos.initPoint || datos.initPoint;
+            const btnLink  = document.getElementById("mpBtnLink");
+            if (btnLink) btnLink.href = linkPago;
+
+            // Guardar link para WhatsApp
+            window._mpLinkActual = linkPago;
+            window._mpTotalActual = total;
+
+            // Ocultar loader y mostrar contenido
             document.getElementById("mpCargando").classList.add("hidden");
             document.getElementById("mpContenido").classList.remove("hidden");
-        } catch {
+
+        } catch (error) {
+            console.error("❌ Error MP:", error);
             document.getElementById("mpCargando").classList.add("hidden");
+            document.getElementById("mpError").textContent =
+                error.message || "No se pudo conectar con Mercado Pago.";
+            document.getElementById("mpError").classList.remove("hidden");
         }
     }
-    function cerrarModal() { document.getElementById("modalMercadoPago")?.classList.add("hidden"); window._mpLinkActual = null; }
-    function compartirWhatsApp() { if (window._mpLinkActual) window.open(`https://wa.me/?text=${encodeURIComponent(window._mpLinkActual)}`, "_blank"); }
-    function copiarLink() { if (window._mpLinkActual) navigator.clipboard.writeText(window._mpLinkActual); }
+
+    function cerrarModal() {
+        document.getElementById("modalMercadoPago")?.classList.add("hidden");
+        window._mpLinkActual = null;
+    }
+
+    // ── Compartir por WhatsApp ────────────────────────────────────────────
+    function compartirWhatsApp() {
+        if (!window._mpLinkActual) return;
+        const total = Number(window._mpTotalActual || 0).toLocaleString("es-AR");
+        const msg   = encodeURIComponent(
+            `Hola! Te comparto el link de pago por $${total} 👇\n${window._mpLinkActual}`
+        );
+        window.open(`https://wa.me/?text=${msg}`, "_blank");
+    }
+
+    // ── Copiar link al portapapeles ───────────────────────────────────────
+    function copiarLink() {
+        if (!window._mpLinkActual) return;
+        navigator.clipboard.writeText(window._mpLinkActual).then(() => {
+            window.toast?.success("Link copiado al portapapeles") ||
+            alert("✅ Link copiado");
+        });
+    }
+
     return { abrirPagoMP, cerrarModal, compartirWhatsApp, copiarLink };
+
 })();
 
-window.procesarVentaInteligente = async function() {
-    if (!carrito || carrito.length === 0) { alert("⚠️ El carrito está vacío."); return; }
-    if (document.getElementById("toggleFacturaARCA")?.checked) {
-        const config = await (window.arcaConfigurado?.() || false);
-        if (!config) { document.getElementById("modalARCANoConfigurado")?.classList.remove("hidden"); return; }
-        window.toast?.info("Iniciando facturación ARCA..."); return;
+window.cobrarConMercadoPago = async function() {
+    if (!carrito || carrito.length === 0) {
+        alert("🛒 El carrito está vacío.");
+        return;
     }
+
+    const quiereFactura = document.getElementById("toggleFacturaARCA")?.checked || false;
+
+    const totalBase = carrito.reduce((s, i) => s + (i.precio * i.cantidad), 0);
+    const inputDesc = document.getElementById("inputDescuentoRecargo");
+    const modTxt    = inputDesc ? inputDesc.value.trim() : "";
+    let totalFinal  = totalBase;
+    let factor      = 1;
+
+    if (modTxt) {
+        if (modTxt.includes("%")) {
+            const esDesc = modTxt.startsWith("-");
+            const pct    = parseFloat(modTxt.replace(/[^0-9.]/g, ""));
+            if (!isNaN(pct)) {
+                const mod = totalBase * (pct / 100);
+                totalFinal = esDesc ? totalBase - mod : totalBase + mod;
+            }
+        } else {
+            const esDesc = modTxt.startsWith("-");
+            const monto  = parseFloat(modTxt.replace(/[^0-9.]/g, ""));
+            if (!isNaN(monto)) totalFinal = esDesc ? totalBase - monto : totalBase + monto;
+        }
+        if (totalFinal < 0) totalFinal = 0;
+        factor = totalBase > 0 ? totalFinal / totalBase : 1;
+    }
+
+    const token = localStorage.getItem("token");
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const sucursalCajero = usuarioLocal.sucursalId || 1;
+
+    const itemsMapeados = carrito.map(item => ({
+        varianteId: item.id,
+        cantidad:   item.cantidad,
+        precio:     Math.round(item.precio * factor * 100) / 100,
+        sucursalId: item.sucursalId || sucursalCajero
+    }));
+
+    try {
+        const resp = await fetch(`${API_URL}/ventas`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+                metodoPago: "Mercado Pago",
+                clienteId:  window.clienteSeleccionado || null,
+                sucursalId: sucursalCajero,
+                items:      itemsMapeados
+            })
+        });
+
+        if (!resp.ok) throw new Error(await resp.text());
+
+        const resultado = await resp.json();
+        const ventaId   = resultado.ventaId || resultado.id;
+
+        // 🌟 ACÁ ESTÁ LA CLAVE 3: Matamos el presupuesto si se pagó con MP
+        if (window.presupuestoEnUso) {
+            try {
+                await fetch(`${API_URL}/presupuestos/${window.presupuestoEnUso}/estado`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify("Convertido") 
+                });
+                window.presupuestoEnUso = null; 
+            } catch (e) {
+                console.error("No se pudo actualizar el presupuesto", e);
+            }
+        }
+
+        if (quiereFactura) {
+            const configurado = await window.arcaConfigurado?.() || false;
+            if (configurado) {
+                window.toast?.info("Generando factura electrónica...");
+            } else {
+                window.toast?.warning("La venta se registró pero ARCA no está configurado para emitir factura.");
+            }
+        }
+
+        await window.MercadoPagoIntegration.abrirPagoMP(ventaId, totalFinal, carrito);
+
+        carrito = [];
+        actualizarInterfazCarrito();
+        await cargarProductos();
+        if (typeof cargarHistorialVentas === "function") await cargarHistorialVentas();
+        if (typeof cargarPresupuestos === "function") await cargarPresupuestos();
+
+    } catch (error) {
+        console.error("❌ Error MP:", error);
+        alert(`❌ Error al procesar: ${error.message}`);
+    }
+};
+
+// ── Control de tabs del modal ─────────────────────────────────────────────
+window.mpMostrarTab = function(tab) {
+    const panelQR   = document.getElementById("panelQR");
+    const panelLink = document.getElementById("panelLink");
+    const tabQR     = document.getElementById("tabQR");
+    const tabLink   = document.getElementById("tabLink");
+
+    if (tab === "qr") {
+        panelQR?.classList.remove("hidden");
+        panelLink?.classList.add("hidden");
+        tabQR?.classList.add("bg-indigo-600", "text-white");
+        tabQR?.classList.remove("text-slate-400");
+        tabLink?.classList.remove("bg-indigo-600", "text-white");
+        tabLink?.classList.add("text-slate-400");
+    } else {
+        panelLink?.classList.remove("hidden");
+        panelQR?.classList.add("hidden");
+        tabLink?.classList.add("bg-indigo-600", "text-white");
+        tabLink?.classList.remove("text-slate-400");
+        tabQR?.classList.remove("bg-indigo-600", "text-white");
+        tabQR?.classList.add("text-slate-400");
+    }
+};
+
+// =========================================================================
+// 🧠 PROCESAMIENTO INTELIGENTE DE VENTA
+// Reemplazá la función window.cobrarConARCA en ventas.js
+// y agregá window.procesarVentaInteligente al final del archivo
+// =========================================================================
+
+// ── Función central que decide qué flujo usar ─────────────────────────────
+window.procesarVentaInteligente = async function() {
+    if (!carrito || carrito.length === 0) {
+        alert("⚠️ El carrito está vacío.");
+        return;
+    }
+
+    const quiereFactura = document.getElementById("toggleFacturaARCA")?.checked || false;
+
+    if (quiereFactura) {
+        // Verificar si ARCA está configurado
+        const configurado = await window.arcaConfigurado?.() || false;
+
+        if (!configurado) {
+            // Mostrar modal informativo de ARCA
+            const modal = document.getElementById("modalARCANoConfigurado");
+            if (modal) modal.classList.remove("hidden");
+            return;
+        }
+
+        // ARCA configurado → flujo de factura electrónica
+        // (se completa cuando el cliente tenga sus credenciales)
+        window.toast?.info("Iniciando facturación electrónica con ARCA...");
+        return;
+    }
+
+    // Sin factura → comprobante simple (flujo normal)
     await window.confirmarVenta();
 };
 
+// ── Actualizar texto del botón según el toggle ────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+    const toggle = document.getElementById("toggleFacturaARCA");
+    const btnProcesar = toggle?.closest(".pt-4")?.querySelector("button[onclick*='procesarVentaInteligente']");
+
+    toggle?.addEventListener("change", function() {
+        if (!btnProcesar) return;
+        if (this.checked) {
+            btnProcesar.innerHTML = "🏛️ Procesar + Factura ARCA";
+            btnProcesar.classList.remove("bg-indigo-600", "hover:bg-indigo-500");
+            btnProcesar.classList.add("bg-violet-700", "hover:bg-violet-600");
+        } else {
+            btnProcesar.innerHTML = "🧾 Procesar Venta";
+            btnProcesar.classList.remove("bg-violet-700", "hover:bg-violet-600");
+            btnProcesar.classList.add("bg-indigo-600", "hover:bg-indigo-500");
+        }
+    });
+});
+
+// ── Actualizar cobrarConMercadoPago para respetar el toggle de factura ─────
+// Reemplaza la función anterior
 window.cobrarConMercadoPago = async function() {
-    if (!carrito || carrito.length === 0) return;
+    if (!carrito || carrito.length === 0) {
+        alert("🛒 El carrito está vacío.");
+        return;
+    }
+
     const quiereFactura = document.getElementById("toggleFacturaARCA")?.checked || false;
-    const factor = 1; // Simplificado para el ejemplo, pero respeta tu logica
+
+    // Calcular total con descuento
+    const totalBase = carrito.reduce((s, i) => s + (i.precio * i.cantidad), 0);
+    const inputDesc = document.getElementById("inputDescuentoRecargo");
+    const modTxt    = inputDesc ? inputDesc.value.trim() : "";
+    let totalFinal  = totalBase;
+    let factor      = 1;
+
+    if (modTxt) {
+        if (modTxt.includes("%")) {
+            const esDesc = modTxt.startsWith("-");
+            const pct    = parseFloat(modTxt.replace(/[^0-9.]/g, ""));
+            if (!isNaN(pct)) {
+                const mod = totalBase * (pct / 100);
+                totalFinal = esDesc ? totalBase - mod : totalBase + mod;
+            }
+        } else {
+            const esDesc = modTxt.startsWith("-");
+            const monto  = parseFloat(modTxt.replace(/[^0-9.]/g, ""));
+            if (!isNaN(monto)) totalFinal = esDesc ? totalBase - monto : totalBase + monto;
+        }
+        if (totalFinal < 0) totalFinal = 0;
+        factor = totalBase > 0 ? totalFinal / totalBase : 1;
+    }
+
     const token = localStorage.getItem("token");
-    const sucursalCajero = (JSON.parse(localStorage.getItem("usuario")) || {}).sucursalId || 1;
-    
+    const itemsMapeados = carrito.map(item => ({
+        varianteId: item.id,
+        cantidad:   item.cantidad,
+        precio:     Math.round(item.precio * factor * 100) / 100
+    }));
+
     try {
+        // 1. Registrar la venta con método Mercado Pago
         const resp = await fetch(`${API_URL}/ventas`, {
-            method: "POST", headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ metodoPago: "Mercado Pago", clienteId: window.clienteSeleccionado || null, sucursalId: sucursalCajero, items: carrito.map(i => ({ varianteId: i.id, cantidad: i.cantidad, precio: i.precio })) })
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+                metodoPago: "Mercado Pago",
+                clienteId:  window.clienteSeleccionado || null,
+                items:      itemsMapeados
+            })
         });
-        if (!resp.ok) throw new Error();
+
+        if (!resp.ok) throw new Error(await resp.text());
+
         const resultado = await resp.json();
-        
-        if (quiereFactura && await window.arcaConfigurado?.()) window.toast?.info("Generando factura...");
-        await window.MercadoPagoIntegration.abrirPagoMP(resultado.id || resultado.ventaId, carrito.reduce((s,i)=>s+(i.precio*i.cantidad),0), carrito);
-        
-        carrito = []; actualizarInterfazCarrito(); await cargarProductos();
-    } catch { alert("Error MP"); }
+        const ventaId   = resultado.ventaId || resultado.id;
+
+        // 2. Si quiere factura y ARCA está configurado → facturar también
+        if (quiereFactura) {
+            const configurado = await window.arcaConfigurado?.() || false;
+            if (configurado) {
+                window.toast?.info("Generando factura electrónica...");
+                // flujo ARCA — se implementa cuando el cliente tenga credenciales
+            } else {
+                window.toast?.warning("La venta se registró pero ARCA no está configurado para emitir factura.");
+            }
+        }
+
+        // 3. Abrir modal de MP con QR y link
+        await window.MercadoPagoIntegration.abrirPagoMP(ventaId, totalFinal, carrito);
+
+        // 4. Limpiar carrito
+        carrito = [];
+        actualizarInterfazCarrito();
+        await cargarProductos();
+        if (typeof cargarHistorialVentas === "function") await cargarHistorialVentas();
+
+    } catch (error) {
+        console.error("❌ Error MP:", error);
+        alert(`❌ Error al procesar: ${error.message}`);
+    }
 };
 
+// =========================================================================
+// 🧾 MÓDULO ARCA — Preparado pero inactivo hasta configuración
+// Pegá este bloque al final de tu ventas.js
+// =========================================================================
+
+// ── Verificar si ARCA está configurado ───────────────────────────────────
 window.arcaConfigurado = async function() {
     try {
-        const resp = await fetch(`${API_URL}/facturas/estado`, { headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` } });
-        return resp.ok ? (await resp.json()).configurado : false;
-    } catch { return false; }
+        const token = localStorage.getItem("token");
+        const resp  = await fetch(`${API_URL}/facturas/estado`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) return false;
+        const datos = await resp.json();
+        return datos.configurado === true;
+    } catch {
+        return false;
+    }
 };
-window.cerrarModalARCANoConfigurado = function() { document.getElementById("modalARCANoConfigurado")?.classList.add("hidden"); };
+
+// ── Botón "Factura ARCA" ──────────────────────────────────────────────────
+window.cobrarConARCA = async function() {
+    const configurado = await window.arcaConfigurado();
+
+    if (!configurado) {
+        // ARCA no está configurado — mostrar mensaje al usuario
+        const modal = document.getElementById("modalARCANoConfigurado");
+        if (modal) {
+            modal.classList.remove("hidden");
+        } else {
+            window.toast?.info(
+                "La facturación electrónica con ARCA no está configurada aún. " +
+                "Contactá al administrador del sistema para activarla."
+            );
+        }
+        return;
+    }
+
+    // Si está configurado, proceder con la facturación
+    // (esta parte se completa cuando el cliente tenga sus credenciales ARCA)
+    window.toast?.info("Iniciando facturación electrónica con ARCA...");
+};
+
+// ── Abrir / cerrar modal de ARCA no configurado ───────────────────────────
+window.cerrarModalARCANoConfigurado = function() {
+    document.getElementById("modalARCANoConfigurado")?.classList.add("hidden");
+};
 
 // =========================================================================
-// 📊 MÓDULO DE EXPORTACIÓN DE REPORTES
+// 📊 MÓDULO DE EXPORTACIÓN DE REPORTES — Excel + PDF
 // =========================================================================
-function fechaArchivo() { return new Date().toLocaleDateString("es-AR").replace(/\//g, "-"); }
-function estilosBasePDF() { return `body { font-family: Arial; font-size: 12px; } table { width: 100%; border-collapse: collapse; } th { background: #6366f1; color: white; padding: 8px; text-align: left; } td { padding: 8px; border-bottom: 1px solid #ddd; }`; }
 
-window.exportarVentasExcel = async function() { /* Logica de Excel (Intacta) */ };
-window.exportarVentasPDF = async function() { /* Logica de PDF (Intacta) */ };
-window.exportarInventarioExcel = async function() { /* Logica de Excel (Intacta) */ };
-window.exportarInventarioPDF = async function() { /* Logica de PDF (Intacta) */ };
-window.exportarCajaExcel = async function() { /* Logica de Excel (Intacta) */ };
-window.exportarCajaPDF = async function() { /* Logica de PDF (Intacta) */ };
+// ── UTILIDADES COMPARTIDAS ────────────────────────────────────────────────
+
+// Obtener fecha formateada para nombres de archivo
+function fechaArchivo() {
+    return new Date().toLocaleDateString("es-AR", {
+        day: "2-digit", month: "2-digit", year: "numeric"
+    }).replace(/\//g, "-");
+}
+
+// Abrir ventana de impresión limpia (igual que los tickets)
+function abrirVentanaImpresion(html, titulo) {
+    const ventana = window.open("", "_blank", "width=900,height=700,scrollbars=yes");
+    if (!ventana) {
+        alert("⚠️ El navegador bloqueó la ventana emergente. Permitila para este sitio.");
+        return;
+    }
+    ventana.document.write(html);
+    ventana.document.close();
+    ventana.onload = () => { ventana.focus(); ventana.print(); };
+}
+
+// Estilos base para todos los PDF
+function estilosBasePDF() {
+    return `
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: Arial, sans-serif; font-size: 12px; color: #1e293b; padding: 24px; }
+        h1  { font-size: 20px; font-weight: bold; color: #1e293b; margin-bottom: 4px; }
+        h2  { font-size: 14px; font-weight: bold; color: #475569; margin-bottom: 16px; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 2px solid #6366f1; padding-bottom: 12px; }
+        .header-right { text-align: right; font-size: 11px; color: #64748b; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        thead th { background: #6366f1; color: white; padding: 8px 10px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+        tbody tr:nth-child(even) { background: #f8fafc; }
+        tbody tr:hover { background: #f1f5f9; }
+        tbody td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; }
+        .total-row td { font-weight: bold; background: #eef2ff; border-top: 2px solid #6366f1; }
+        .badge-verde { color: #16a34a; font-weight: bold; }
+        .badge-rojo  { color: #dc2626; font-weight: bold; }
+        .badge-amber { color: #d97706; font-weight: bold; }
+        .resumen { display: flex; gap: 16px; margin: 16px 0; flex-wrap: wrap; }
+        .resumen-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 16px; flex: 1; min-width: 120px; }
+        .resumen-item .label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+        .resumen-item .valor { font-size: 18px; font-weight: bold; color: #6366f1; margin-top: 2px; }
+        .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 10px; color: #94a3b8; }
+        @media print { @page { margin: 1cm; } body { padding: 0; } }
+    `;
+}
 
 // =========================================================================
-// 📝 PRESUPUESTOS (HTML Y GENERACIÓN)
+// 📅 1. REPORTE DE VENTAS
+// =========================================================================
+
+window.exportarVentasExcel = async function() {
+    const token = localStorage.getItem("token");
+    const btn   = document.getElementById("btnExportarVentasExcel");
+    const restaurar = window.btnLoading ? window.btnLoading(btn, "Generando...") : () => {};
+
+    try {
+        const resp = await fetch(`${API_URL}/ventas`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al obtener ventas");
+        const ventas = await resp.json();
+
+        // Importar SheetJS dinámicamente
+        const XLSX = await import("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.mjs");
+
+        const datos = ventas.map(v => ({
+            "ID Venta":       v.id        || v.Id,
+            "Fecha":          new Date(v.fechaHora || v.FechaHora).toLocaleString("es-AR"),
+            "Método de Pago": v.metodoPago || v.MetodoPago,
+            "Total ($)":      v.total      || v.Total,
+            "Comentarios":    v.comentarios || v.Comentarios || ""
+        }));
+
+        const hoja  = XLSX.utils.json_to_sheet(datos);
+        const libro = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(libro, hoja, "Ventas");
+
+        // Ancho de columnas
+        hoja["!cols"] = [
+            { wch: 10 }, { wch: 22 }, { wch: 20 }, { wch: 12 }, { wch: 30 }
+        ];
+
+        XLSX.writeFile(libro, `Ventas_SpaceTerminal_${fechaArchivo()}.xlsx`);
+        alert("✅ Reporte de ventas exportado a Excel.");
+
+    } catch (error) {
+        console.error("❌ Error Excel ventas:", error);
+        alert("❌ No se pudo generar el Excel. Revisá la consola.");
+    } finally {
+        restaurar();
+    }
+};
+
+window.exportarVentasPDF = async function() {
+    const token = localStorage.getItem("token");
+    const btn   = document.getElementById("btnExportarVentasPDF");
+    const restaurar = window.btnLoading ? window.btnLoading(btn, "Generando...") : () => {};
+
+    try {
+        const resp = await fetch(`${API_URL}/ventas`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al obtener ventas");
+        const ventas = await resp.json();
+
+        const totalGeneral  = ventas.reduce((s, v) => s + (v.total || v.Total || 0), 0);
+        const totalEfectivo = ventas.filter(v => (v.metodoPago || v.MetodoPago || "").toLowerCase().includes("efectivo"))
+                                    .reduce((s, v) => s + (v.total || v.Total || 0), 0);
+        const totalMP       = ventas.filter(v => (v.metodoPago || v.MetodoPago || "").toLowerCase().includes("mercado"))
+                                    .reduce((s, v) => s + (v.total || v.Total || 0), 0);
+        const totalTransf   = ventas.filter(v => (v.metodoPago || v.MetodoPago || "").toLowerCase().includes("transfer"))
+                                    .reduce((s, v) => s + (v.total || v.Total || 0), 0);
+
+        const filas = ventas.map(v => `
+            <tr>
+                <td>#${v.id || v.Id}</td>
+                <td>${new Date(v.fechaHora || v.FechaHora).toLocaleString("es-AR")}</td>
+                <td>${v.metodoPago || v.MetodoPago}</td>
+                <td class="badge-verde">$${Number(v.total || v.Total).toLocaleString("es-AR")}</td>
+            </tr>
+        `).join("");
+
+        const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+        <title>Reporte de Ventas — Space Terminal</title>
+        <style>${estilosBasePDF()}</style></head><body>
+        <div class="header">
+            <div><h1>👕 Space Terminal</h1><h2>Reporte de Ventas</h2></div>
+            <div class="header-right">
+                <div>Generado: ${new Date().toLocaleString("es-AR")}</div>
+                <div>Total de registros: ${ventas.length}</div>
+            </div>
+        </div>
+        <div class="resumen">
+            <div class="resumen-item"><div class="label">Total general</div><div class="valor">$${Number(totalGeneral).toLocaleString("es-AR")}</div></div>
+            <div class="resumen-item"><div class="label">Efectivo</div><div class="valor">$${Number(totalEfectivo).toLocaleString("es-AR")}</div></div>
+            <div class="resumen-item"><div class="label">Transferencia</div><div class="valor">$${Number(totalTransf).toLocaleString("es-AR")}</div></div>
+            <div class="resumen-item"><div class="label">Mercado Pago</div><div class="valor">$${Number(totalMP).toLocaleString("es-AR")}</div></div>
+        </div>
+        <table>
+            <thead><tr><th>ID</th><th>Fecha y Hora</th><th>Método de Pago</th><th>Total</th></tr></thead>
+            <tbody>
+                ${filas}
+                <tr class="total-row"><td colspan="3">TOTAL GENERAL</td><td>$${Number(totalGeneral).toLocaleString("es-AR")}</td></tr>
+            </tbody>
+        </table>
+        <div class="footer">Space Terminal — Sistema de Punto de Venta</div>
+        </body></html>`;
+
+        abrirVentanaImpresion(html, "Reporte de Ventas");
+
+    } catch (error) {
+        console.error("❌ Error PDF ventas:", error);
+        alert("❌ No se pudo generar el PDF.");
+    } finally {
+        restaurar();
+    }
+};
+
+// =========================================================================
+// 📦 2. REPORTE DE INVENTARIO
+// =========================================================================
+
+window.exportarInventarioExcel = async function() {
+    const token = localStorage.getItem("token");
+    const btn   = document.getElementById("btnExportarInventarioExcel");
+    const restaurar = window.btnLoading ? window.btnLoading(btn, "Generando...") : () => {};
+
+    try {
+        const resp = await fetch(`${window.ConfigInventario.URL}/productos`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al obtener productos");
+        const productos = await resp.json();
+
+        const XLSX = await import("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.mjs");
+
+        // Una fila por variante
+        const datos = [];
+        productos.forEach(p => {
+            const variantes = p.variantes || p.Variantes || [];
+            if (variantes.length === 0) {
+                datos.push({
+                    "Producto":       p.nombre || p.Nombre,
+                    "Categoría":      p.categoria || p.Categoria || "General",
+                    "Precio Costo":   p.precioCosto || p.PrecioCosto || 0,
+                    "Precio Venta":   p.precio || p.PrecioVenta || 0,
+                    "Talle":          "—",
+                    "Color":          "—",
+                    "Stock Actual":   0,
+                    "Stock Mínimo":   0,
+                    "Estado":         "SIN STOCK"
+                });
+            } else {
+                variantes.forEach(v => {
+                    const stock = v.stock || v.StockActual || 0;
+                    const min   = v.stockMinimo || v.StockMinimo || 2;
+                    datos.push({
+                        "Producto":       p.nombre || p.Nombre,
+                        "Categoría":      p.categoria || p.Categoria || "General",
+                        "Precio Costo":   p.precioCosto || p.PrecioCosto || 0,
+                        "Precio Venta":   p.precio || p.PrecioVenta || 0,
+                        "Talle":          v.talle || v.Talle,
+                        "Color":          v.color || v.Color,
+                        "Stock Actual":   stock,
+                        "Stock Mínimo":   min,
+                        "Estado":         stock === 0 ? "SIN STOCK" : stock <= min ? "CRÍTICO" : "OK"
+                    });
+                });
+            }
+        });
+
+        const hoja  = XLSX.utils.json_to_sheet(datos);
+        const libro = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(libro, hoja, "Inventario");
+        hoja["!cols"] = [
+            {wch:25},{wch:15},{wch:14},{wch:14},{wch:8},{wch:15},{wch:12},{wch:12},{wch:10}
+        ];
+
+        XLSX.writeFile(libro, `Inventario_SpaceTerminal_${fechaArchivo()}.xlsx`);
+        alert("✅ Reporte de inventario exportado a Excel.");
+
+    } catch (error) {
+        console.error("❌ Error Excel inventario:", error);
+        alert("❌ No se pudo generar el Excel.");
+    } finally {
+        restaurar();
+    }
+};
+
+window.exportarInventarioPDF = async function() {
+    const token = localStorage.getItem("token");
+    const btn   = document.getElementById("btnExportarInventarioPDF");
+    const restaurar = window.btnLoading ? window.btnLoading(btn, "Generando...") : () => {};
+
+    try {
+        const resp = await fetch(`${window.ConfigInventario.URL}/productos`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al obtener productos");
+        const productos = await resp.json();
+
+        let filas = "";
+        let totalVariantes = 0;
+        let sinStock = 0;
+        let criticos = 0;
+
+        productos.forEach(p => {
+            const variantes = p.variantes || p.Variantes || [];
+            variantes.forEach(v => {
+                totalVariantes++;
+                const stock = v.stock || v.StockActual || 0;
+                const min   = v.stockMinimo || v.StockMinimo || 2;
+                if (stock === 0) sinStock++;
+                else if (stock <= min) criticos++;
+
+                const estadoClass = stock === 0 ? "badge-rojo" : stock <= min ? "badge-amber" : "badge-verde";
+                const estadoText  = stock === 0 ? "SIN STOCK" : stock <= min ? "CRÍTICO" : "OK";
+
+                filas += `
+                    <tr>
+                        <td><strong>${p.nombre || p.Nombre}</strong></td>
+                        <td>${p.categoria || "General"}</td>
+                        <td>${v.talle || "—"} / ${v.color || "—"}</td>
+                        <td>$${Number(p.precioCosto || 0).toLocaleString("es-AR")}</td>
+                        <td>$${Number(p.precio || 0).toLocaleString("es-AR")}</td>
+                        <td style="text-align:center"><strong>${stock}</strong></td>
+                        <td style="text-align:center" class="${estadoClass}">${estadoText}</td>
+                    </tr>`;
+            });
+        });
+
+        const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+        <title>Inventario — Space Terminal</title>
+        <style>${estilosBasePDF()}</style></head><body>
+        <div class="header">
+            <div><h1>👕 Space Terminal</h1><h2>Reporte de Inventario</h2></div>
+            <div class="header-right">
+                <div>Generado: ${new Date().toLocaleString("es-AR")}</div>
+                <div>Productos: ${productos.length} | Variantes: ${totalVariantes}</div>
+            </div>
+        </div>
+        <div class="resumen">
+            <div class="resumen-item"><div class="label">Total variantes</div><div class="valor">${totalVariantes}</div></div>
+            <div class="resumen-item"><div class="label">Sin stock</div><div class="valor" style="color:#dc2626">${sinStock}</div></div>
+            <div class="resumen-item"><div class="label">Stock crítico</div><div class="valor" style="color:#d97706">${criticos}</div></div>
+            <div class="resumen-item"><div class="label">Stock OK</div><div class="valor" style="color:#16a34a">${totalVariantes - sinStock - criticos}</div></div>
+        </div>
+        <table>
+            <thead><tr><th>Producto</th><th>Categoría</th><th>Talle/Color</th><th>P.Costo</th><th>P.Venta</th><th>Stock</th><th>Estado</th></tr></thead>
+            <tbody>${filas}</tbody>
+        </table>
+        <div class="footer">Space Terminal — Sistema de Punto de Venta</div>
+        </body></html>`;
+
+        abrirVentanaImpresion(html, "Inventario");
+
+    } catch (error) {
+        console.error("❌ Error PDF inventario:", error);
+        alert("❌ No se pudo generar el PDF.");
+    } finally {
+        restaurar();
+    }
+};
+
+// =========================================================================
+// 💰 3. REPORTE DE CIERRE DE CAJA
+// =========================================================================
+
+window.exportarCajaExcel = async function() {
+    const token = localStorage.getItem("token");
+    const btn   = document.getElementById("btnExportarCajaExcel");
+    const restaurar = window.btnLoading ? window.btnLoading(btn, "Generando...") : () => {};
+
+    try {
+        const resp = await fetch(`${API_URL}/cierrecaja`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al obtener cierres");
+        const cierres = await resp.json();
+
+        const XLSX = await import("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.mjs");
+
+        const datos = cierres.map(c => ({
+            "Fecha":            new Date(c.fecha || c.Fecha).toLocaleString("es-AR"),
+            "Ventas":           c.cantidadVentas || c.CantidadVentas || 0,
+            "Efectivo ($)":     c.totalEfectivo  || c.TotalEfectivo  || 0,
+            "Transferencia ($)":c.totalTransferencia || c.TotalTransferencia || 0,
+            "Débito ($)":       c.totalDebito    || c.TotalDebito    || 0,
+            "Crédito ($)":      c.totalCredito   || c.TotalCredito   || 0,
+            "Total General ($)":c.totalGeneral   || c.TotalGeneral   || 0,
+            "Observaciones":    c.observaciones  || c.Observaciones  || ""
+        }));
+
+        const hoja  = XLSX.utils.json_to_sheet(datos);
+        const libro = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(libro, hoja, "Cierres de Caja");
+        hoja["!cols"] = [
+            {wch:22},{wch:8},{wch:14},{wch:16},{wch:12},{wch:12},{wch:16},{wch:30}
+        ];
+
+        XLSX.writeFile(libro, `CierreCaja_SpaceTerminal_${fechaArchivo()}.xlsx`);
+        alert("✅ Reporte de caja exportado a Excel.");
+
+    } catch (error) {
+        console.error("❌ Error Excel caja:", error);
+        alert("❌ No se pudo generar el Excel.");
+    } finally {
+        restaurar();
+    }
+};
+
+window.exportarCajaPDF = async function() {
+    const token = localStorage.getItem("token");
+    const btn   = document.getElementById("btnExportarCajaPDF");
+    const restaurar = window.btnLoading ? window.btnLoading(btn, "Generando...") : () => {};
+
+    try {
+        const resp = await fetch(`${API_URL}/cierrecaja`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!resp.ok) throw new Error("Error al obtener cierres");
+        const cierres = await resp.json();
+
+        const totalAcumulado = cierres.reduce((s, c) => s + (c.totalGeneral || c.TotalGeneral || 0), 0);
+
+        const filas = cierres.map(c => `
+            <tr>
+                <td>${new Date(c.fecha || c.Fecha).toLocaleString("es-AR")}</td>
+                <td style="text-align:center">${c.cantidadVentas || 0}</td>
+                <td>$${Number(c.totalEfectivo     || 0).toLocaleString("es-AR")}</td>
+                <td>$${Number(c.totalTransferencia|| 0).toLocaleString("es-AR")}</td>
+                <td>$${Number(c.totalDebito       || 0).toLocaleString("es-AR")}</td>
+                <td>$${Number(c.totalCredito      || 0).toLocaleString("es-AR")}</td>
+                <td class="badge-verde"><strong>$${Number(c.totalGeneral || 0).toLocaleString("es-AR")}</strong></td>
+            </tr>
+        `).join("");
+
+        const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+        <title>Cierres de Caja — Space Terminal</title>
+        <style>${estilosBasePDF()}</style></head><body>
+        <div class="header">
+            <div><h1>👕 Space Terminal</h1><h2>Historial de Cierres de Caja</h2></div>
+            <div class="header-right">
+                <div>Generado: ${new Date().toLocaleString("es-AR")}</div>
+                <div>Cierres registrados: ${cierres.length}</div>
+            </div>
+        </div>
+        <div class="resumen">
+            <div class="resumen-item"><div class="label">Cierres</div><div class="valor">${cierres.length}</div></div>
+            <div class="resumen-item"><div class="label">Total acumulado</div><div class="valor">$${Number(totalAcumulado).toLocaleString("es-AR")}</div></div>
+        </div>
+        <table>
+            <thead><tr><th>Fecha</th><th>Ventas</th><th>Efectivo</th><th>Transferencia</th><th>Débito</th><th>Crédito</th><th>Total</th></tr></thead>
+            <tbody>
+                ${filas}
+                <tr class="total-row"><td colspan="6">TOTAL ACUMULADO</td><td>$${Number(totalAcumulado).toLocaleString("es-AR")}</td></tr>
+            </tbody>
+        </table>
+        <div class="footer">Space Terminal — Sistema de Punto de Venta</div>
+        </body></html>`;
+
+        abrirVentanaImpresion(html, "Cierres de Caja");
+
+    } catch (error) {
+        console.error("❌ Error PDF caja:", error);
+        alert("❌ No se pudo generar el PDF.");
+    } finally {
+        restaurar();
+    }
+};
+
+// =========================================================================
+// 📝 1. DIBUJAR DISEÑO A4 DEL PRESUPUESTO (PREMIUM)
 // =========================================================================
 window.generarHTMLPresupuestoA4 = function(total, prendas, fecha, numeroPresupuestoReal = null) {
-    const config = JSON.parse(localStorage.getItem("configEmpresa")) || { nombreFantasia: "SPACE TERMINAL", razonSocial: "Indumentaria", cuit: "", direccion: "", telefono: "" };
-    let itemsHTML = prendas.map(item => `<tr><td>${item.productoNombre} (T:${item.talle})</td><td align="center">${item.cantidad}</td><td align="right">$${item.precioUnitario}</td><td align="right">$${item.cantidad*item.precioUnitario}</td></tr>`).join("");
-    return `<html><head><style>${estilosBasePDF()}</style></head><body><h2>PRESUPUESTO</h2><p>${config.nombreFantasia}</p><table><tr><th>Producto</th><th>Cant</th><th>Precio</th><th>Subtotal</th></tr>${itemsHTML}</table><h3>TOTAL: $${total}</h3></body></html>`;
-};
-
-window.generarPresupuesto = async function() {
-    if (carrito.length === 0) return alert("Carrito vacío.");
-    const inputCliente = document.getElementById("inputClienteVenta")?.value || "Consumidor Final";
-    const totalCarrito = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
-    const numPresupuesto = "PR-" + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-    const token = localStorage.getItem("token");
+    const fechaObj = new Date(fecha);
+    const fechaFormateada = fechaObj.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
     
-    try {
-        const resp = await fetch(`${API_URL}/presupuestos`, {
-            method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ numeroPresupuesto: numPresupuesto, clienteNombre: inputCliente, total: totalCarrito, detalles: carrito.map(i => ({ varianteId: i.id, cantidad: i.cantidad, precioUnitario: i.precio })) })
-        });
-        if (!resp.ok) throw new Error();
-        carrito = []; actualizarInterfazCarrito(); window.cerrarModalCobro();
-        alert("¡Presupuesto Generado Exitosamente!");
-    } catch { alert("Error al guardar presupuesto."); }
-};
+    const fechaVencimiento = new Date(fecha);
+    fechaVencimiento.setDate(fechaVencimiento.getDate() + 7);
+    const vencFormateada = fechaVencimiento.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-window.cargarPresupuestos = async function() { /* Carga presupuestos (Intacta) */ };
-window.renderizarTablaPresupuestos = function(lista) { /* Dibuja tabla (Intacta) */ };
-window.filtrarPresupuestos = function() { /* Buscador (Intacta) */ };
-window.retomarPresupuesto = async function(id) { /* Vuelve al carrito (Intacta) */ };
-window.reimprimirPresupuesto = async function(id) { /* Genera PDF (Intacta) */ };
+    // 🌟 MAGIA: Si el servidor nos dio un número real lo usamos, sino inventamos uno de emergencia
+    const nroPresupuesto = numeroPresupuestoReal || `PRE-${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;
+
+    // 🌟 PREPARACIÓN PARA EL MÓDULO EMPRESA
+    const config = JSON.parse(localStorage.getItem("configEmpresa")) || {
+        nombreFantasia: "SPACE TERMINAL",
+        razonSocial: "Indumentaria y Calzado",
+        cuit: "CUIT: 30-00000000-0",
+        direccion: "San Miguel de Tucumán",
+        telefono: "Tel: +54 381 000-0000",
+        logo: "" 
+    };
+
+    let logoHtml = config.logo 
+        ? `<img src="${config.logo}" style="max-height: 85px; object-fit: contain; margin-bottom: 10px;">`
+        : `<h1 style="margin: 0 0 5px 0; font-size: 32px; color: #0f172a; font-weight: 900; letter-spacing: -1px;">${config.nombreFantasia}</h1>`;
+
+    let itemsHTML = "";
+    prendas.forEach((item, index) => {
+        const subtotal = item.cantidad * item.precioUnitario;
+        const bg = index % 2 === 0 ? "#ffffff" : "#f8fafc"; // Filas cebra
+        itemsHTML += `
+            <tr style="background-color: ${bg}; border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 14px; font-size: 13px; color: #1e293b;">
+                    <strong style="font-size: 14px;">${item.productoNombre}</strong><br>
+                    <span style="font-size: 11px; color: #64748b;">Talle: ${item.talle} | Color: ${item.color}</span>
+                </td>
+                <td style="padding: 14px; font-size: 13px; text-align: center; color: #1e293b; font-weight: bold;">${item.cantidad}</td>
+                <td style="padding: 14px; font-size: 13px; text-align: right; color: #475569;">$${item.precioUnitario.toLocaleString("es-AR", {minimumFractionDigits: 2})}</td>
+                <td style="padding: 14px; font-size: 14px; text-align: right; font-weight: 800; color: #0f172a;">$${subtotal.toLocaleString("es-AR", {minimumFractionDigits: 2})}</td>
+            </tr>
+        `;
+    });
+
+    return `
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <title>Presupuesto ${nroPresupuesto}</title>
+            <style>
+                @page { size: A4; margin: 0; }
+                body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #cbd5e1; margin: 0; padding: 40px; display: flex; justify-content: center; }
+                .hoja { background: #ffffff; width: 100%; max-width: 794px; min-height: 1123px; padding: 60px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); box-sizing: border-box; position: relative; }
+                .ribbon { position: absolute; top: 0; left: 0; right: 0; height: 8px; background: linear-gradient(90deg, #4f46e5 0%, #0ea5e9 100%); }
+                .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 30px; margin-bottom: 35px; margin-top: 10px;}
+                .empresa-info p { margin: 3px 0; color: #64748b; font-size: 13px; }
+                .doc-info { text-align: right; }
+                .doc-info h2 { margin: 0 0 10px 0; font-size: 38px; color: #4f46e5; font-weight: 900; letter-spacing: 1px; }
+                .nro-box { display: inline-block; background: #f1f5f9; padding: 8px 16px; border-radius: 8px; font-size: 16px; font-weight: bold; color: #334155; border: 1px solid #e2e8f0;}
+                .grid-datos { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 40px; }
+                .dato-box { background: #f8fafc; padding: 15px 20px; border-radius: 10px; border-left: 4px solid #4f46e5; }
+                .dato-box span { display: block; font-size: 11px; text-transform: uppercase; color: #94a3b8; font-weight: 800; margin-bottom: 5px; }
+                .dato-box strong { font-size: 15px; color: #0f172a; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+                th { background: #0f172a; color: #ffffff; padding: 15px 14px; text-align: left; font-size: 12px; text-transform: uppercase; font-weight: 600; letter-spacing: 1px; }
+                th:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+                th:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; text-align: right; }
+                th:nth-child(2) { text-align: center; }
+                th:nth-child(3) { text-align: right; }
+                .totales { display: flex; justify-content: flex-end; }
+                .totales-box { width: 350px; background: #f8fafc; padding: 25px; border-radius: 12px; border: 1px solid #e2e8f0; }
+                .total-line { display: flex; justify-content: space-between; font-size: 15px; color: #475569; margin-bottom: 10px; }
+                .total-line.final { border-top: 2px dashed #cbd5e1; font-size: 24px; font-weight: 900; color: #4f46e5; padding-top: 15px; margin-top: 5px; margin-bottom: 0; }
+                .footer { margin-top: 60px; padding-top: 30px; border-top: 1px solid #e2e8f0; text-align: center; color: #64748b; font-size: 12px; }
+                @media print { body { background: white; padding: 0; display: block; } .hoja { box-shadow: none; padding: 15mm; } }
+            </style>
+        </head>
+        <body>
+            <div class="hoja">
+                <div class="ribbon"></div>
+                
+                <div class="header">
+                    <div class="empresa-info">
+                        ${logoHtml}
+                        <p><strong>${config.razonSocial}</strong></p>
+                        <p>${config.cuit}</p>
+                        <p>${config.direccion} | ${config.telefono}</p>
+                    </div>
+                    <div class="doc-info">
+                        <h2>PRESUPUESTO</h2>
+                        <div class="nro-box">N° ${nroPresupuesto}</div>
+                    </div>
+                </div>
+                
+                <div class="grid-datos">
+                    <div class="dato-box">
+                        <span>Fecha de Emisión</span>
+                        <strong>${fechaFormateada}</strong>
+                    </div>
+                    <div class="dato-box">
+                        <span>Válido Hasta</span>
+                        <strong>${vencFormateada}</strong>
+                    </div>
+                    <div class="dato-box">
+                        <span>Cliente</span>
+                        <strong>${document.getElementById('inputClienteVenta')?.value || "Consumidor Final"}</strong>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Descripción</th>
+                            <th>Cant.</th>
+                            <th>Precio Unit.</th>
+                            <th>Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHTML}
+                    </tbody>
+                </table>
+
+                <div class="totales">
+                    <div class="totales-box">
+                        <div class="total-line">
+                            <span>Subtotal:</span>
+                            <span>$${total.toLocaleString("es-AR", {minimumFractionDigits: 2})}</span>
+                        </div>
+                        <div class="total-line final">
+                            <span>TOTAL:</span>
+                            <span>$${total.toLocaleString("es-AR", {minimumFractionDigits: 2})}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="footer">
+                    <p>Los precios detallados en este documento se mantendrán vigentes únicamente hasta la fecha de validez indicada.</p>
+                    <p><strong>Este documento no es válido como factura ni comprobante de pago.</strong></p>
+                </div>
+            </div>
+            <script>
+                window.onload = () => { setTimeout(() => { window.print(); }, 800); };
+            </script>
+        </body>
+        </html>
+    `;
+};
 
 // =========================================================================
-// 🗂️ HISTORIAL VISUAL DE CIERRES DE CAJA Y MODALES
+// 💎 GENERADOR DE PRESUPUESTOS (Guarda en BD + PDF Premium)
+// =========================================================================
+window.generarPresupuesto = async function() {
+    // 1. Verificación de seguridad
+    if (carrito.length === 0) {
+        if (typeof window.toast !== 'undefined') window.toast.warning('El carrito está vacío.');
+        else alert("Carrito vacío. Agregá productos antes de crear un presupuesto.");
+        return;
+    }
+
+    // Datos del cliente y totales
+    const inputCliente = document.getElementById("inputClienteVenta")?.value || "Consumidor Final";
+    const totalCarrito = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+    const fechaActual = new Date().toLocaleDateString('es-AR');
+    
+    // Datos del usuario (Cajero/Sucursal)
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const sucursalCajero = usuarioLocal.sucursalId || 1;
+
+    // Generamos el número acá mismo
+    const numeroPresupuestoReal = "PR-" + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+
+    // 🌟 2. ARMAMOS EL PAQUETE PARA LA BASE DE DATOS
+    const payload = {
+        numeroPresupuesto: numeroPresupuestoReal,
+        clienteId: window.clienteSeleccionado || null,
+        clienteNombre: inputCliente,
+        sucursalId: sucursalCajero,
+        total: totalCarrito,
+        detalles: carrito.map(item => ({
+            varianteId: item.id,
+            cantidad: item.cantidad,
+            precioUnitario: item.precio,
+            sucursalId: item.sucursalId || sucursalCajero
+        }))
+    };
+
+    try {
+        // 🌟 3. ENVIAMOS AL BACKEND (API OFICIAL)
+        const token = localStorage.getItem("token");
+        const respuestaBD = await fetch(`${API_URL}/presupuestos`, {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${token}`, 
+                'Content-Type': 'application/json' 
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!respuestaBD.ok) {
+            const errorTexto = await respuestaBD.text();
+            throw new Error(errorTexto || `Error HTTP ${respuestaBD.status}`);
+        }
+
+        // 🌟 4. GENERACIÓN DEL PDF PREMIUM
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        const colorPrimario = [15, 23, 42]; 
+        const colorSecundario = [71, 85, 105]; 
+        const colorAcento = [99, 102, 241]; 
+        const colorLinea = [226, 232, 240];
+
+        // --- ENCABEZADO ---
+        doc.setFontSize(22);
+        doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+        doc.setFont("helvetica", "bold");
+        doc.text("SPACE TERMINAL", 14, 25); 
+
+        doc.setFontSize(10);
+        doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]);
+        doc.setFont("helvetica", "normal");
+        doc.text("Indumentaria & Accesorios", 14, 32);
+        doc.text("Av. Principal 123, Ciudad", 14, 37);
+
+        doc.setFontSize(20);
+        doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
+        doc.setFont("helvetica", "bold");
+        doc.text("PRESUPUESTO", 195, 25, { align: "right" });
+
+        doc.setFontSize(10);
+        doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]);
+        doc.text(`Fecha:`, 160, 32);
+        doc.text(`Comprobante Nº:`, 145, 37);
+        
+        doc.setFont("helvetica", "normal");
+        doc.text(fechaActual, 195, 32, { align: "right" });
+        doc.text(numeroPresupuestoReal, 195, 37, { align: "right" });
+
+        doc.setDrawColor(colorLinea[0], colorLinea[1], colorLinea[2]);
+        doc.line(14, 48, 195, 48);
+
+        // --- DATOS DEL CLIENTE ---
+        doc.setFontSize(11);
+        doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+        doc.setFont("helvetica", "bold");
+        doc.text("Preparado para:", 14, 56);
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "normal");
+        doc.text(inputCliente, 14, 63);
+
+        // --- TABLA ---
+        const columnas = [["CANT.", "DESCRIPCIÓN", "PRECIO UNIT.", "SUBTOTAL"]];
+        const filas = carrito.map(prod => [
+            prod.cantidad.toString(),
+            `${prod.nombre} (T:${prod.talle} - C:${prod.color})`,
+            `$${prod.precio.toLocaleString('es-AR')}`,
+            `$${(prod.precio * prod.cantidad).toLocaleString('es-AR')}`
+        ]);
+
+        doc.autoTable({
+            startY: 72,
+            head: columnas,
+            body: filas,
+            theme: 'grid',
+            headStyles: { fillColor: colorPrimario, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+            columnStyles: { 0: { halign: 'center', cellWidth: 20 }, 1: { halign: 'left' }, 2: { halign: 'right', cellWidth: 35 }, 3: { halign: 'right', cellWidth: 35 } },
+            styles: { fontSize: 10, cellPadding: 5, textColor: colorPrimario, lineColor: colorLinea, lineWidth: 0.1 },
+            alternateRowStyles: { fillColor: [248, 250, 252] }
+        });
+
+        // --- TOTALES ---
+        const finalY = doc.lastAutoTable.finalY || 70;
+        doc.setFillColor(241, 245, 249); 
+        doc.rect(120, finalY + 10, 75, 22, 'F');
+
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+        doc.text("TOTAL:", 125, finalY + 25);
+        
+        doc.setFontSize(16);
+        doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
+        doc.text(`$${totalCarrito.toLocaleString('es-AR')}`, 190, finalY + 25, { align: "right" });
+
+        // 🔥 NUEVO: PIE DE PÁGINA (FOOTER) 🔥
+        const pageHeight = doc.internal.pageSize.height || 297;
+        
+        // Línea divisoria inferior
+        doc.setDrawColor(colorLinea[0], colorLinea[1], colorLinea[2]);
+        doc.setLineWidth(0.5);
+        doc.line(14, pageHeight - 35, 195, pageHeight - 35);
+
+        // Textos legales (Itálica, grisesito)
+        doc.setFontSize(9);
+        doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]);
+        doc.setFont("helvetica", "italic");
+        doc.text("Los precios detallados en este documento se mantendrán vigentes por 15 días.", 105, pageHeight - 27, { align: "center" });
+        doc.text("Este documento es de carácter informativo y NO es válido como factura ni comprobante de pago.", 105, pageHeight - 22, { align: "center" });
+        
+        // Agradecimiento (Negrita, oscuro)
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+        doc.text("¡Gracias por elegirnos!", 105, pageHeight - 12, { align: "center" });
+
+        // Guardar archivo
+        doc.save(`Cotizacion_${numeroPresupuestoReal}.pdf`);
+
+        // 🌟 5. LIMPIEZA FINAL Y ÉXITO
+        carrito = []; 
+        
+        if (typeof actualizarInterfazCarrito === 'function') actualizarInterfazCarrito();
+        if (typeof filtrarProductos === 'function') filtrarProductos();
+        if (typeof window.cerrarModalCobro === 'function') window.cerrarModalCobro();
+        if (typeof cargarPresupuestos === 'function') cargarPresupuestos(); 
+
+        if (typeof window.toast !== 'undefined') window.toast.success("¡Presupuesto guardado y PDF generado!");
+        else alert("¡Presupuesto Generado Exitosamente!");
+
+    } catch (error) {
+        console.error("Error crítico al procesar presupuesto:", error);
+        
+        if (typeof window.toast !== 'undefined') {
+            window.toast.error(`❌ Error del servidor: ${error.message}`);
+        } else {
+            alert(`Error al guardar en el servidor: ${error.message}`);
+        }
+    }
+};
+
+// 🌟 INYECTOR DEL TELETRANSPORTADOR PARA ADMINISTRADORES (CORREGIDO Y RESPONSIVE)
+window.inicializarSelectorAdmin = function() {
+    const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+    const esAdmin = (usuarioLocal.Rol === "administrador" || usuarioLocal.rol === "administrador");
+
+    if (!esAdmin) return;
+
+    const cajaBusqueda = document.querySelector("#inputBuscador")?.parentElement;
+    
+    if (cajaBusqueda && !document.getElementById("teletransportadorAdmin")) {
+        cajaBusqueda.style.display = "flex";
+        cajaBusqueda.style.flexWrap = "wrap"; 
+        cajaBusqueda.style.gap = "10px";
+
+        const select = document.createElement("select");
+        select.id = "teletransportadorAdmin";
+        select.className = "bg-slate-900 border border-slate-700 text-indigo-400 text-[11px] font-bold uppercase tracking-wide rounded-xl px-3 py-2.5 cursor-pointer focus:outline-none focus:border-indigo-500 shadow-sm shadow-indigo-900/20";
+        select.style.maxWidth = "240px"; 
+
+        const sucursalActiva = localStorage.getItem("sucursalAdminActiva") || usuarioLocal.sucursalId || 1;
+
+        // 🔥 FIX: Acomodamos los IDs. Monteros es 1 (Casa Central) y San Miguel es 2.
+        select.innerHTML = `
+            <option value="1" ${Number(sucursalActiva) === 1 ? "selected" : ""}>✈️ Operando: Monteros</option>
+            <option value="2" ${Number(sucursalActiva) === 2 ? "selected" : ""}>✈️ Operando: San Miguel</option>
+        `;
+
+        cajaBusqueda.appendChild(select);
+
+        select.addEventListener("change", (e) => {
+            const nuevaSucursal = parseInt(e.target.value);
+            
+            localStorage.setItem("sucursalAdminActiva", nuevaSucursal);
+            usuarioLocal.sucursalId = nuevaSucursal;
+            localStorage.setItem("usuario", JSON.stringify(usuarioLocal));
+
+            carrito = [];
+            if (typeof actualizarInterfazCarrito === "function") actualizarInterfazCarrito();
+            if (typeof cargarProductos === "function") cargarProductos();
+
+            if (window.toast) {
+                window.toast.success("🔄 Te teletransportaste a: " + select.options[select.selectedIndex].text.replace("✈️ Operando: ", ""));
+            } else {
+                alert("🔄 Teletransportado a: " + select.options[select.selectedIndex].text.replace("✈️ Operando: ", ""));
+            }
+        });
+
+        if (Number(usuarioLocal.sucursalId) !== Number(sucursalActiva)) {
+            usuarioLocal.sucursalId = parseInt(sucursalActiva);
+            localStorage.setItem("usuario", JSON.stringify(usuarioLocal));
+        }
+    }
+};
+
+// =========================================================================
+// 🗂️ HISTORIAL VISUAL DE CIERRES DE CAJA (MODAL DINÁMICO)
 // =========================================================================
 window.verHistorialCierres = async function() {
     const token = localStorage.getItem("token");
     const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
     const sucursalActiva = localStorage.getItem("sucursalAdminActiva") || usuarioLocal.sucursalId || 1;
     
+    // Mostramos un mensajito de carga
     if(window.toast) window.toast.info("Cargando historial de cajas...");
 
     try {
@@ -1689,6 +3488,7 @@ window.verHistorialCierres = async function() {
         if (!respuesta.ok) throw new Error("Error al obtener cierres");
         const cierres = await respuesta.json();
 
+        // Armamos las filas de la tabla
         let filasHTML = "";
         if (cierres.length === 0) {
             filasHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-500 italic">No hay cierres de caja registrados en esta sucursal.</td></tr>`;
@@ -1714,6 +3514,7 @@ window.verHistorialCierres = async function() {
             });
         }
 
+        // Creamos el Modal Inyectado
         const modalHTML = `
         <div id="modalHistorialCajas" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
             <div class="bg-slate-900 border border-slate-800 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
@@ -1742,6 +3543,7 @@ window.verHistorialCierres = async function() {
         </div>
         `;
 
+        // Borramos si había uno viejo y agregamos el nuevo
         const viejo = document.getElementById("modalHistorialCajas");
         if (viejo) viejo.remove();
         document.body.insertAdjacentHTML("beforeend", modalHTML);
@@ -1764,9 +3566,10 @@ window.abrirModalCobro = function() {
     const modal = document.getElementById("modalOpcionesCobro");
     if (modal) {
         modal.classList.remove("hidden");
-        // 🔥 ESTAS TRES CLASES SON LAS QUE LO CENTRAN EN LA PANTALLA:
-        modal.classList.add("flex", "items-center", "justify-center"); 
+        modal.classList.add("flex");
     }
+
+    
 };
 
 window.ejecutarCobro = function(metodo) {
@@ -1780,8 +3583,169 @@ window.cerrarModalCobro = function() {
     const modal = document.getElementById("modalOpcionesCobro");
     if (modal) {
         modal.classList.add("hidden");
-        // 🔥 LE SACAMOS LAS CLASES AL CERRARLO PARA QUE NO SE ROMPA EL DISEÑO
-        modal.classList.remove("flex", "items-center", "justify-center");
+        modal.classList.remove("flex");
+    }
+};
+
+// =========================================================================
+// 📋 MÓDULO DE RECUPERACIÓN Y BÚSQUEDA DE PRESUPUESTOS
+// =========================================================================
+
+// Memoria global para filtrar al instante
+window.presupuestosMemoria = []; 
+
+window.cargarPresupuestos = async function() {
+    const tbody = document.getElementById("tablaPresupuestosBody");
+    if (!tbody) return;
+    
+    tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-500 animate-pulse text-sm">Cargando presupuestos...</td></tr>`;
+    
+    try {
+        const token = localStorage.getItem("token");
+        const usuarioLocal = JSON.parse(localStorage.getItem("usuario")) || {};
+        const sucursalActiva = localStorage.getItem("sucursalAdminActiva") || usuarioLocal.sucursalId || 1;
+
+        const respuesta = await fetch(`${API_URL}/presupuestos?sucursalId=${sucursalActiva}`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+
+        if (!respuesta.ok) throw new Error("Error al cargar presupuestos");
+        const presupuestos = await respuesta.json();
+        
+        window.presupuestosMemoria = presupuestos; // 🌟 Guardamos la copia para el buscador
+        window.renderizarTablaPresupuestos(window.presupuestosMemoria);
+
+    } catch (error) {
+        console.error(error);
+        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-rose-400 text-sm">Error de conexión al cargar presupuestos.</td></tr>`;
+    }
+};
+
+// 🌟 NUEVO: Separamos la lógica de dibujar la tabla para poder re-usarla al buscar
+window.renderizarTablaPresupuestos = function(lista) {
+    const tbody = document.getElementById("tablaPresupuestosBody");
+    if (!tbody) return;
+
+    if (!lista || lista.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-500 italic text-sm">No se encontraron presupuestos con ese criterio.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = lista.map(p => {
+        const fechaEmision = new Date(p.fechaEmision).toLocaleDateString("es-AR");
+        const fechaVenc = new Date(p.fechaVencimiento);
+        const vencimientoStr = fechaVenc.toLocaleDateString("es-AR");
+        
+        // Lógica inteligente de vencimiento
+        const hoy = new Date();
+        const estaVencido = hoy > fechaVenc && p.estado !== "Convertido";
+        
+        let badgeEstado = `<span class="bg-indigo-900/50 text-indigo-400 border border-indigo-700/50 px-2 py-0.5 rounded text-xs ml-2">Pendiente</span>`;
+        if (estaVencido) badgeEstado = `<span class="bg-rose-900/50 text-rose-400 border border-rose-700/50 px-2 py-0.5 rounded text-xs ml-2">Vencido</span>`;
+        if (p.estado === "Convertido") badgeEstado = `<span class="bg-emerald-900/50 text-emerald-400 border border-emerald-700/50 px-2 py-0.5 rounded text-xs ml-2">Vendido</span>`;
+
+        return `
+        <tr class="hover:bg-slate-900/50 transition-colors border-b border-slate-800">
+            <td class="p-4 font-bold text-white">${p.numeroPresupuesto} ${badgeEstado}</td>
+            <td class="p-4 text-slate-400 text-xs">${fechaEmision}</td>
+            <td class="p-4 text-slate-300 font-medium">${p.clienteNombre}</td>
+            <td class="p-4 text-slate-400 text-xs">${vencimientoStr}</td>
+            <td class="p-4 text-emerald-400 font-bold">$${Number(p.total).toLocaleString("es-AR")}</td>
+            <td class="p-4 text-center">
+                <div class="flex items-center justify-center gap-2">
+                  <button onclick="window.retomarPresupuesto(${p.id || p.Id})" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1 rounded-md text-sm font-semibold transition-colors shadow-sm flex items-center gap-1">
+                    🛒 Volcar al Carrito
+                  </button>
+                  <button onclick="window.reimprimirPresupuesto(${p.id || p.Id})" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded-md text-sm font-semibold transition-colors shadow-sm flex items-center gap-1">
+                   🖨️ PDF
+                 </button>
+                </div>
+            </td>
+        </tr>
+        `;
+    }).join("");
+};
+
+// 🌟 NUEVO: El motor de búsqueda que filtra mientras escribís
+window.filtrarPresupuestos = function() {
+    const input = document.getElementById("inputBuscarPresupuesto");
+    if (!input) return;
+    
+    const textoBuscado = input.value.toLowerCase().trim();
+    
+    const presupuestosFiltrados = window.presupuestosMemoria.filter(p => {
+        const numero = (p.numeroPresupuesto || "").toLowerCase();
+        const cliente = (p.clienteNombre || "").toLowerCase();
+        
+        return numero.includes(textoBuscado) || cliente.includes(textoBuscado);
+    });
+    
+    window.renderizarTablaPresupuestos(presupuestosFiltrados);
+};
+
+window.retomarPresupuesto = async function(id) {
+    try {
+        if(window.toast) window.toast.info("Recuperando datos del presupuesto...");
+        const token = localStorage.getItem("token");
+        const resp = await fetch(`${API_URL}/presupuestos/${id}`, { 
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        
+        if(!resp.ok) throw new Error("Error al obtener presupuesto");
+        const pres = await resp.json();
+        
+        // 🌟 ACÁ ESTÁ LA CLAVE 1: Memorizamos qué presupuesto estamos usando
+        window.presupuestoEnUso = id;
+        
+        // Vaciamos el carrito
+        carrito = [];
+        
+        // Llenamos el carrito buscando los nombres reales en el catálogo
+        const detallesReales = pres.detalles || pres.Detalles || pres.items || [];
+        detallesReales.forEach(det => {
+            const varId = det.varianteId || det.VarianteId;
+            let nombreReal = "Prenda Desconocida";
+            let talleReal = "-";
+            let colorReal = "-";
+            
+            // Buscamos la variante en el catálogo para sacar su nombre y talle real
+            for(let prod of productos) {
+                const vars = prod.variantes || prod.Variantes || [];
+                const varianteEncontrada = vars.find(v => (v.id || v.Id) === varId);
+                if(varianteEncontrada) {
+                    nombreReal = prod.nombre || prod.Nombre || "Prenda";
+                    talleReal = varianteEncontrada.talle || varianteEncontrada.Talle || "-";
+                    colorReal = varianteEncontrada.color || varianteEncontrada.Color || "-";
+                    break;
+                }
+            }
+
+            carrito.push({
+                id: varId,
+                nombre: nombreReal,
+                precio: det.precioUnitario || det.PrecioUnitario || det.precio, 
+                talle: talleReal,
+                color: colorReal,
+                cantidad: det.cantidad || det.Cantidad || 1,
+                sucursalId: pres.sucursalId || pres.SucursalId || 1
+            });
+        });
+
+        // Cargamos el cliente si es que lo hay
+        const inputCliente = document.getElementById("inputClienteVenta");
+        if(inputCliente && pres.clienteNombre && pres.clienteNombre !== "Consumidor Final") {
+            inputCliente.value = pres.clienteNombre;
+            window.clienteSeleccionado = pres.clienteId || null;
+        }
+
+        if (typeof window.cambiarPantalla === "function") window.cambiarPantalla('seccion-ventas');
+        window.actualizarInterfazCarrito();
+        
+        alert(`⚠️ ¡ATENCIÓN!\nEl presupuesto fue cargado en el ticket con los precios congelados.\n\nPor favor, verificá visualmente que las prendas sigan estando disponibles en el estante.`);
+
+    } catch (e) {
+        console.error(e);
+        alert("❌ Ocurrió un error al intentar volcar el presupuesto al carrito.");
     }
 };
 
@@ -1851,6 +3815,127 @@ document.addEventListener("keydown", function(e) {
     }
 });
 
+window.reimprimirPresupuesto = async function(idPresupuesto) {
+    try {
+        const token = localStorage.getItem("token");
+        if(window.toast) window.toast.info("Generando PDF...");
+        
+        const respuesta = await fetch(`${API_URL}/presupuestos/${idPresupuesto}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!respuesta.ok) throw new Error("No se pudo obtener el presupuesto desde el servidor.");
+        const presu = await respuesta.json();
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        const colorPrimario = [15, 23, 42]; 
+        const colorSecundario = [71, 85, 105]; 
+        const colorAcento = [99, 102, 241]; 
+        const colorLinea = [226, 232, 240];
+
+        doc.setFontSize(22);
+        doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+        doc.setFont("helvetica", "bold");
+        doc.text("SPACE TERMINAL", 14, 25); 
+
+        doc.setFontSize(10);
+        doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]);
+        doc.setFont("helvetica", "normal");
+        doc.text("Indumentaria & Accesorios", 14, 32);
+        doc.text("Av. Principal 123, Ciudad", 14, 37);
+
+        doc.setFontSize(20);
+        doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
+        doc.setFont("helvetica", "bold");
+        doc.text("PRESUPUESTO", 195, 25, { align: "right" });
+
+        const fechaC = presu.fechaEmision ? new Date(presu.fechaEmision).toLocaleDateString('es-AR') : new Date().toLocaleDateString('es-AR');
+
+        doc.setFontSize(10);
+        doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]);
+        doc.text(`Fecha:`, 160, 32);
+        doc.text(`Comprobante Nº:`, 145, 37);
+        
+        doc.setFont("helvetica", "normal");
+        doc.text(fechaC, 195, 32, { align: "right" });
+        doc.text(presu.numeroPresupuesto || `PRE-${presu.id}`, 195, 37, { align: "right" });
+
+        doc.setDrawColor(colorLinea[0], colorLinea[1], colorLinea[2]);
+        doc.line(14, 48, 195, 48);
+
+        doc.setFontSize(11);
+        doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+        doc.setFont("helvetica", "bold");
+        doc.text("Preparado para:", 14, 56);
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "normal");
+        doc.text(presu.clienteNombre || "Consumidor Final", 14, 63);
+
+        const detallesReales = presu.detalles || presu.Detalles || presu.items || [];
+        const columnas = [["CANT.", "DESCRIPCIÓN", "PRECIO UNIT.", "SUBTOTAL"]];
+        
+        // Magia para buscar los nombres acá también
+        const filas = detallesReales.map(det => {
+            const varId = det.varianteId || det.VarianteId;
+            let nReal = "Prenda"; let tReal = "-"; let cReal = "-";
+            for(let prod of productos) {
+                const vars = prod.variantes || prod.Variantes || [];
+                const v = vars.find(x => (x.id || x.Id) === varId);
+                if(v) {
+                    nReal = prod.nombre || prod.Nombre;
+                    tReal = v.talle || v.Talle;
+                    cReal = v.color || v.Color;
+                    break;
+                }
+            }
+            const cantidad = det.cantidad || det.Cantidad || 1;
+            const precio = det.precioUnitario || det.PrecioUnitario || det.precio || 0;
+            return [
+                cantidad.toString(),
+                `${nReal} (T:${tReal} - C:${cReal})`,
+                `$${precio.toLocaleString('es-AR')}`,
+                `$${(precio * cantidad).toLocaleString('es-AR')}`
+            ];
+        });
+
+        doc.autoTable({
+            startY: 72, head: columnas, body: filas, theme: 'grid',
+            headStyles: { fillColor: colorPrimario, textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+            columnStyles: { 0: { halign: 'center', cellWidth: 20 }, 1: { halign: 'left' }, 2: { halign: 'right', cellWidth: 35 }, 3: { halign: 'right', cellWidth: 35 } },
+            styles: { fontSize: 10, cellPadding: 5, textColor: colorPrimario, lineColor: colorLinea, lineWidth: 0.1 },
+            alternateRowStyles: { fillColor: [248, 250, 252] }
+        });
+
+        const finalY = doc.lastAutoTable.finalY || 70;
+        doc.setFillColor(241, 245, 249); doc.rect(120, finalY + 10, 75, 22, 'F');
+        doc.setFontSize(14); doc.setFont("helvetica", "bold"); doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+        doc.text("TOTAL:", 125, finalY + 25);
+        
+        const totalP = presu.total || presu.Total || 0;
+        doc.setFontSize(16); doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
+        doc.text(`$${totalP.toLocaleString('es-AR')}`, 190, finalY + 25, { align: "right" });
+
+        const pageHeight = doc.internal.pageSize.height || 297;
+        doc.setDrawColor(colorLinea[0], colorLinea[1], colorLinea[2]); doc.setLineWidth(0.5);
+        doc.line(14, pageHeight - 35, 195, pageHeight - 35);
+        doc.setFontSize(9); doc.setTextColor(colorSecundario[0], colorSecundario[1], colorSecundario[2]); doc.setFont("helvetica", "italic");
+        doc.text("Los precios detallados en este documento se mantendrán vigentes por 15 días.", 105, pageHeight - 27, { align: "center" });
+        doc.text("Este documento es de carácter informativo y NO es válido como factura ni comprobante de pago.", 105, pageHeight - 22, { align: "center" });
+        doc.setFontSize(11); doc.setFont("helvetica", "bold"); doc.setTextColor(colorPrimario[0], colorPrimario[1], colorPrimario[2]);
+        doc.text("¡Gracias por elegirnos!", 105, pageHeight - 12, { align: "center" });
+
+        doc.save(`Cotizacion_Reimpresa_${presu.numeroPresupuesto || idPresupuesto}.pdf`);
+        if(window.toast) window.toast.success("¡PDF generado correctamente!");
+
+    } catch (error) {
+        console.error(error);
+        if(window.toast) window.toast.error("Error al intentar generar el PDF.");
+        else alert("Hubo un error al generar el PDF.");
+    }
+};
+
 // ========================================================
 // CONTROLES DE CANTIDAD DEL CARRITO (Botones + y -)
 // ========================================================
@@ -1883,24 +3968,3 @@ window.cambiarCantidadManual = function(index, valorStr) {
     carrito[index].cantidad = nuevaCantidad;
     window.actualizarInterfazCarrito();
 };
-
-// ========================================================
-// 🚀 INICIALIZACIÓN AUTOMÁTICA DE LA APP
-// ========================================================
-document.addEventListener("DOMContentLoaded", async () => {
-    console.log("🚀 Página cargada por completo. Iniciando servicios...");
-    
-    try {
-        await cargarProductos();
-        console.log("✅ Catálogo inicializado con éxito.");
-    } catch (err) {
-        console.error("❌ Error crítico al cargar catálogo inicial:", err);
-    }
-
-    try {
-        await cargarHistorialVentas();
-        console.log("✅ Historial de ventas cargado.");
-    } catch (err) {
-        console.error("❌ Error crítico al cargar historial inicial:", err);
-    }
-});
